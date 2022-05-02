@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net5.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="Program.cs_" />
+    <None Remove="RabbitMQ.Client" />
+    <None Remove="UseCases\" />
+    <None Remove="UseCases\eShop\" />
+    <None Remove="RabbitMQ\" />
+    <None Remove="UseCases\eShop\Transactions\" />
+    <None Remove="UseCases\eShop\TransctionInput\" />
+    <None Remove="System.Text.Json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- <Compile Include="Program.cs_" /> -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="6.0.0" />
+    <PackageReference Include="Microsoft.Orleans.Core" Version="3.5.1" />
+    <PackageReference Include="RabbitMQ.Client" Version="6.2.4" />
+    <PackageReference Include="System.Text.Json" Version="6.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Common\Common.csproj" />
+    <ProjectReference Include="..\GrainInterfaces\GrainInterfaces.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="UseCases\" />
+    <Folder Include="UseCases\eShop\" />
+    <Folder Include="RabbitMQ\" />
+    <Folder Include="UseCases\eShop\Transactions\" />
+    <Folder Include="UseCases\eShop\TransactionInput\" />
+  </ItemGroup>
+</Project>

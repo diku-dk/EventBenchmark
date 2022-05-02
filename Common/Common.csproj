@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="Entities\" />
+    <None Remove="Entities\eShop\" />
+    <None Remove="YCSB\" />
+    <None Remove="Http\" />
+    <None Remove="Configuration\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Entities\" />
+    <Folder Include="Entities\eShop\" />
+    <Folder Include="YCSB\" />
+    <Folder Include="Http\" />
+    <Folder Include="Configuration\" />
+  </ItemGroup>
+</Project>
