@@ -1,10 +1,5 @@
-﻿using System;
-using RabbitMQ.Client;
+﻿using RabbitMQ.Client;
 using Orleans;
-using Orleans.Concurrency;
-using RabbitMQ.Client.Events;
-using System.Text;
-using System.Threading.Tasks;
 using System.Collections.Generic;
 using Common.Configuration;
 
@@ -76,83 +71,6 @@ namespace Client.RabbitMQ
             }
 
         }
-
-
-        private void InitOriginal()
-        {
-            string queue = "testQueue";
-
-            using (var connection = connectionFactory.CreateConnection())
-            using (var channel = connection.CreateModel())
-            {
-                var consumer = new EventingBasicConsumer(channel);
-
-                // AsyncEventBasicConsumer
-
-                channel.BasicConsume(consumer, queue);
-
-                _ = channel.QueueDeclare(queue: queue,
-                                 durable: true,
-                                 exclusive: false,
-                                 autoDelete: false,
-                                 arguments: null);
-
-
-                consumer.Received += (model, ea) =>
-                {
-                    var body = ea.Body.ToArray();
-                    var message = Encoding.UTF8.GetString(body);
-                    Console.WriteLine(" [x] Received {0}", message);
-                };
-
-                channel.BasicConsume(queue: "hello",
-                                     autoAck: true,
-                                     consumer: consumer);
-            }
-
-        }
-
-
-        //public void InitOriginal1()
-        //{
-
-        //    using var connection = connectionFactory.CreateConnection();
-        //    using var channel = connection.CreateModel();
-
-        //    int i = 0;
-        //    foreach (string queue in queues)
-        //    {
-
-        //        var consumer = new EventingBasicConsumer(channel);
-
-        //        channel.BasicConsume(consumer, queue);
-
-        //        _ = channel.QueueDeclare(queue: queue,
-        //                         durable: true,
-        //                         exclusive: false,
-        //                         autoDelete: false,
-        //                         arguments: null);
-
-
-        //        consumer.Received += (model, ea) =>
-        //        {
-        //            var body = ea.Body.ToArray();
-        //            var message = Encoding.UTF8.GetString(body);
-        //            Console.WriteLine(" [x] Received {0}", message);
-        //            receiver.ReceiveEvent(queues[i], message); // TODO test whether this works fine
-        //        };
-
-        //        channel.BasicConsume(queue: queue,
-        //                             autoAck: true,
-        //                             consumer: consumer);
-
-        //        i++;
-        //    }
-
-
-        //}
-
-
 
     }
 }

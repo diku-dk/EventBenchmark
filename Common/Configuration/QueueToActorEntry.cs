@@ -1,4 +1,4 @@
-﻿using System;
+﻿
 namespace Common.Configuration
 {
     public class QueueToActorEntry
@@ -6,7 +6,6 @@ namespace Common.Configuration
 
         public string queue { get; set; }
         public int actorId { get; set; }
-
 
     }
 }

@@ -1,4 +1,5 @@
-﻿using Common;
+﻿using Client.Configuration;
+using Common;
 using GrainInterfaces;
 using Microsoft.Extensions.Logging;
 using Orleans;
@@ -13,6 +14,7 @@ namespace Client
 
         public static int Main(string[] args)
         {
+            // TODO get configuration from args
             return RunMainAsync().Result;
         }
 
@@ -22,6 +24,7 @@ namespace Client
             using (var client = await ConnectClient())
             {
 
+                /*
                 // Create Token
                 Token token = new Token();
 
@@ -48,8 +51,21 @@ namespace Client
                 Dictionary<int, int> scoreboard = await leaderboardGrain.GetScoreboard();
 
                 Console.WriteLine($"The scoreboard after 10 seconds is [{scoreboard}]");
-                
+                */
+
+
+                // TODO setup grains with default or provided config
+
             }
+
+
+            DataGenerator dataGenerator = new DataGenerator();
+
+            // TODO bulk data ingestor grain... maybe not necessary now, just a thread pool with a thread per microservice....
+
+            // setup rabbitmq client after generating the data
+
+
 
             return 0;
         }

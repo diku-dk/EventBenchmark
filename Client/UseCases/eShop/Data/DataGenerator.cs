@@ -1,10 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using Common;
 using Common.Entities.eShop;
 
-namespace Grains
+namespace Client.Configuration
 {
     public class DataGenerator
     {

@@ -9,8 +9,6 @@
         public int MinItemQty { get; set; }
         public int MaxItemQty { get; set; }
 
-        public int NumTotalItems { get; set; }
-
         public string CartUrl { get; set; }
 
         public string UserId { get; set; }

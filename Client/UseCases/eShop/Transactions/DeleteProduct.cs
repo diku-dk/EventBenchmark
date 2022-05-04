@@ -8,7 +8,7 @@ using Common.YCSB;
 
 namespace Client.UseCases.eShop.Transactions
 {
-    public class PriceUpdate : ITransaction
+    public class DeleteProduct : ITransaction
     {
 
         private readonly NumberGenerator numberGenerator;
@@ -20,7 +20,7 @@ namespace Client.UseCases.eShop.Transactions
 
         private readonly CountdownEvent cte;
 
-        public PriceUpdate(NumberGenerator numberGenerator, PriceUpdateTransactionInput input)
+        public DeleteProduct(NumberGenerator numberGenerator, PriceUpdateTransactionInput input)
         {
             this.numberGenerator = numberGenerator;
             this.input = input;
@@ -29,7 +29,7 @@ namespace Client.UseCases.eShop.Transactions
             this.cte = new CountdownEvent(0);
         }
 
-        public PriceUpdate(NumberGenerator numberGenerator, PriceUpdateTransactionInput input, TimeSpan timeSpan) : this(numberGenerator, input)
+        public DeleteProduct(NumberGenerator numberGenerator, PriceUpdateTransactionInput input, TimeSpan timeSpan) : this(numberGenerator, input)
         {
             this.timeSpan = timeSpan;
             this.Waitable = true;
@@ -47,8 +47,6 @@ namespace Client.UseCases.eShop.Transactions
             {
 
                 int itemId = (int)numberGenerator.NextValue();
-
-                double newValue = random.NextDouble();
 
                 // TODO fix payload
                 HttpContent payload = null;

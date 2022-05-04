@@ -10,7 +10,7 @@ namespace Client.UseCases.eShop.Transactions
 
         }
 
-        public Task run()
+        public Task Run()
         {
             throw new NotImplementedException();
         }

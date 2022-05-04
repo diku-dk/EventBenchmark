@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Net.Http;
-using System.Threading;
 using System.Threading.Tasks;
 using Client.UseCases.eShop.TransactionInput;
 using Common.YCSB;
@@ -39,7 +38,7 @@ namespace Client.UseCases.eShop.Transactions
             this.Waitable = true;
         }
 
-        public async Task run()
+        public async Task Run()
         {
 
 
@@ -74,15 +73,16 @@ namespace Client.UseCases.eShop.Transactions
                 HttpContent payload = null;
 
                 listWaitAddCart[i] = client.PostAsync(input.CartUrl, payload);
-                if (Waitable) Thread.Sleep(timeSpan);
+                if (Waitable) await Task.Delay(timeSpan);// Thread.Sleep(timeSpan);  await timeSpan;
             }
 
             // wait for all
             Task.WaitAll(listWaitAddCart);
 
-            if (Waitable) Thread.Sleep(timeSpan);
-
-            
+            if (Waitable)
+            {
+                await Task.Delay(timeSpan);
+            }
 
             // now checkout
             HttpResponseMessage response = await client.PostAsync(input.CartUrl, null);

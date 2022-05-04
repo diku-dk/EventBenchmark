@@ -28,7 +28,7 @@ namespace Grains
         {
             var streamProvider = GetStreamProvider("SMSProvider");
             var stream = streamProvider.GetStream<RequestResult>(Constants.playerUpdatesStreamId, Constants.streamNamespace);
-            await stream.SubscribeAsync(UpdatePlayerScoreAsync);
+            // await stream.SubscribeAsync(UpdatePlayerScoreAsync);
         }
 
         // TODO should also be responsible for building the http request, this is stateless stuff
