@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,7 +7,7 @@ using Common.YCSB;
 
 namespace Client.UseCases.eShop.Transactions
 {
-    public class DeleteProduct : ITransaction
+    public class DeleteProduct
     {
 
         private readonly NumberGenerator numberGenerator;

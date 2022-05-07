@@ -1,6 +1,6 @@
 ﻿namespace Client.UseCases.eShop.TransactionInput
 {
-    public class DeleteProductTransactionInput
+    public class DeleteProductTransactionInput : IInput
     {
 
         public int NumTotalItems { get; set; }

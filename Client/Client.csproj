@@ -15,8 +15,8 @@
     <None Remove="UseCases\eShop\TransctionInput\" />
     <None Remove="System.Text.Json" />
     <None Remove="Configuration\" />
-    <None Remove="Workers\" />
     <None Remove="UseCases\eShop\Ingestion\" />
+    <None Remove="UseCases\eShop\Workers\" />
   </ItemGroup>
 
   <ItemGroup>
@@ -42,7 +42,7 @@
     <Folder Include="UseCases\eShop\Transactions\" />
     <Folder Include="UseCases\eShop\TransactionInput\" />
     <Folder Include="Configuration\" />
-    <Folder Include="Workers\" />
     <Folder Include="UseCases\eShop\Data\" />
+    <Folder Include="UseCases\eShop\Workers\" />
   </ItemGroup>
 </Project>

@@ -12,7 +12,7 @@ namespace Client.UseCases.eShop.Transactions
      * Adding several items accross a ttime span
      * And later checking out the order
      */
-    public class Checkout : ITransaction
+    public class Checkout 
     {
 
         private readonly NumberGenerator numberGenerator;
@@ -20,32 +20,24 @@ namespace Client.UseCases.eShop.Transactions
         private readonly HttpClient client;
 
         // do we have an average timespan between requests?
-        private readonly TimeSpan timeSpan;
-        private readonly bool Waitable;
+        public bool Waitable { get; set; }
+
+        // default random, instance not thread safe, so require creating a new instance
+        private Random random;
 
         public Checkout(NumberGenerator numberGenerator, CheckoutTransactionInput input)
         {
             this.numberGenerator = numberGenerator;
             this.input = input;
             this.client = new HttpClient();
-            this.Waitable = false;
-        }
-
-        public Checkout(NumberGenerator numberGenerator, CheckoutTransactionInput input, TimeSpan timeSpan)
-                    : this(numberGenerator, input)
-        {
-            this.timeSpan = timeSpan;
             this.Waitable = true;
+            this.random = new Random();
         }
 
-        public async Task Run()
+        public async Task<HttpResponseMessage> Run(string userId)// only parameter not shared across input
         {
 
-
-            // TODo adjust https://github.com/dotnet-architecture/eShopOnContainers/blob/59805331cd225fc876b9fc6eef3b0d82fda6bda1/src/Web/WebMVC/Infrastructure/API.cs#L17
-
-            // default random
-            var random = new Random();
+            // TODO adjust https://github.com/dotnet-architecture/eShopOnContainers/blob/59805331cd225fc876b9fc6eef3b0d82fda6bda1/src/Web/WebMVC/Infrastructure/API.cs#L17
 
             // define number of items in the cart
             long numberItems = random.Next(input.MinNumItems, input.MaxNumItems);
@@ -67,13 +59,12 @@ namespace Client.UseCases.eShop.Transactions
                 usedItemIds[itemId] = "";
 
                 int qty = random.Next(input.MinItemQty, input.MaxItemQty);
-                string userId = input.UserId;
 
                 // TODO build payload
                 HttpContent payload = null;
 
                 listWaitAddCart[i] = client.PostAsync(input.CartUrl, payload);
-                if (Waitable) await Task.Delay(timeSpan);// Thread.Sleep(timeSpan);  await timeSpan;
+                if (Waitable) await Task.Delay(new TimeSpan(random.Next(1000,10000)));
             }
 
             // wait for all
@@ -81,13 +72,11 @@ namespace Client.UseCases.eShop.Transactions
 
             if (Waitable)
             {
-                await Task.Delay(timeSpan);
+                await Task.Delay(new TimeSpan(random.Next(1000, 10000)));
             }
 
             // now checkout
-            HttpResponseMessage response = await client.PostAsync(input.CartUrl, null);
-
-            return;
+            return await client.PostAsync(input.CartUrl, null);
 
         }
 

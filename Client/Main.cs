@@ -59,7 +59,7 @@ namespace Client
             }
 
 
-            DataGenerator dataGenerator = new DataGenerator();
+            
 
             // TODO bulk data ingestor grain... maybe not necessary now, just a thread pool with a thread per microservice....
 

@@ -5,6 +5,8 @@ namespace Client.UseCases.eShop
     public interface ITransaction
     {
 
+        // private partial Task doSomething(NumberGenerator numberGenerator, PriceUpdateTransactionInput input, TimeSpan timeSpan) { }
+
         Task Run();
 
 

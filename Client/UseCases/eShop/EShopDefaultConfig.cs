@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using Client.Configuration;
 using Client.UseCases.eShop.Transactions;
 
 namespace Client.UseCases.eShop
@@ -35,6 +36,14 @@ namespace Client.UseCases.eShop
             return new List<TimeSpan> { new TimeSpan(2000) };
         }
 
+        List<string> IUseCaseConfig.GetTransactions()
+        {
+            throw new NotImplementedException();
+        }
 
+        public Distribution GetDistribution()
+        {
+            return Distribution.NORMAL;
+        }
     }
 }

@@ -1,6 +1,6 @@
 ﻿namespace Client.UseCases.eShop.TransactionInput
 {
-    public class CheckoutTransactionInput
+    public class CheckoutTransactionInput : IInput
     {
 
         public int MinNumItems { get; set; }
@@ -10,8 +10,6 @@
         public int MaxItemQty { get; set; }
 
         public string CartUrl { get; set; }
-
-        public string UserId { get; set; }
 
     }
 }

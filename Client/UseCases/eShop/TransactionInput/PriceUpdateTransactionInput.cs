@@ -1,6 +1,6 @@
 ﻿namespace Client.UseCases.eShop.TransactionInput
 {
-    public class PriceUpdateTransactionInput
+    public class PriceUpdateTransactionInput : IInput
     {
 
         public int NumTotalItems { get; set; }

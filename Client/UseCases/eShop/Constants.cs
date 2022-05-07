@@ -13,6 +13,7 @@ namespace Client.UseCases.eShop
         public const int MAX_ITEM_QTY = 10;
 
         public const int NUM_TOTAL_ITEMS = 100000;
+
         public const int DIST_PER_WARE = 10;
         public const int CUST_PER_DIST = 3000;
         public const int ORD_PER_DIST = 3000;

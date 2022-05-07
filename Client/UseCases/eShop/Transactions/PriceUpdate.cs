@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,7 +7,7 @@ using Common.YCSB;
 
 namespace Client.UseCases.eShop.Transactions
 {
-    public class PriceUpdate : ITransaction
+    public class PriceUpdate
     {
 
         private readonly NumberGenerator numberGenerator;
@@ -56,7 +55,7 @@ namespace Client.UseCases.eShop.Transactions
                 await client.PostAsync(input.CatalogUrl, payload);
 
 
-                if (Waitable) Thread.Sleep(timeSpan);
+                if (Waitable) await Task.Delay(timeSpan);
 
             }
 

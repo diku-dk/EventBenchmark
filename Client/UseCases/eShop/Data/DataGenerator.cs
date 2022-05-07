@@ -3,23 +3,66 @@ using System.Collections.Generic;
 using System.Linq;
 using Common.Entities.eShop;
 
-namespace Client.Configuration
+namespace Client.UseCases.eShop
 {
-    public class DataGenerator
+    public static class DataGenerator
     {
 
         const string numbers = "0123456789";
         const string alphanumeric = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
-        public DataGenerator()
+        public static List<CatalogItem> GenerateCatalogItems(int NumberOfItems)
         {
+            List<CatalogItem> items = new List<CatalogItem>(NumberOfItems);
+
+            for (int i = 1; i <= NumberOfItems; i++)
+            {
+
+                CatalogItem item = new CatalogItem
+                {
+                    Id = i,
+                    Name = RandomString(8, alphanumeric),
+                    Description = RandomString(8, alphanumeric),
+                    Price = (decimal)numeric(0, 100, false),
+                    PictureFileName = "",
+                    PictureUri = "",
+                    CatalogTypeId = i,
+
+                    CatalogType = new CatalogType
+                    {
+                        Id = i,
+                        Type = RandomString(8, alphanumeric)
+                    },
+
+                    CatalogBrandId = i,
+
+                    CatalogBrand = new CatalogBrand
+                    {
+                        Id = i,
+                        Brand = RandomString(8, alphanumeric)
+                    },
+
+                    AvailableStock = (int)numeric(Constants.MIN_STOCK_QTY, Constants.MAX_STOCK_QTY, false),
+                    RestockThreshold = Constants.MIN_STOCK_QTY,
+                    MaxStockThreshold = Constants.MAX_STOCK_QTY,
+                    OnReorder = false
 
 
+                };
 
 
+                //item.OldUnitPrice = item.UnitPrice;
+                //item.Quantity = numeric(10, false);
+                // item.PictureUrl = null;
+
+                items.Add(item);
+
+            }
+
+            return items;
         }
 
-        private List<BasketItem> GenerateItems(int NumberOfItems)
+        public static List<BasketItem> GenerateItems(int NumberOfItems)
         {
             List<BasketItem> items = new List<BasketItem>(NumberOfItems);
 
@@ -44,7 +87,7 @@ namespace Client.Configuration
             return items;
         }
 
-        private List<ApplicationUser> GenerateCustomers(int NumberOfCustomers)
+        public static List<ApplicationUser> GenerateCustomers(int NumberOfCustomers)
         {
 
             List<ApplicationUser> users = new List<ApplicationUser>(NumberOfCustomers);
