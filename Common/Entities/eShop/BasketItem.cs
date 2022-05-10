@@ -1,5 +1,4 @@
-﻿
-namespace Common.Entities.eShop
+﻿namespace Common.Entities.eShop
 {
     public class BasketItem
     {

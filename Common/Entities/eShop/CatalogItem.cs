@@ -1,5 +1,4 @@
-﻿using System;
-namespace Common.Entities.eShop
+﻿namespace Common.Entities.eShop
 {
     /**
      * https://github.com/dotnet-architecture/eShopOnContainers/blob/dev/src/Services/Catalog/Catalog.API/Model/CatalogItem.cs

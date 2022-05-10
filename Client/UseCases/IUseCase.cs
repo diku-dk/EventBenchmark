@@ -7,9 +7,13 @@ namespace Client.UseCases.eShop
     public interface IUseCaseConfig
     {
 
-        List<String> GetTransactions();
+        List<string> GetTransactions();
 
-        List<int> GetPercentageOfTransactions();
+        /**
+         * Each entry represents a tranasction
+         * Example: 3 entries, if one transaction for each entry, then each has 33% chance of being selected in a random selection
+         */
+        List<string> GetDistributionOfTransactions();
 
         List<TimeSpan> GetPeriodBetweenRequestsOfSameTransaction();
 
@@ -18,6 +22,8 @@ namespace Client.UseCases.eShop
         TimeSpan? TimeLimit(); // limit of time if applicable
 
         Distribution GetDistribution();
+
+        Dictionary<string, string> GetUrlMap();
 
     }
 }
