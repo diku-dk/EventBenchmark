@@ -16,7 +16,8 @@ namespace Client.RabbitMQ
         private readonly ConnectionFactory connectionFactory;
         private readonly IClusterClient ClusterClient;
 
-        public RabbitMQConsumerSetup(string host, int port, List<string> queues, IClusterClient clusterClient, Dictionary<string,QueueToActorEntry> queueToActorMap )
+        public RabbitMQConsumerSetup(string host, int port, List<string> queues,
+            IClusterClient clusterClient, Dictionary<string,QueueToActorEntry> queueToActorMap )
         {
             this.ClusterClient = clusterClient;
             this.connectionFactory = new ConnectionFactory() { HostName = host, Port = port };
@@ -56,7 +57,7 @@ namespace Client.RabbitMQ
             foreach (KeyValuePair<string, QueueToActorEntry> entry in queueToActorMap)
             {
 
-                var consumer = new CustomConsumer(channel, ClusterClient, entry.Value.actorId);
+                CustomConsumer consumer = new CustomConsumer(channel, ClusterClient, entry.Value.ActorId);
 
                 _ = channel.QueueDeclare(queue: entry.Key,
                                  durable: false,

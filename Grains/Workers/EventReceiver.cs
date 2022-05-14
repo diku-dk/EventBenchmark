@@ -1,19 +1,25 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
+using Common;
 using Common.Configuration;
 using GrainInterfaces.Workers;
 using Orleans;
+using Orleans.Concurrency;
+using Orleans.Streams;
 
 namespace Grains.Workers
 {
 
     /**
-     * 
+     * Responsible for dispatching events to actors.
+     * https://dotnet.github.io/orleans/docs/grains/stateless_worker_grains.html
      */
-
-    public class EventReceiver : Grain, IEventReceiver
+    [StatelessWorker]
+    public class EventReceiver : Grain, IEventProcessor
     {
+
+        private IAsyncStream<string> stream;
+
         public EventReceiver()
         {
             
@@ -31,7 +37,7 @@ namespace Grains.Workers
             Dictionary<int, QueueToStreamEntry> queueToStreamsMap;
 
             var streamProvider = GetStreamProvider("SMSProvider");
-            stream = streamProvider.GetStream<string>(Constants.playerUpdatesStreamId, Constants.streamNamespace);
+            this.stream = streamProvider.GetStream<string>(Constants.playerUpdatesStreamId, Constants.streamNamespace);
             return;
 
         }
@@ -42,6 +48,7 @@ namespace Grains.Workers
 
 
             // publish
+            _ = this.stream.OnNextAsync(value);
 
             return;
 

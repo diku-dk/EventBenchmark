@@ -1,4 +1,4 @@
-﻿using System;
+﻿
 namespace Grains.Workers
 {
     public class PaymentEventProcessor

@@ -17,6 +17,7 @@
     <None Remove="Configuration\" />
     <None Remove="UseCases\eShop\Ingestion\" />
     <None Remove="UseCases\eShop\Workers\" />
+    <None Remove="Infra\" />
   </ItemGroup>
 
   <ItemGroup>
@@ -44,5 +45,6 @@
     <Folder Include="Configuration\" />
     <Folder Include="UseCases\eShop\Data\" />
     <Folder Include="UseCases\eShop\Workers\" />
+    <Folder Include="Infra\" />
   </ItemGroup>
 </Project>

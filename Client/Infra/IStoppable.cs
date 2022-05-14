@@ -1,5 +1,4 @@
-﻿using System;
-namespace Client
+﻿namespace Client
 {
     public interface IStoppable
     {

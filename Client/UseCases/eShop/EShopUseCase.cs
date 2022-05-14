@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Net.Http;
-using System.Threading;
 using System.Threading.Tasks;
 using Client.Configuration;
+using Client.Infra;
 using Client.UseCases.eShop.TransactionInput;
 using Client.UseCases.eShop.Transactions;
 using Client.UseCases.eShop.Workers;
@@ -27,17 +27,16 @@ using Common.YCSB;
  */
 namespace Client.UseCases.eShop
 {
-    public class EShopUseCase : IStoppable
+    public class EShopUseCase : Stoppable
     {
 
         private readonly IUseCaseConfig Config;
 
-        private readonly CountdownEvent cde;
+        
 
-        public EShopUseCase(IUseCaseConfig Config)
+        public EShopUseCase(IUseCaseConfig Config) : base()
         {
             this.Config = Config;
-            this.cde = new CountdownEvent(1);
         }
 
         // the constructor are expected to be the same..
@@ -80,12 +79,18 @@ namespace Client.UseCases.eShop
             // TODO setup event listeners before submitting the transactions
 
 
+            // TODO create payment provider, a grain that will randomly accept or deny payments
+
 
             // now that data is stored, we can start the transacions
             RunTransactions(checkoutTransactionInput);
 
         }
 
+        /**
+         * TODO possibly use the holistic task scheduler
+         * 
+         */
         private void RunTransactions(CheckoutTransactionInput input)
         {
 
@@ -98,7 +103,7 @@ namespace Client.UseCases.eShop
 
             // build and run all transaction tasks
 
-            while (!cde.IsSet)
+            while (!IsStopped())
             {
 
                 int k = random.Next(0, n-1);
@@ -171,12 +176,6 @@ namespace Client.UseCases.eShop
             }
 
             return new ZipfianGenerator(Constants.NUM_TOTAL_ITEMS);
-        }
-
-
-        public void Stop()
-        {
-            cde.Signal();
         }
 
     }
