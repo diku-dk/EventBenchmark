@@ -3,8 +3,9 @@
     public enum Distribution
     {
 
-        NORMAL,
-        YCSB
+        NORMAL, // 
+        UNIFORM, // i.e., random
+        ZIPFIAN
 
     }
 }
