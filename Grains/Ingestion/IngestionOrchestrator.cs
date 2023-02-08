@@ -2,15 +2,11 @@
 using Common.Ingestion;
 using System.Threading.Tasks;
 using Orleans;
-using System.Text.Json;
 using Common.Ingestion.DTO;
 using System.Collections.Generic;
 using GrainInterfaces.Ingestion;
-using System.Runtime.ConstrainedExecution;
-using System.ComponentModel.Design;
-using Orleans.Concurrency;
-using System.Threading;
 using System.Linq;
+using Common.Ingestion.Schema;
 
 namespace Grains.Ingestion
 {
@@ -37,11 +33,15 @@ namespace Grains.Ingestion
         public async override Task OnActivateAsync()
         {
             this.status = Status.NEW;
+            Console.WriteLine("Ingestion orchestrator on activate!");
+            await base.OnActivateAsync();
             return;
         }
 
         public async Task Run(IngestionConfiguration config)
         {
+
+            Console.WriteLine("Ingestion orchestrator called!");
 
             if(this.status == Status.IN_PROGRESS) {
                 return;
@@ -61,7 +61,28 @@ namespace Grains.Ingestion
                 data = RealDataGenerator.Generate();
             }
 
-            if(config.partitioningStrategy == IngestionPartitioningStrategy.TABLE_PER_WORKER)
+            Console.WriteLine("Ingestion orchestrator data generated!");
+
+            if (config.partitioningStrategy == IngestionPartitioningStrategy.NONE)
+            {
+
+                List<IngestionBatch> batches = new List<IngestionBatch>();
+                foreach (var table in data.tables)
+                {
+                    string url = config.mapTableToUrl[table.Key];
+                    IngestionBatch ingestionBatch = new IngestionBatch()
+                    {
+                        url = url,
+                        data = table.Value
+                    };
+                    batches.Add(ingestionBatch);
+                }
+
+                IIngestionWorker worker = GrainFactory.GetGrain<IIngestionWorker>("NONE");
+                await worker.Send(batches);
+
+            }
+            else if (config.partitioningStrategy == IngestionPartitioningStrategy.TABLE_PER_WORKER)
             {
                 await runAsTablePerWorker(config, data);
                 // foreach (Task task in taskList) await task;
@@ -80,7 +101,7 @@ namespace Grains.Ingestion
                 {
                     int numberOfWorkers = config.numberCpus * 2;
                     int numberOfRecordsPerWorker = numberOfRecords / numberOfWorkers;
-                    var tableIterator = data.tables.Keys;
+               
                     List<Task> taskList = new List<Task>();
                     foreach (var table in data.tables)
                     {

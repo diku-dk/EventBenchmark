@@ -8,7 +8,7 @@ using Orleans;
 
 namespace Grains.Workers
 {
-    public class Customer : IGrain, ICustomer
+    public class Customer : Grain, ICustomer
     {
         private readonly HttpClient client = new HttpClient();
 
@@ -29,11 +29,16 @@ namespace Grains.Workers
             return;
         }
 
-        public Task Run(CustomerConfiguration config)
+        public async Task Run(CustomerConfiguration config)
         {
             this.config = config;
-            return Task.CompletedTask;
+
+            await Task.Delay(TimeSpan.FromSeconds(5));
+
+            return;
         }
+
+        // make these come from orleans streams
 
         public Task ReactToPaymentDenied()
         {

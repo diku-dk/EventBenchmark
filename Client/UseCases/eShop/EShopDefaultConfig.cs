@@ -45,5 +45,15 @@ namespace Client.UseCases.eShop
         {
             return Distribution.NORMAL;
         }
+
+        public List<string> GetDistributionOfTransactions()
+        {
+            throw new NotImplementedException();
+        }
+
+        public Dictionary<string, string> GetUrlMap()
+        {
+            throw new NotImplementedException();
+        }
     }
 }

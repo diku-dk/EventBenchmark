@@ -16,4 +16,5 @@ namespace Common.Ingestion
         public Dictionary<string, string> mapTableToUrl;
 
     }
+
 }

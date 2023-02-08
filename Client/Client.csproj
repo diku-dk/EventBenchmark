@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -14,15 +14,18 @@
     <None Remove="UseCases\eShop\Transactions\" />
     <None Remove="UseCases\eShop\TransctionInput\" />
     <None Remove="System.Text.Json" />
-    <None Remove="Configuration\" />
     <None Remove="UseCases\eShop\Ingestion\" />
     <None Remove="UseCases\eShop\Workers\" />
     <None Remove="Infra\" />
   </ItemGroup>
 
-  <ItemGroup>
-    <!-- <Compile Include="Program.cs_" /> -->
-  </ItemGroup>
+  <!--
+  <ItemGroup> <Compile Include="Program.cs_" />
+  
+    <Compile Remove="Configuration\**" />
+    <EmbeddedResource Remove="Configuration\**" />
+    <None Remove="Configuration\**" />
+  </ItemGroup> -->
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="6.0.0" />
@@ -41,7 +44,6 @@
     <Folder Include="RabbitMQ\" />
     <Folder Include="UseCases\eShop\Transactions\" />
     <Folder Include="UseCases\eShop\TransactionInput\" />
-    <Folder Include="Configuration\" />
     <Folder Include="UseCases\eShop\Data\" />
     <Folder Include="UseCases\eShop\Workers\" />
     <Folder Include="Infra\" />

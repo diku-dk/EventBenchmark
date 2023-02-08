@@ -56,17 +56,26 @@ namespace Grains.Ingestion
 
         public async Task Send(List<IngestionBatch> batches)
         {
+
+            Console.WriteLine("Batches received!");
+
             List<Task<HttpResponseMessage>> responses = new List<Task<HttpResponseMessage>>();
 
             foreach(IngestionBatch batch in batches) 
             { 
                 foreach (string payload in batch.data)
                 {
-                    responses.Add(client.PostAsJsonAsync(batch.url, payload));  // BuildPayload(payload)));
+                    // https://learn.microsoft.com/en-us/dotnet/orleans/grains/external-tasks-and-grains
+                    // https://stackoverflow.com/questions/10343632/httpclient-getasync-never-returns-when-using-await-async
+                    // https://blog.stephencleary.com/2012/07/dont-block-on-async-code.html
+                    // responses.Add(Task.Run(() => client.PostAsJsonAsync(batch.url, payload)));  // BuildPayload(payload)));
+                    await client.PostAsJsonAsync(batch.url, payload);
                 }
             }
 
-            await Task.WhenAll(responses);
+            Console.WriteLine("All http requests sent");
+
+            // await Task.WhenAll(responses);
 
             // foreach (Task<HttpResponseMessage> response in responses) await response;
 

@@ -1,7 +1,5 @@
-﻿using Client.Configuration;
-using Common;
-using GrainInterfaces;
-using Microsoft.Extensions.Logging;
+﻿using Common.Ingestion;
+using GrainInterfaces.Ingestion;
 using Orleans;
 using System;
 using System.Collections.Generic;
@@ -9,74 +7,76 @@ using System.Threading.Tasks;
 
 namespace Client
 {
+
+    /**
+     * Based on http://sergeybykov.github.io/orleans/1.5/Documentation/Deployment-and-Operations/Docker-Deployment.html
+     */
     public class Program
     {
 
-        public static int Main(string[] args)
+        private static bool running;
+
+        private static readonly IngestionConfiguration defaultIngestionConfig = new()
         {
-            // TODO get configuration from args
-            return RunMainAsync().Result;
+            dataNatureType = DataSourceType.SYNTHETIC,
+            partitioningStrategy = IngestionPartitioningStrategy.NONE,
+            numberCpus = 2,
+            mapTableToUrl = new Dictionary<string, string>()
+            {
+                ["test1"] = "127.0.0.1:8081/",
+                ["test2"] = "127.0.0.1:8081/",
+                ["warehouse"] = "127.0.0.1:8081/",
+                ["districts"] = "127.0.0.1:8081/",
+                ["items"] = "127.0.0.1:8081/",
+                ["customers"] = "127.0.0.1:8081/",
+                ["stockItems"] = "127.0.0.1:8081/",
+            }
+        };
+
+        static void Main(string[] args)
+        {
+            Task.Run(() => InitializeOrleans());
+
+            Console.ReadLine();
+
+            running = false;
         }
 
-        private static async Task<int> RunMainAsync()
+        static async Task InitializeOrleans()
         {
 
-            using (var client = await ConnectClient())
-            {
-
-                /*
-                // Create Token
-                Token token = new Token();
-
-                Console.WriteLine($"Token generated");
-
-                var random = new Random();
-
-                int startGrainId = random.Next(1, Constants.NumberOfPlayers);
-
-                Console.WriteLine($"Starter player is [{startGrainId}]");
-
-                var starterGrain = client.GetGrain<IPlayerGrain>(startGrainId);
-
-                // Console.WriteLine($"Toek event(s) to StreamId: [{sourceAccountLogId}, {outgoingStreamNamespace}]");
-
-                _ = starterGrain.PassToken(token);
-
-                Console.WriteLine($"First token passed! to player [{startGrainId}]");
-
-                await Task.Delay(TimeSpan.FromSeconds(10));
-
-                IScoreboardGrain leaderboardGrain = client.GetGrain<IScoreboardGrain>(0);
-
-                Dictionary<int, int> scoreboard = await leaderboardGrain.GetScoreboard();
-
-                Console.WriteLine($"The scoreboard after 10 seconds is [{scoreboard}]");
-                */
-
-
-                // TODO setup grains with default or provided config
-
-            }
-
-
+            var client = await ConnectClient();
             
+            var ingestionOrchestrator = client.GetGrain<IIngestionOrchestrator>(1);
+
+            Console.WriteLine("Ingestion orchestrator grain obtained.");
+
+            await ingestionOrchestrator.Run(defaultIngestionConfig);
+
+            Console.WriteLine("Ingestion orchestrator grain finished.");
+
+            // TODO setup grains with default or provided config
 
             // TODO bulk data ingestor grain... maybe not necessary now, just a thread pool with a thread per microservice....
 
             // setup rabbitmq client after generating the data
 
-
-
-            return 0;
+            await client.Close();
         }
 
         public static async Task<IClusterClient> ConnectClient()
         {
-            using var client = new ClientBuilder()
+            Console.WriteLine("Initializing...");
+
+            var client = new ClientBuilder()
                                 .UseLocalhostClustering()
                                 //.ConfigureLogging(logging => logging.AddConsole())
                                 .Build();
             await client.Connect();
+
+            running = true;
+            Console.WriteLine("Initialized!");
+
             return client;
         }
 
