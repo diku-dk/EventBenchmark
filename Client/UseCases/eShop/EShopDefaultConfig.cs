@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using Client.Configuration;
+using Common.Configuration;
 using Client.UseCases.eShop.Transactions;
 
 namespace Client.UseCases.eShop

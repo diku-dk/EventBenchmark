@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
-using Client.Configuration;
+using Common.Configuration;
 using Client.Infra;
 using Client.UseCases.eShop.TransactionInput;
 using Client.UseCases.eShop.Transactions;

@@ -10,10 +10,12 @@
     <None Remove="YCSB\" />
     <None Remove="Http\" />
     <None Remove="Configuration\" />
+    <None Remove="Customer\" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Entities\" />
     <Folder Include="Entities\eShop\" />
     <Folder Include="Http\" />
+    <Folder Include="Customer\" />
   </ItemGroup>
 </Project>

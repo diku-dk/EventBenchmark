@@ -10,7 +10,7 @@ namespace Client.UseCases.eShop
         List<string> GetTransactions();
 
         /**
-         * Each entry represents a tranasction
+         * Each entry represents a transaction
          * Example: 3 entries, if one transaction for each entry, then each has 33% chance of being selected in a random selection
          */
         List<string> GetDistributionOfTransactions();

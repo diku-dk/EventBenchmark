@@ -21,8 +21,10 @@
 
   <ItemGroup>
     <None Remove="Workers\" />
+    <None Remove="Scenario\" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Workers\" />
+    <Folder Include="Scenario\" />
   </ItemGroup>
 </Project>

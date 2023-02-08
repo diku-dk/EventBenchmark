@@ -8,7 +8,7 @@ using System.Text.Json;
 namespace Grains.Ingestion
 {
     /**
-     * 
+     * Based on TPC-C
      */
     public class SyntheticDataGenerator
     {
@@ -16,7 +16,9 @@ namespace Grains.Ingestion
         public class Constants {
             public const int NUM_W = 1;
             public const int NUM_D_PER_W = 10;
-            public const int NUM_C_PER_D = 3000;
+
+            // public const int NUM_C_PER_D = 3000;
+            public const int NUM_C_PER_D = 3;
 
             // public const int NUM_I = 100000;
             public const int NUM_I = 1;
@@ -26,7 +28,6 @@ namespace Grains.Ingestion
 
         const string numbers = "0123456789";
         const string alphanumeric = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-
 
         public static GeneratedData Generate()
         {

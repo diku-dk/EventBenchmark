@@ -1,4 +1,4 @@
-﻿namespace Client.Configuration
+﻿namespace Common.Configuration
 {
     public enum Distribution
     {

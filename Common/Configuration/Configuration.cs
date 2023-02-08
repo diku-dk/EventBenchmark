@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using Common.Configuration;
 
-namespace Client.Configuration
+namespace Common.Configuration
 {
     public class Configuration
     {

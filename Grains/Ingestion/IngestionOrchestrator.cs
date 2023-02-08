@@ -20,7 +20,7 @@ namespace Grains.Ingestion
      * cannot be stateless, since we have to make sure only one source grain is generating the data
      * One per microservice
      */
-    public class IngestionOrchestrator : Grain, IGrainWithIntegerKey
+    public class IngestionOrchestrator : Grain, IIngestionOrchestrator
     {
         // less than threshold, no need to partition
         private static int partitioningThreshold = 10;
@@ -64,9 +64,7 @@ namespace Grains.Ingestion
             if(config.partitioningStrategy == IngestionPartitioningStrategy.TABLE_PER_WORKER)
             {
                 await runAsTablePerWorker(config, data);
-
                 // foreach (Task task in taskList) await task;
-
             }
             else
             {
@@ -81,18 +79,45 @@ namespace Grains.Ingestion
                 else
                 {
                     int numberOfWorkers = config.numberCpus * 2;
-
                     int numberOfRecordsPerWorker = numberOfRecords / numberOfWorkers;
-
-                    List<string> records = new List<string>();
-
-                    int count = 0;
+                    var tableIterator = data.tables.Keys;
+                    List<Task> taskList = new List<Task>();
                     foreach (var table in data.tables)
                     {
-
-
+                        if(table.Value.Count > numberOfRecordsPerWorker)
+                        {
+                            int numberOfWorkersToAssign = table.Value.Count / numberOfRecordsPerWorker;
+                            int indexInit;
+                            for (int i = 0; i < numberOfWorkersToAssign; i++)
+                            {
+                                indexInit = i * numberOfRecordsPerWorker;
+                                IIngestionWorker worker = GrainFactory.GetGrain<IIngestionWorker>(table.Key + "_" + indexInit);
+                                IngestionBatch ingestionBatch = new IngestionBatch()
+                                {
+                                    url = config.mapTableToUrl[table.Key],
+                                    data = table.Value.GetRange(indexInit, indexInit + numberOfRecordsPerWorker)
+                                };
+                                taskList.Add(worker.Send(ingestionBatch));
+                            }
+                            // optimization is putting more records from other table in the last worker...
+                            // indexInit = (numberOfWorkersToAssign - 1) * numberOfRecordsPerWorker;
+                            // countForWorker = table.Value.Count - indexInit;
+                            
+                        }
+                        else
+                        {
+                            IIngestionWorker worker = GrainFactory.GetGrain<IIngestionWorker>(table.Key);
+                            IngestionBatch ingestionBatch = new IngestionBatch()
+                            {
+                                url = config.mapTableToUrl[table.Key],
+                                data = table.Value
+                            };
+                            taskList.Add(worker.Send(ingestionBatch));
+                        }
 
                     }
+
+                    await Task.WhenAll(taskList);
 
                 }
 
@@ -100,7 +125,7 @@ namespace Grains.Ingestion
 
 
             // TODO check correctness... make get requests looking for some random IDs. also total sql to count total of items ingested
-
+            
 
             this.status = Status.FINISHED;
 
