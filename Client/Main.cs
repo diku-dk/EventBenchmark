@@ -3,6 +3,8 @@ using GrainInterfaces.Ingestion;
 using Orleans;
 using System;
 using System.Collections.Generic;
+using System.Net.Http;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace Client
@@ -19,23 +21,40 @@ namespace Client
         private static readonly IngestionConfiguration defaultIngestionConfig = new()
         {
             dataNatureType = DataSourceType.SYNTHETIC,
-            partitioningStrategy = IngestionPartitioningStrategy.NONE,
+            partitioningStrategy = IngestionPartitioningStrategy.SINGLE_WORKER,
             numberCpus = 2,
             mapTableToUrl = new Dictionary<string, string>()
             {
-                ["test1"] = "127.0.0.1:8081/",
-                ["test2"] = "127.0.0.1:8081/",
-                ["warehouse"] = "127.0.0.1:8081/",
-                ["districts"] = "127.0.0.1:8081/",
-                ["items"] = "127.0.0.1:8081/",
-                ["customers"] = "127.0.0.1:8081/",
-                ["stockItems"] = "127.0.0.1:8081/",
+                ["test1"] = "http://127.0.0.1:8001/data",
+                ["test2"] = "http://127.0.0.1:8001/data",
+                ["warehouse"] = "http://127.0.0.1:8001/data",
+                ["districts"] = "http://127.0.0.1:8001/data",
+                ["items"] = "http://127.0.0.1:8001/data",
+                ["customers"] = "http://127.0.0.1:8001/data",
+                ["stockItems"] = "http://127.0.0.1:8001/data",
             }
         };
 
         static void Main(string[] args)
         {
             Task.Run(() => InitializeOrleans());
+
+            /*
+            HttpClient client = new HttpClient();
+            try
+            {
+                using HttpResponseMessage response = client.PostAsync("http://127.0.0.1:8001/data", new StringContent("TESTE", Encoding.UTF8, "application/json")).Result;
+                response.EnsureSuccessStatusCode();
+                Console.WriteLine("Here we are: " + response.StatusCode);
+                
+            }
+            catch (HttpRequestException e)
+            {
+                Console.WriteLine("\nException Caught!");
+                Console.WriteLine("Message :{0} ", e.Message);
+                Console.WriteLine(e.StatusCode.Value);
+            }
+            */
 
             Console.ReadLine();
 

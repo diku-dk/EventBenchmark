@@ -6,7 +6,6 @@ using Common.Ingestion.DTO;
 using System.Collections.Generic;
 using GrainInterfaces.Ingestion;
 using System.Linq;
-using Common.Ingestion.Schema;
 
 namespace Grains.Ingestion
 {
@@ -41,13 +40,13 @@ namespace Grains.Ingestion
         public async Task Run(IngestionConfiguration config)
         {
 
-            Console.WriteLine("Ingestion orchestrator called!");
-
             if(this.status == Status.IN_PROGRESS) {
-                return;
+                // return;
+                Console.WriteLine("Ingestion orchestrator called again in the same context!");
             }
             if(this.status == Status.NEW || this.status == Status.FINISHED)
             {
+                Console.WriteLine("Ingestion orchestrator called!");
                 this.status = Status.IN_PROGRESS;
             }
 
@@ -63,7 +62,7 @@ namespace Grains.Ingestion
 
             Console.WriteLine("Ingestion orchestrator data generated!");
 
-            if (config.partitioningStrategy == IngestionPartitioningStrategy.NONE)
+            if (config.partitioningStrategy == IngestionPartitioningStrategy.SINGLE_WORKER)
             {
 
                 List<IngestionBatch> batches = new List<IngestionBatch>();
@@ -85,7 +84,6 @@ namespace Grains.Ingestion
             else if (config.partitioningStrategy == IngestionPartitioningStrategy.TABLE_PER_WORKER)
             {
                 await runAsTablePerWorker(config, data);
-                // foreach (Task task in taskList) await task;
             }
             else
             {

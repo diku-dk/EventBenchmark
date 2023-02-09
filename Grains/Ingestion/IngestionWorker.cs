@@ -1,18 +1,12 @@
-﻿using Common.Configuration;
-using Common.Entities.eShop;
-using Common.Http;
-using Common.Ingestion;
+﻿using Common.Ingestion;
 using GrainInterfaces.Ingestion;
-using GrainInterfaces.Workers;
 using Orleans;
 using Orleans.Concurrency;
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Net;
 using System.Net.Http;
-using System.Net.Http.Json;
 using System.Text;
-using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace Grains.Ingestion
@@ -24,69 +18,79 @@ namespace Grains.Ingestion
     public class IngestionWorker : Grain, IIngestionWorker
     {
 
-        private readonly HttpClient client = new HttpClient();
+        // https://learn.microsoft.com/en-us/dotnet/api/system.net.http.httpclient?view=net-7.0
+        private static readonly HttpClient client = new HttpClient();
 
-        readonly String httpJsonContentType = "application/json";
+        private static readonly String httpJsonContentType = "application/json";
 
-        readonly System.Text.Encoding encoding = System.Text.Encoding.UTF8;
+        private static readonly Encoding encoding = Encoding.UTF8;
 
         public async override Task OnActivateAsync()
         {
-            
-            // this.client.
             return;
         }
 
         public async Task Send(IngestionBatch batch)
         {
-            List<Task<HttpResponseMessage>> responses = new List<Task<HttpResponseMessage>>();
-
-            foreach(string payload in batch.data)
-            {
-                responses.Add(client.PostAsJsonAsync(batch.url, payload) ); // PostAsync BuildPayload( payload ) ) );
-            }
-
+            List<Task<HttpStatusCode>> responses = RunBatch(batch);
             await Task.WhenAll(responses);
-
-            // foreach (Task<HttpResponseMessage> response in responses) await response;
-
             return;
-
         }
 
         public async Task Send(List<IngestionBatch> batches)
         {
 
-            Console.WriteLine("Batches received!");
+            Console.WriteLine("Batches received: "+ batches.Count);
 
-            List<Task<HttpResponseMessage>> responses = new List<Task<HttpResponseMessage>>();
+            List<Task<HttpStatusCode>> responses = new List<Task<HttpStatusCode>>();
 
             foreach(IngestionBatch batch in batches) 
-            { 
-                foreach (string payload in batch.data)
-                {
-                    // https://learn.microsoft.com/en-us/dotnet/orleans/grains/external-tasks-and-grains
-                    // https://stackoverflow.com/questions/10343632/httpclient-getasync-never-returns-when-using-await-async
-                    // https://blog.stephencleary.com/2012/07/dont-block-on-async-code.html
-                    // responses.Add(Task.Run(() => client.PostAsJsonAsync(batch.url, payload)));  // BuildPayload(payload)));
-                    await client.PostAsJsonAsync(batch.url, payload);
-                }
+            {
+                responses.AddRange(RunBatch(batch));
             }
 
             Console.WriteLine("All http requests sent");
 
-            // await Task.WhenAll(responses);
+            await Task.WhenAll(responses);
 
-            // foreach (Task<HttpResponseMessage> response in responses) await response;
+            Console.WriteLine("All responses received");
 
             return;
 
         }
 
+        private static List<Task<HttpStatusCode>> RunBatch(IngestionBatch batch)
+        {
+            List<Task<HttpStatusCode>> responses = new List<Task<HttpStatusCode>>();
+            foreach (string payload in batch.data)
+            {
+                // https://learn.microsoft.com/en-us/dotnet/orleans/grains/external-tasks-and-grains
+                // https://stackoverflow.com/questions/10343632/httpclient-getasync-never-returns-when-using-await-async
+                // https://blog.stephencleary.com/2012/07/dont-block-on-async-code.html
+                responses.Add(Task.Factory.StartNew(async () =>
+                {
+                    try
+                    {
+                        using HttpResponseMessage response = await client.PostAsync(batch.url, BuildPayload(payload));
+                        response.EnsureSuccessStatusCode();
+                        Console.WriteLine("Here we are: " + response.StatusCode);
+                        return response.StatusCode;
+                    }
+                    catch (HttpRequestException e)
+                    {
+                        Console.WriteLine("\nException Caught!");
+                        Console.WriteLine("Message: {0}", e.Message);
+                        return e.StatusCode.Value;
+                    }
+                }
+                ).Unwrap());
+            }
+            return responses;
+        }
 
         private static StringContent BuildPayload(string item)
         {
-            return new StringContent(item, Encoding.UTF8, "application/json");
+            return new StringContent(item, encoding, httpJsonContentType);
         }
 
     }
