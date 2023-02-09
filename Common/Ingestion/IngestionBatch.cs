@@ -15,5 +15,7 @@ namespace Common.Ingestion
         public string url;
         public List<string> data;
 
+        public BackPressureStrategy? backPressureStrategy;
+
     }
 }

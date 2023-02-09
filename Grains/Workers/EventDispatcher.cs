@@ -12,19 +12,15 @@ namespace Grains.Workers
 
     /**
      * Responsible for dispatching events to actors.
-     * https://dotnet.github.io/orleans/docs/grains/stateless_worker_grains.html
+     * It must be a stateful grain. Balance the number of this actor with the topics to consume.
+     * Something like 3 topics per grain.
      */
-    [StatelessWorker]
-    public class EventReceiver : Grain, IEventProcessor
+    public class EventDispatcher : Grain, IEventDispatcher
     {
 
         private IAsyncStream<string> stream;
 
-        public EventReceiver()
-        {
-            
-        }
-
+   
 
         public async override Task OnActivateAsync()
         {

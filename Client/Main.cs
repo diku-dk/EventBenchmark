@@ -22,13 +22,14 @@ namespace Client
         {
             dataNatureType = DataSourceType.SYNTHETIC,
             partitioningStrategy = IngestionPartitioningStrategy.SINGLE_WORKER,
+            backPressureStrategy = BackPressureStrategy.CONTROL,
             numberCpus = 2,
             mapTableToUrl = new Dictionary<string, string>()
             {
                 ["warehouse"] = "http://127.0.0.1:8001/data",
                 ["districts"] = "http://127.0.0.1:8001/data",
-                ["items"] = "http://127.0.0.1:8001/data"
-
+                ["items"] = "http://127.0.0.1:8001/data",
+                ["healthCheck"] = "http://127.0.0.1:8001/healthCheck"
                 /*
                 ["customers"] = "http://127.0.0.1:8001/data",
                 ["stockItems"] = "http://127.0.0.1:8001/data", */
@@ -75,8 +76,6 @@ namespace Client
             Console.WriteLine("Ingestion orchestrator grain finished.");
 
             // TODO setup grains with default or provided config
-
-            // TODO bulk data ingestor grain... maybe not necessary now, just a thread pool with a thread per microservice....
 
             // setup rabbitmq client after generating the data
 

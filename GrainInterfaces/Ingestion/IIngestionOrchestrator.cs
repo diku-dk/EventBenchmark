@@ -7,7 +7,7 @@ namespace GrainInterfaces.Ingestion
     public interface IIngestionOrchestrator : IGrainWithIntegerKey
     {
 
-        Task Run(IngestionConfiguration config);
+        Task<bool> Run(IngestionConfiguration config);
 
     }
 }

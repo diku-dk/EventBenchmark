@@ -16,6 +16,9 @@ namespace Grains.Scenario
             return;
         }
 
+        /**
+         * Later, to make more agnostic, receive as parameter a config builder
+         */
         public Task Run(CustomerConfiguration config)
         {
 
@@ -31,6 +34,8 @@ namespace Grains.Scenario
             // defines an initial rate of transaction submission. messathe workers if that changes over the workload.
 
             // sets up the service grain. for each external service, properly set the event listener
+            // https://www.google.com/search?client=firefox-b-d&q=grain+as+socket+server+orleans
+            // https://stackoverflow.com/questions/55021791/orleans-custom-tcp-socket-connection
 
             return Task.CompletedTask;
         }

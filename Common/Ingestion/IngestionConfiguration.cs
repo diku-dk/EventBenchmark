@@ -9,6 +9,7 @@ namespace Common.Ingestion
 
         public DataSourceType dataNatureType;
         public IngestionPartitioningStrategy partitioningStrategy;
+        public BackPressureStrategy backPressureStrategy;
 
         // number of logical processors = Environment.ProcessorCount
         public int numberCpus;

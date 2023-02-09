@@ -14,6 +14,7 @@ namespace Grains.Ingestion
 {
     /**
      * The unit of parallelism for data ingestion
+     * A dispatcher of HTTP POST requests
      */
     [StatelessWorker]
     public class IngestionWorker : Grain, IIngestionWorker
@@ -28,6 +29,8 @@ namespace Grains.Ingestion
 
         public async override Task OnActivateAsync()
         {
+            Console.WriteLine("Ingestion worker on activate!");
+            await base.OnActivateAsync();
             return;
         }
 
@@ -63,7 +66,21 @@ namespace Grains.Ingestion
             }
 
             Console.WriteLine("All responses received");
+
+            // TODO check correctness... make get requests looking for some random IDs. also total sql to count total of items ingested
+            CheckCorrectness();
+
             return;
+        }
+
+        /*
+         * Given PK of each table, sample records to verify correctness of the data
+         * Modify the return, from http status to the PK of the record
+         * Then make a get with the PK and compare with the submitted payload
+         */
+        private bool CheckCorrectness()
+        {
+            return true;
         }
 
         private static Task<HttpStatusCode>[] RunBatch(IngestionBatch batch)
@@ -82,15 +99,13 @@ namespace Grains.Ingestion
                         HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, batch.url);
                         message.Content = BuildPayload(payload);
                         using HttpResponseMessage response = client.Send(message);
-                        // response.EnsureSuccessStatusCode();
-                        // Console.WriteLine("Here we are: " + response.StatusCode);
                         return response.StatusCode;
                     }
                     catch (HttpRequestException e)
                     {
                         Console.WriteLine("\nException Caught!");
                         Console.WriteLine("Message: {0}", e.Message);
-                        return HttpStatusCode.ServiceUnavailable; // e.StatusCode.Value;
+                        return HttpStatusCode.ServiceUnavailable;
                     }
                 }
                 ));

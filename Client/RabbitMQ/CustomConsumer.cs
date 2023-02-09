@@ -10,11 +10,11 @@ namespace Client.RabbitMQ
     public class CustomConsumer : AsyncDefaultBasicConsumer
     {
 
-        private readonly IEventProcessor eventReceiver;
+        private readonly IEventDispatcher eventReceiver;
 
         public CustomConsumer(IModel model, IClusterClient client, int actorId) : base(model)
         {
-            this.eventReceiver = client.GetGrain<IEventProcessor>(actorId);
+            this.eventReceiver = client.GetGrain<IEventDispatcher>(actorId);
         }
 
 

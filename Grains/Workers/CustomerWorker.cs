@@ -8,7 +8,7 @@ using Orleans;
 
 namespace Grains.Workers
 {
-    public class Customer : Grain, ICustomer
+    public class CustomerWorker : Grain, ICustomerWorker
     {
         private readonly HttpClient client = new HttpClient();
 

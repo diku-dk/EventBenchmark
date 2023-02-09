@@ -6,21 +6,29 @@ using Common.Ingestion.DTO;
 using System.Collections.Generic;
 using GrainInterfaces.Ingestion;
 using System.Linq;
+using System.Net.Http;
 
 namespace Grains.Ingestion
 {
     /*
-     * orchestrates several grains
-     * partition the workloads across several statless grains to perform the work
-     * cannot be stateless, since we have to make sure only one source grain is generating the data
+     * Orchestrates several grains
+     * Partitions the workloads across several stateless grains to perform the work
+     * I cannot be stateless, since we have to make sure only one source grain is generating the data
      * One per microservice
      */
     public class IngestionOrchestrator : Grain, IIngestionOrchestrator
     {
+
+        private static readonly HttpClient client = new HttpClient();
+
         // less than threshold, no need to partition
         private readonly static int partitioningThreshold = 10;
 
-        private Status status;
+        private readonly static string healthCheckKey = "healthCheck";
+
+        GeneratedData data;
+
+        private Status status = Status.NEW;
 
         private enum Status
         {
@@ -31,42 +39,63 @@ namespace Grains.Ingestion
 
         public async override Task OnActivateAsync()
         {
-            this.status = Status.NEW;
             Console.WriteLine("Ingestion orchestrator on activate!");
             await base.OnActivateAsync();
             return;
         }
 
-        public async Task Run(IngestionConfiguration config)
+        public async Task<bool> Run(IngestionConfiguration config)
         {
 
-            if(this.status == Status.IN_PROGRESS) {
-                // return;
-                Console.WriteLine("Ingestion orchestrator called again in the same context!");
-            }
-            if(this.status == Status.NEW || this.status == Status.FINISHED)
+            if (this.status == Status.IN_PROGRESS)
             {
-                Console.WriteLine("Ingestion orchestrator called!");
+                // return;
+                Console.WriteLine("Ingestion orchestrator called again while in progress. Maybe bug?");
+                return false;
+            }
+            if (this.status == Status.FINISHED) {
+                Console.WriteLine("Ingestion orchestrator called again in the same context. Data will be reused.");
+            }
+
+            // health check. is the microservice online?
+            if (!config.mapTableToUrl.ContainsKey(healthCheckKey))
+            {
+                Console.WriteLine("It was not possible to find the healthcheck API " + healthCheckKey);
+                return false;
+            }
+
+            Console.WriteLine("Ingestion orchestrator called!");
+
+            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, config.mapTableToUrl[healthCheckKey]);
+            using HttpResponseMessage response = await Task.Run(() => client.SendAsync(message));
+            
+            Console.WriteLine("Health check status: "+response.StatusCode.ToString());
+            if(!response.IsSuccessStatusCode)
+            {
+                Console.WriteLine("Healthcheck failed");
+                return false;
+            }
+
+            if (this.status == Status.NEW || this.status == Status.FINISHED)
+            {
+                if(this.status == Status.NEW)
+                {
+                    if (config.dataNatureType == DataSourceType.SYNTHETIC)
+                    {
+                        data = SyntheticDataGenerator.Generate();
+                    }
+                    else
+                    {
+                        data = RealDataGenerator.Generate();
+                    }
+                    Console.WriteLine("Ingestion orchestrator data generated!");
+                }
                 this.status = Status.IN_PROGRESS;
             }
 
-            GeneratedData data;
-
-            if (config.dataNatureType == DataSourceType.SYNTHETIC) 
-            {
-                data = SyntheticDataGenerator.Generate();
-            } else
-            {
-                data = RealDataGenerator.Generate();
-            }
-
-            Console.WriteLine("Ingestion orchestrator data generated!");
-
             if (config.partitioningStrategy == IngestionPartitioningStrategy.SINGLE_WORKER)
             {
-
                 Console.WriteLine("Single worker will start");
-
                 List<IngestionBatch> batches = new List<IngestionBatch>();
                 foreach (var table in data.tables)
                 {
@@ -83,26 +112,23 @@ namespace Grains.Ingestion
                     };
                     batches.Add(ingestionBatch);
                 }
-
                 IIngestionWorker worker = GrainFactory.GetGrain<IIngestionWorker>("SINGLE_WORKER");
-
                 Console.WriteLine("Single worker will be dispatched");
                 await worker.Send(batches);
                 Console.WriteLine("Single worker finished");
             }
             else if (config.partitioningStrategy == IngestionPartitioningStrategy.TABLE_PER_WORKER)
             {
-                await runAsTablePerWorker(config, data);
+                await RunAsTablePerWorker(config, data);
             }
             else
             {
-
                 // https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/concepts/linq/
                 // https://stackoverflow.com/questions/11954608/count-values-in-dictionary-using-linq-and-linq-extensions
                 int numberOfRecords = data.tables.Values.Sum(list => list.Count);
                 if (numberOfRecords < partitioningThreshold)
                 {
-                    await runAsTablePerWorker(config, data);
+                    await RunAsTablePerWorker(config, data);
                 }
                 else
                 {
@@ -151,15 +177,12 @@ namespace Grains.Ingestion
 
             }
 
-
-            // TODO check correctness... make get requests looking for some random IDs. also total sql to count total of items ingested
-            
-
             this.status = Status.FINISHED;
 
+            return true;
         }
 
-        private async Task runAsTablePerWorker(IngestionConfiguration config, GeneratedData data)
+        private async Task RunAsTablePerWorker(IngestionConfiguration config, GeneratedData data)
         {
             List<Task> taskList = new List<Task>();
 
