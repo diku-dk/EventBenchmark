@@ -18,7 +18,7 @@ namespace Grains.Ingestion
     public class IngestionOrchestrator : Grain, IIngestionOrchestrator
     {
         // less than threshold, no need to partition
-        private static int partitioningThreshold = 10;
+        private readonly static int partitioningThreshold = 10;
 
         private Status status;
 
@@ -65,9 +65,16 @@ namespace Grains.Ingestion
             if (config.partitioningStrategy == IngestionPartitioningStrategy.SINGLE_WORKER)
             {
 
+                Console.WriteLine("Single worker will start");
+
                 List<IngestionBatch> batches = new List<IngestionBatch>();
                 foreach (var table in data.tables)
                 {
+                    if (!config.mapTableToUrl.ContainsKey(table.Key))
+                    {
+                        Console.WriteLine("It was not possible to find the data for table " + table.Key);
+                        continue;
+                    }
                     string url = config.mapTableToUrl[table.Key];
                     IngestionBatch ingestionBatch = new IngestionBatch()
                     {
@@ -77,9 +84,11 @@ namespace Grains.Ingestion
                     batches.Add(ingestionBatch);
                 }
 
-                IIngestionWorker worker = GrainFactory.GetGrain<IIngestionWorker>("NONE");
-                await worker.Send(batches);
+                IIngestionWorker worker = GrainFactory.GetGrain<IIngestionWorker>("SINGLE_WORKER");
 
+                Console.WriteLine("Single worker will be dispatched");
+                await worker.Send(batches);
+                Console.WriteLine("Single worker finished");
             }
             else if (config.partitioningStrategy == IngestionPartitioningStrategy.TABLE_PER_WORKER)
             {

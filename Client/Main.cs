@@ -25,13 +25,13 @@ namespace Client
             numberCpus = 2,
             mapTableToUrl = new Dictionary<string, string>()
             {
-                ["test1"] = "http://127.0.0.1:8001/data",
-                ["test2"] = "http://127.0.0.1:8001/data",
                 ["warehouse"] = "http://127.0.0.1:8001/data",
                 ["districts"] = "http://127.0.0.1:8001/data",
-                ["items"] = "http://127.0.0.1:8001/data",
+                ["items"] = "http://127.0.0.1:8001/data"
+
+                /*
                 ["customers"] = "http://127.0.0.1:8001/data",
-                ["stockItems"] = "http://127.0.0.1:8001/data",
+                ["stockItems"] = "http://127.0.0.1:8001/data", */
             }
         };
 

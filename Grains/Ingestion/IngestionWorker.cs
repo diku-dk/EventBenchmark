@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Grains.Ingestion
@@ -30,11 +31,12 @@ namespace Grains.Ingestion
             return;
         }
 
-        public async Task Send(IngestionBatch batch)
+        public Task Send(IngestionBatch batch)
         {
-            List<Task<HttpStatusCode>> responses = RunBatch(batch);
-            await Task.WhenAll(responses);
-            return;
+            Task<HttpStatusCode>[] response = RunBatch(batch);
+            Task.WaitAll(response);
+            // return;
+            return Task.CompletedTask;
         }
 
         public async Task Send(List<IngestionBatch> batches)
@@ -42,48 +44,59 @@ namespace Grains.Ingestion
 
             Console.WriteLine("Batches received: "+ batches.Count);
 
-            List<Task<HttpStatusCode>> responses = new List<Task<HttpStatusCode>>();
+            List<Task<HttpStatusCode>[]> responses = new List<Task<HttpStatusCode>[]>();
 
             foreach(IngestionBatch batch in batches) 
             {
-                responses.AddRange(RunBatch(batch));
+                responses.Add(RunBatch(batch));
             }
 
             Console.WriteLine("All http requests sent");
 
-            await Task.WhenAll(responses);
+            foreach (Task<HttpStatusCode>[] tasks in responses)
+            {
+                // TimeSpan timeout = TimeSpan.FromSeconds(5.0);
+                foreach (Task<HttpStatusCode> task in tasks) 
+                {
+                    await task; 
+                }
+            }
 
             Console.WriteLine("All responses received");
-
             return;
-
         }
 
-        private static List<Task<HttpStatusCode>> RunBatch(IngestionBatch batch)
+        private static Task<HttpStatusCode>[] RunBatch(IngestionBatch batch)
         {
-            List<Task<HttpStatusCode>> responses = new List<Task<HttpStatusCode>>();
+            Task<HttpStatusCode>[] responses = new Task<HttpStatusCode>[batch.data.Count];
+            int idx = 0;
             foreach (string payload in batch.data)
             {
                 // https://learn.microsoft.com/en-us/dotnet/orleans/grains/external-tasks-and-grains
                 // https://stackoverflow.com/questions/10343632/httpclient-getasync-never-returns-when-using-await-async
                 // https://blog.stephencleary.com/2012/07/dont-block-on-async-code.html
-                responses.Add(Task.Factory.StartNew(async () =>
+                responses[idx] = (Task.Run(() =>
                 {
                     try
                     {
-                        using HttpResponseMessage response = await client.PostAsync(batch.url, BuildPayload(payload));
-                        response.EnsureSuccessStatusCode();
-                        Console.WriteLine("Here we are: " + response.StatusCode);
+                        HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, batch.url);
+                        message.Content = BuildPayload(payload);
+                        using HttpResponseMessage response = client.Send(message);
+                        // response.EnsureSuccessStatusCode();
+                        // Console.WriteLine("Here we are: " + response.StatusCode);
                         return response.StatusCode;
                     }
                     catch (HttpRequestException e)
                     {
                         Console.WriteLine("\nException Caught!");
                         Console.WriteLine("Message: {0}", e.Message);
-                        return e.StatusCode.Value;
+                        return HttpStatusCode.ServiceUnavailable; // e.StatusCode.Value;
                     }
                 }
-                ).Unwrap());
+                ));
+
+                idx++;
+
             }
             return responses;
         }
