@@ -1,22 +1,33 @@
 ﻿using System;
+using System.Collections.Generic;
 using Common.Configuration;
 
 namespace Common.Customer
 {
-	public class CustomerConfiguration
+	public sealed class CustomerConfiguration
 	{
+        public readonly int maxNumberKeysToBrowse;
+        
+        public readonly Distribution keyDistribution;
 
-		Distribution keyDistribution;
+        // probability of a customer to checkout the cart
+        // public readonly Distribution checkoutDistribution;
 
-        // Dictionary<string,string> urls;
-        string url;
+        public readonly Range keyRange;
 
-        int numberKeysToBrowse;
+        // product, cart
+        public readonly Dictionary<string, string> urls;
 
-        int numberKeysToCheckout;
+        public readonly Range minMaxQtyRange;
 
-		Range timeBetweenRequestsRange;
+        public readonly int maxNumberKeysToAddToCart;
 
-	}
+        public readonly Range delayBetweenRequestsRange;
+
+        public readonly int delayBeforeStart;
+
+        public readonly Func<long, int, string> BuildCartItemPayloadFunc;
+
+    }
 }
 

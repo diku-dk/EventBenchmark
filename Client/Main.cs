@@ -1,4 +1,5 @@
 ﻿using Common.Ingestion;
+using Common.Ingestion.Worker;
 using GrainInterfaces.Ingestion;
 using Orleans;
 using System;

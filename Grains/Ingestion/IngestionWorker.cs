@@ -7,7 +7,6 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Grains.Ingestion
@@ -21,11 +20,16 @@ namespace Grains.Ingestion
     {
 
         // https://learn.microsoft.com/en-us/dotnet/api/system.net.http.httpclient?view=net-7.0
-        private static readonly HttpClient client = new HttpClient();
+        private static HttpClient client = new HttpClient();
 
-        private static readonly String httpJsonContentType = "application/json";
+        private static readonly string httpJsonContentType = "application/json";
 
         private static readonly Encoding encoding = Encoding.UTF8;
+
+        private static StringContent BuildPayload(string item)
+        {
+            return new StringContent(item, encoding, httpJsonContentType);
+        }
 
         public async override Task OnActivateAsync()
         {
@@ -34,12 +38,17 @@ namespace Grains.Ingestion
             return;
         }
 
-        public Task Send(IngestionBatch batch)
+        public async Task Send(IngestionBatch batch)
         {
-            Task<HttpStatusCode>[] response = RunBatch(batch);
-            Task.WaitAll(response);
-            // return;
-            return Task.CompletedTask;
+            Task<HttpStatusCode>[] tasks = RunBatch(batch);
+            await Task.WhenAll(tasks);
+            /*
+            foreach (Task<HttpStatusCode> task in tasks)
+            {
+                await task;
+            }
+            */
+            return;
         }
 
         public async Task Send(List<IngestionBatch> batches)
@@ -58,11 +67,13 @@ namespace Grains.Ingestion
 
             foreach (Task<HttpStatusCode>[] tasks in responses)
             {
-                // TimeSpan timeout = TimeSpan.FromSeconds(5.0);
+                await Task.WhenAll(tasks);
+                /*
                 foreach (Task<HttpStatusCode> task in tasks) 
                 {
                     await task; 
                 }
+                */
             }
 
             Console.WriteLine("All responses received");
@@ -83,7 +94,7 @@ namespace Grains.Ingestion
             return true;
         }
 
-        private static Task<HttpStatusCode>[] RunBatch(IngestionBatch batch)
+        private Task<HttpStatusCode>[] RunBatch(IngestionBatch batch)
         {
             Task<HttpStatusCode>[] responses = new Task<HttpStatusCode>[batch.data.Count];
             int idx = 0;
@@ -114,11 +125,6 @@ namespace Grains.Ingestion
 
             }
             return responses;
-        }
-
-        private static StringContent BuildPayload(string item)
-        {
-            return new StringContent(item, encoding, httpJsonContentType);
         }
 
     }

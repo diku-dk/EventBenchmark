@@ -1,6 +1,7 @@
 ﻿
 
 using System.Collections.Generic;
+using Common.Ingestion.Worker;
 
 namespace Common.Ingestion
 {
@@ -9,7 +10,7 @@ namespace Common.Ingestion
 
         public DataSourceType dataNatureType;
         public IngestionPartitioningStrategy partitioningStrategy;
-        public BackPressureStrategy backPressureStrategy;
+        public BackPressureStrategy? backPressureStrategy = BackPressureStrategy.NONE;
 
         // number of logical processors = Environment.ProcessorCount
         public int numberCpus;

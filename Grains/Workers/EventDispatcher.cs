@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Common;
 using Common.Configuration;
@@ -25,8 +26,6 @@ namespace Grains.Workers
         public async override Task OnActivateAsync()
         {
 
-            
-
             IMetadataService metadataService = GrainFactory.GetGrain<IMetadataService>(0);
 
             // TODO get all streams
@@ -34,8 +33,16 @@ namespace Grains.Workers
 
             var streamProvider = GetStreamProvider("SMSProvider");
             this.stream = streamProvider.GetStream<string>(Constants.playerUpdatesStreamId, Constants.streamNamespace);
+
+            // this.stream.SubscribeAsync(ReceiveEvent)
+
             return;
 
+        }
+
+        private Task ReceiveEvent(IList<SequentialItem<string>> arg)
+        {
+            throw new NotImplementedException();
         }
 
         public async Task ReceiveEvent(string value)

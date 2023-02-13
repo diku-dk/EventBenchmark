@@ -1,8 +1,5 @@
-﻿using System;
-using Orleans;
+﻿using Orleans;
 using GrainInterfaces.Scenario;
-using Common.Customer;
-using System.Net.NetworkInformation;
 using System.Threading.Tasks;
 
 namespace Grains.Scenario
@@ -19,7 +16,7 @@ namespace Grains.Scenario
         /**
          * Later, to make more agnostic, receive as parameter a config builder
          */
-        public Task Run(CustomerConfiguration config)
+        public Task Run()
         {
 
             // what do I need? the transactions. dictionary of name of transaction and percentage

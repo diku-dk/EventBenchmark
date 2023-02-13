@@ -4,7 +4,7 @@ namespace Common.YCSB
     public abstract class NumberGenerator
     {
 
-        private Int64 lastVal;
+        private long lastVal;
 
         protected Random random;
 
@@ -13,12 +13,12 @@ namespace Common.YCSB
             this.random = new Random();
         }
 
-        protected void SetLastValue(Int64 last)
+        protected void SetLastValue(long last)
         {
             this.lastVal = last;
         }
 
-        public Int64 lastValue()
+        public long lastValue()
         {
             return this.lastVal;
         }

@@ -3,19 +3,21 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Common.Ingestion.Worker;
 
 namespace Common.Ingestion
 {
-    /**
-     * Only for real data
-     */
+
     public class IngestionBatch
     {
 
         public string url;
+     
         public List<string> data;
 
-        public BackPressureStrategy? backPressureStrategy;
+        public BackPressureStrategy? backPressureStrategy = BackPressureStrategy.NONE;
+
+        public GroupRequestsStrategy? groupRequestsStrategy = GroupRequestsStrategy.TASK_PER_REQUEST;
 
     }
 }
