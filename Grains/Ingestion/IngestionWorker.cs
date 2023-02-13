@@ -1,4 +1,5 @@
-﻿using Common.Ingestion;
+﻿using Common.Http;
+using Common.Ingestion;
 using GrainInterfaces.Ingestion;
 using Orleans;
 using Orleans.Concurrency;
@@ -6,7 +7,6 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Grains.Ingestion
@@ -18,18 +18,6 @@ namespace Grains.Ingestion
     [StatelessWorker]
     public class IngestionWorker : Grain, IIngestionWorker
     {
-
-        // https://learn.microsoft.com/en-us/dotnet/api/system.net.http.httpclient?view=net-7.0
-        private static HttpClient client = new HttpClient();
-
-        private static readonly string httpJsonContentType = "application/json";
-
-        private static readonly Encoding encoding = Encoding.UTF8;
-
-        private static StringContent BuildPayload(string item)
-        {
-            return new StringContent(item, encoding, httpJsonContentType);
-        }
 
         public async override Task OnActivateAsync()
         {
@@ -108,8 +96,8 @@ namespace Grains.Ingestion
                     try
                     {
                         HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, batch.url);
-                        message.Content = BuildPayload(payload);
-                        using HttpResponseMessage response = client.Send(message);
+                        message.Content = HttpUtils.BuildPayload(payload);
+                        using HttpResponseMessage response = HttpUtils.client.Send(message);
                         return response.StatusCode;
                     }
                     catch (HttpRequestException e)

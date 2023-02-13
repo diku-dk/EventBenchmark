@@ -1,11 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Common;
 using Common.Configuration;
 using GrainInterfaces.Workers;
 using Orleans;
-using Orleans.Concurrency;
 using Orleans.Streams;
 
 namespace Grains.Workers
@@ -32,7 +30,7 @@ namespace Grains.Workers
             Dictionary<int, QueueToStreamEntry> queueToStreamsMap;
 
             var streamProvider = GetStreamProvider("SMSProvider");
-            this.stream = streamProvider.GetStream<string>(Constants.playerUpdatesStreamId, Constants.streamNamespace);
+            // this.stream = streamProvider.GetStream<string>(Constants.playerUpdatesStreamId, Constants.streamNamespace);
 
             // this.stream.SubscribeAsync(ReceiveEvent)
 

@@ -1,40 +1,116 @@
 ﻿using Orleans;
 using GrainInterfaces.Scenario;
 using System.Threading.Tasks;
+using Common.Scenario;
+using System;
+using System.Collections.Generic;
+using GrainInterfaces.Workers;
 
 namespace Grains.Scenario
 {
-	public class ScenarioOrchestrator : Grain, IScenarioOrchestrator
+
+    /*
+     * sets up the service grain. for each external service, properly set the event listener
+     *  https://www.google.com/search?client=firefox-b-d&q=grain+as+socket+server+orleans
+     *  https://stackoverflow.com/questions/55021791/orleans-custom-tcp-socket-connection
+     * 
+     */
+    public class ScenarioOrchestrator : Grain, IScenarioOrchestrator
     {
 
+        private bool running = true;
+
+        IDisposable timer;
+
+        Random random = new Random();
+
+        // 
+        Dictionary<TransactionType, long> nextIdPerTxType = new Dictionary<TransactionType, long>();
 
         public async override Task OnActivateAsync()
         {
+            foreach(TransactionType tx in Enum.GetValues(typeof(TransactionType)))
+            {
+                nextIdPerTxType.Add(tx, 0);
+            }
+            await base.OnActivateAsync();
             return;
         }
 
         /**
          * Later, to make more agnostic, receive as parameter a config builder
          */
-        public Task Run()
+        public async Task Init(ScenarioConfiguration scenarioConfiguration)
         {
 
-            // what do I need? the transactions. dictionary of name of transaction and percentage
-            // for each transaction, the distribution of keys. checkout will create many customer workers with this distribution.
-
             // setup timer according to the config passed. the timer defines the end of the experiment
+            this.timer = this.RegisterTimer(Finish, null, TimeSpan.FromSeconds(5), scenarioConfiguration.timeSpan);
 
-            // each type of transaction is submitted independently by a corresponding stateless? worker
+            // set customer config
 
-            // on timer, this actor messages them
 
-            // defines an initial rate of transaction submission. messathe workers if that changes over the workload.
+            switch(scenarioConfiguration.submissionStrategy) 
+            {
+                case SubmissionStrategy.BURST_THEN_CONTROL:
+                {
+                    int milli = DateTime.Now.Millisecond;
+                    int stopAt = milli + scenarioConfiguration.windowOrBurstTime;
 
-            // sets up the service grain. for each external service, properly set the event listener
-            // https://www.google.com/search?client=firefox-b-d&q=grain+as+socket+server+orleans
-            // https://stackoverflow.com/questions/55021791/orleans-custom-tcp-socket-connection
+                    List<Task> tasksSubmitted = new List<Task>();
+
+                    do {
+                        tasksSubmitted.Add(SubmitTransaction(scenarioConfiguration.weight));
+                    } while(DateTime.Now.Millisecond >= stopAt);
+
+                    Task completedTask = await Task.WhenAny(tasksSubmitted);
+                    while (this.running)
+                    {
+                        tasksSubmitted.Remove(completedTask);
+                        completedTask = await Task.WhenAny(tasksSubmitted);
+                    }
+                    
+                    break;
+                }
+                case SubmissionStrategy.ALL_AT_ONCE: 
+                {
+                    break;
+                }
+                case SubmissionStrategy.WINDOW: { break; }
+                default: { throw new Exception(); }
+            }
+
+            return;
+        }
+
+        private Task SubmitTransaction(TransactionType[] weight)
+        {
+            int idx = random.Next(0, weight.Length);
+            TransactionType tx = weight[idx];
+
+            // get from dictionary
+            long val = nextIdPerTxType[tx];
+            val++;
+            nextIdPerTxType[tx] = val;
+
+            switch (tx)
+            { 
+                case TransactionType.NEW_ORDER: 
+                {
+                    ICustomerWorker customerWorker = GrainFactory.GetGrain<ICustomerWorker>(val);
+                    return customerWorker.Run();
+                }
+
+            }
 
             return Task.CompletedTask;
+        }
+
+        private Task Finish(object arg)
+        {
+            this.running = false;
+            // dispose timer
+            this.timer.Dispose();
+            return Task.CompletedTask; 
         }
 
     }

@@ -1,5 +1,5 @@
-﻿using Common.Ingestion.DTO;
-using Common.Ingestion.Schema;
+﻿using Common.Entities.TPC_C;
+using Common.Ingestion.DTO;
 using System;
 using System.Collections.Generic;
 using System.Linq;

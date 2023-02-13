@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Common.Ingestion.Schema
+namespace Common.Entities.TPC_C
 {
 
     [Serializable]
@@ -90,7 +90,7 @@ namespace Common.Ingestion.Schema
         public int C_DELIVERY_CNT;
         public string C_DATA;
 
-        public Customer(int C_ID, int C_D_ID, int C_W_ID,  string C_FIRST, string C_MIDDLE, string C_LAST, string C_STREET_1, string C_STREET_2, string C_CITY, string C_STATE, string C_ZIP, string C_PHONE, DateTime C_SINCE, string C_CREDIT, float C_CREDIT_LIM, float C_DISCOUNT, float C_BALANCE, float C_YTD_PAYMENT, int C_PAYMENT_CNT, int C_DELIVERY_CNT, string C_DATA)
+        public Customer(int C_ID, int C_D_ID, int C_W_ID, string C_FIRST, string C_MIDDLE, string C_LAST, string C_STREET_1, string C_STREET_2, string C_CITY, string C_STATE, string C_ZIP, string C_PHONE, DateTime C_SINCE, string C_CREDIT, float C_CREDIT_LIM, float C_DISCOUNT, float C_BALANCE, float C_YTD_PAYMENT, int C_PAYMENT_CNT, int C_DELIVERY_CNT, string C_DATA)
         {
             this.C_ID = C_ID;
             this.C_D_ID = C_D_ID;
@@ -233,7 +233,7 @@ namespace Common.Ingestion.Schema
         public int S_REMOTE_CNT;
         public string S_DATA;
 
-        public Stock(int S_I_ID, int S_W_ID, int S_QUANTITY,  string S_DIST, int S_YTD, int S_ORDER_CNT, int S_REMOTE_CNT, string S_DATA)
+        public Stock(int S_I_ID, int S_W_ID, int S_QUANTITY, string S_DIST, int S_YTD, int S_ORDER_CNT, int S_REMOTE_CNT, string S_DATA)
         {
             this.S_I_ID = S_I_ID;
             this.S_W_ID = S_W_ID;
