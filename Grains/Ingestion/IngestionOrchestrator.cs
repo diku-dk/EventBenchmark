@@ -101,7 +101,7 @@ namespace Grains.Ingestion
                 {
                     if (!config.mapTableToUrl.ContainsKey(table.Key))
                     {
-                        Console.WriteLine("It was not possible to find the data for table " + table.Key);
+                        Console.WriteLine("It was not possible to find the URL for table " + table.Key);
                         continue;
                     }
                     string url = config.mapTableToUrl[table.Key];

@@ -54,7 +54,7 @@ namespace Client
                 urls = ingestionConfig.mapTableToUrl,
                 minMaxQtyRange = new Range(1, 11),
                 maxNumberKeysToAddToCart = 10,
-                delayBetweenRequestsRange = new Range(1, 10000),
+                delayBetweenRequestsRange = new Range(1, 1000),
                 delayBeforeStart = 1000,
                 streamProvider = StreamingConfiguration.defaultStreamProvider
             };
@@ -84,6 +84,8 @@ namespace Client
 
             // setup transaction orchestrator
             IScenarioOrchestrator scenarioOrchestrator = masterConfig.orleansClient.GetGrain<IScenarioOrchestrator>(0);
+
+            // await end of submission of transactions
             await scenarioOrchestrator.Run(scenarioConfiguration);
 
             // set up data collection for metrics

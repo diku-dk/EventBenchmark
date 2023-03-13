@@ -28,9 +28,9 @@ namespace Client
             numberCpus = 2,
             mapTableToUrl = new Dictionary<string, string>()
             {
-                ["warehouse"] = "http://127.0.0.1:8001/data",
-                ["districts"] = "http://127.0.0.1:8001/data",
-                ["items"] = "http://127.0.0.1:8001/data",
+                ["warehouse"] = "http://127.0.0.1:8001/warehouse",
+                ["districts"] = "http://127.0.0.1:8001/districts",
+                ["items"] = "http://127.0.0.1:8001/items",
                 ["healthCheck"] = "http://127.0.0.1:8001/healthCheck"
                 /*
                 ["customers"] = "http://127.0.0.1:8001/data",
@@ -42,7 +42,11 @@ namespace Client
         private static readonly ScenarioConfiguration defaultScenarioConfig = new()
         {
             weight = new TransactionType[] { TransactionType.CHECKOUT },
-            mapTableToUrl = defaultIngestionConfig.mapTableToUrl
+            mapTableToUrl = new Dictionary<string, string>()
+            {
+                ["product"] = "http://127.0.0.1:8001/product",
+                ["cart"] = "http://127.0.0.1:8001/cart",
+            }
         };
 
         public static async Task Main(string[] args)
@@ -63,6 +67,8 @@ namespace Client
 
             MasterOrchestrator orchestrator = new MasterOrchestrator(masterConfiguration, defaultIngestionConfig, defaultScenarioConfig);
             await orchestrator.Run();
+
+            Console.WriteLine("Master Orchestrator finished!");
 
             await client.Close();
 
@@ -85,7 +91,6 @@ namespace Client
                 Console.WriteLine(e.StatusCode.Value);
             }
             */
-
 
         }
 

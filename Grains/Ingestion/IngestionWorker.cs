@@ -96,6 +96,7 @@ namespace Grains.Ingestion
                     try
                     {
                         HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, batch.url);
+                        Console.WriteLine("Generating payload: {0}", payload);
                         message.Content = HttpUtils.BuildPayload(payload);
                         using HttpResponseMessage response = HttpUtils.client.Send(message);
                         return response.StatusCode;

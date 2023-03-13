@@ -3,6 +3,8 @@
   <PropertyGroup>
     <OutputType>Library</OutputType>
     <TargetFramework>net5.0</TargetFramework>
+	<ApplicationIcon />
+    <StartupObject />
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,7 +22,6 @@
   <ItemGroup>
     <None Remove="Workers\" />
     <None Remove="Scenario\" />
-    <None Remove="Microsoft.Orleans.CodeGenerator.MSBuild" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Scenario\" />

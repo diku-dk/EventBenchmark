@@ -22,7 +22,5 @@
     <ProjectReference Include="..\Common\Common.csproj" />
     <ProjectReference Include="..\GrainInterfaces\GrainInterfaces.csproj" />
   </ItemGroup>
-  <ItemGroup>
-    <None Remove="Newtonsoft.Json" />
-  </ItemGroup>
+
 </Project>

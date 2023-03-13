@@ -5,8 +5,6 @@ using Common.Scenario;
 using System;
 using System.Collections.Generic;
 using GrainInterfaces.Workers;
-using Common.Customer;
-using Common.Entities.TPC_C;
 
 namespace Grains.Scenario
 {
@@ -46,9 +44,9 @@ namespace Grains.Scenario
         {
 
             // setup timer according to the config passed. the timer defines the end of the experiment
-            this.timer = this.RegisterTimer(Finish, null, TimeSpan.FromSeconds(5), scenarioConfiguration.timeSpan);
+            this.timer = this.RegisterTimer(Tick, null, scenarioConfiguration.dueTime, scenarioConfiguration.period);
 
-            switch (scenarioConfiguration.submissionStrategy) 
+            switch (scenarioConfiguration.submissionStrategy)
             {
                 case SubmissionStrategy.BURST_THEN_CONTROL:
                 {
@@ -95,6 +93,7 @@ namespace Grains.Scenario
                 default: { throw new Exception(); }
             }
 
+            Console.WriteLine("Orchestrator main loop terminated.");
             return;
         }
 
@@ -128,7 +127,7 @@ namespace Grains.Scenario
             return Task.CompletedTask;
         }
 
-        private Task Finish(object _)
+        private Task Tick(object _)
         {
             Console.WriteLine("Submission of transactions will be terminated.");
             this.running = false;

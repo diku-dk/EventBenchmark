@@ -22,8 +22,11 @@ namespace Common.Scenario
         // how much time a window or burst may remain. in milliseconds
         public int windowOrBurstValue = 1000;
 
+        // period to wait before start
+        public TimeSpan dueTime = TimeSpan.FromSeconds(5);
+
         // a timer is configured to notify the orchestrator grain about the termination
-        public TimeSpan timeSpan = TimeSpan.FromSeconds(60);
+        public TimeSpan period = TimeSpan.FromSeconds(60);
 
         // e.g. 10 entries, new order has 7 entries and price update 3, meaning 70% probability of new order
         public TransactionType[] weight;

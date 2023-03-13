@@ -1,4 +1,5 @@
 ﻿using Common.Customer;
+using System.Threading.Tasks;
 using Orleans;
 
 namespace GrainInterfaces.Scenario
@@ -9,7 +10,7 @@ namespace GrainInterfaces.Scenario
         // Task<string> RetrieveAssignedQueue(int actorId);
 
         // allows decoupling scneario orchestrator with specific workers
-        CustomerConfiguration RetriveCustomerConfig();
+        Task<CustomerConfiguration> RetriveCustomerConfig();
 
         void RegisterCustomerConfig(CustomerConfiguration customerConfiguration);
 

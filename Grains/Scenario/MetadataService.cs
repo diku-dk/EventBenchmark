@@ -1,5 +1,6 @@
 ﻿using Common.Customer;
 using GrainInterfaces.Scenario;
+using System.Threading.Tasks;
 using Orleans;
 
 namespace Grains.Scenario
@@ -16,9 +17,9 @@ namespace Grains.Scenario
             this.customerConfiguration = customerConfiguration;
         }
 
-        public CustomerConfiguration RetriveCustomerConfig()
+        public Task<CustomerConfiguration> RetriveCustomerConfig()
         {
-            return customerConfiguration;
+            return Task.FromResult( customerConfiguration );
         }
     }
 }

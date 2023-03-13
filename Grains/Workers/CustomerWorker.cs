@@ -47,7 +47,7 @@ namespace Grains.Workers
             await base.OnActivateAsync();
             this.status = Status.NEW;
             IMetadataService metadataService = GrainFactory.GetGrain<IMetadataService>(0);
-            this.config = metadataService.RetriveCustomerConfig();
+            this.config = await metadataService.RetriveCustomerConfig();
             this.keyGenerator = this.config.keyDistribution == Distribution.UNIFORM ?
                 new UniformLongGenerator(this.config.keyRange.Start.Value, this.config.keyRange.End.Value) : 
                 new ZipfianGenerator(this.config.keyRange.Start.Value, this.config.keyRange.End.Value);
@@ -61,12 +61,13 @@ namespace Grains.Workers
 
         public async Task Run()
         {
-            
+            Console.WriteLine("Customer {0} started!", this.customerId);
+
             if(this.config.delayBeforeStart > 0) {
                 await Task.Delay(this.config.delayBeforeStart);
             }
 
-            int numberOfKeysToBrowse = random.Next(1, this.config.maxNumberKeysToBrowse);
+            int numberOfKeysToBrowse = random.Next(1, this.config.maxNumberKeysToBrowse + 1);
 
             // this dct must be numberOfKeysToCheckout
             ConcurrentDictionary<long, int> keyToQtyMap = new ConcurrentDictionary<long, int>(numberOfKeysToBrowse, numberOfKeysToBrowse);
@@ -106,7 +107,7 @@ namespace Grains.Workers
                         // is this customer checking out?
                         // decide whether should add to cart now, right after browsing (it helps spreading the requests)
 
-                        if (numberOfKeysToCheckout.CurrentCount > 0) // && random.Next(0, 2) > 0
+                        if (numberOfKeysToCheckout.CurrentCount > 0)
                         {
                             // mark this product as already added to cart
                             keyToQtyMap[entry.Key] = random.Next( this.config.minMaxQtyRange.Start.Value, this.config.minMaxQtyRange.End.Value);
@@ -150,6 +151,8 @@ namespace Grains.Workers
             {
                 Console.WriteLine("Customer " + customerId + " decided not to send a checkout!");
             }
+
+            Console.WriteLine("Customer {0} finished!", this.customerId);
 
             return;
         }

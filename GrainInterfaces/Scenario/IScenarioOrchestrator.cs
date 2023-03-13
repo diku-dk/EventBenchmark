@@ -1,5 +1,4 @@
-﻿using System;
-using Common.Scenario;
+﻿using Common.Scenario;
 using System.Threading.Tasks;
 using Orleans;
 
