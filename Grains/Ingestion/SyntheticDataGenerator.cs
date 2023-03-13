@@ -13,19 +13,6 @@ namespace Grains.Ingestion
     public class SyntheticDataGenerator
     {
 
-        public class Constants {
-            public const int NUM_W = 1;
-            public const int NUM_D_PER_W = 10;
-
-            // public const int NUM_C_PER_D = 3000;
-            public const int NUM_C_PER_D = 3;
-
-            // public const int NUM_I = 100000;
-            public const int NUM_I = 1;
-
-            public const int NUM_StockGrain_PER_W = 10000;
-        }
-
         const string numbers = "0123456789";
         const string alphanumeric = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -37,27 +24,27 @@ namespace Grains.Ingestion
             List<string> customers = new List<string>();
             List<string> stockItems = new List<string>();
 
-            for (int i = 1; i <= Constants.NUM_I; i++)
+            for (int i = 1; i <= TpccConstants.NUM_I; i++)
             {
                 items.Add(JsonSerializer.Serialize( GenerateItem(i) ));
             }
 
-            for (int w = 1; w <= Constants.NUM_W; w++)
+            for (int w = 1; w <= TpccConstants.NUM_W; w++)
             {
                 warehouses.Add(JsonSerializer.Serialize(GenerateWarehouseInfo(w)));
 
-                for (int d = 1; d <= Constants.NUM_D_PER_W; d++)
+                for (int d = 1; d <= TpccConstants.NUM_D_PER_W; d++)
                 {
                     districts.Add(JsonSerializer.Serialize(GenerateDistrictInfo(d,w)));
 
-                    for (int c = 0; c <= Constants.NUM_C_PER_D; c++)
+                    for (int c = 0; c <= TpccConstants.NUM_C_PER_D; c++)
                     {
                         customers.Add(JsonSerializer.Serialize(GenerateCustomer(c,d,w)));
                     }
 
                 }
 
-                for(int s = 1; s <= Constants.NUM_I; s++)
+                for(int s = 1; s <= TpccConstants.NUM_I; s++)
                 {
                     stockItems.Add(JsonSerializer.Serialize(
                     GenerateStockItem(s, w)) );
@@ -91,7 +78,7 @@ namespace Grains.Ingestion
         public static Dictionary<int, Item> GenerateItemTable()
         {
             var items = new Dictionary<int, Item>();
-            for (int i = 0; i < Constants.NUM_I; i++)
+            for (int i = 0; i < TpccConstants.NUM_I; i++)
             {
                 var I_ID = i;
                 items.Add(I_ID, GenerateItem(I_ID));
@@ -154,7 +141,7 @@ namespace Grains.Ingestion
         public static Dictionary<int, Customer> GenerateCustomerTable(int D_ID, int W_ID)
         {
             var customer_table = new Dictionary<int, Customer>();
-            for (int i = 0; i < Constants.NUM_C_PER_D; i++)
+            for (int i = 0; i < TpccConstants.NUM_C_PER_D; i++)
             {
                 var C_ID = i;
                 customer_table.Add(C_ID, GenerateCustomer(i, D_ID, W_ID));
@@ -167,7 +154,7 @@ namespace Grains.Ingestion
             var S_QUANTITY = numeric(4, true);
             // more in: https://github.com/AgilData/tpcc/blob/master/src/main/java/com/codefutures/tpcc/Load.java
             var S_DIST_DIC = new Dictionary<int, string>();
-            for (int d = 0; d < Constants.NUM_D_PER_W; d++) S_DIST_DIC.Add(d, RandomString(24, alphanumeric));
+            for (int d = 0; d < TpccConstants.NUM_D_PER_W; d++) S_DIST_DIC.Add(d, RandomString(24, alphanumeric));
             var S_DIST = JsonSerializer.Serialize(S_DIST_DIC);
             var S_YTD = numeric(8, false);
             var S_ORDER_CNT = numeric(4, false);
@@ -179,7 +166,7 @@ namespace Grains.Ingestion
         public static Dictionary<int, Stock> GenerateStockTable(int W_ID)
         {
             var stock = new Dictionary<int, Stock>();
-            var NUM_I_PER_PARTITION = Constants.NUM_I / Constants.NUM_StockGrain_PER_W;
+            var NUM_I_PER_PARTITION = TpccConstants.NUM_I / TpccConstants.NUM_StockGrain_PER_W;
             var minID = NUM_I_PER_PARTITION * W_ID;
             for (int i = 0; i < NUM_I_PER_PARTITION; i++)
             {

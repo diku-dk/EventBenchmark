@@ -3,7 +3,7 @@
     public enum TransactionType
     {
 
-        NEW_ORDER,
+        CHECKOUT,
         PRICE_UPDATE,
         STOCK_REPLENISMENT,
         DELETE_PRODUCT,

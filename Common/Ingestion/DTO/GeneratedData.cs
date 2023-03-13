@@ -6,16 +6,14 @@ using System.Threading.Tasks;
 
 namespace Common.Ingestion.DTO
 {
+    /*
+     * Just a wrapper to avoid passing a dictionary around
+     * classes
+     * 
+     */
     public class GeneratedData
     {
         public Dictionary<string, List<string>> tables;
 
-        /*
-        readonly List<Warehouse> warehouses;
-        readonly List<District> districts;
-        readonly Dictionary<int, Item> items;
-        readonly Dictionary<int, Customer> customers;
-        readonly Dictionary<int, Stock> stockItems;
-        */
     }
 }

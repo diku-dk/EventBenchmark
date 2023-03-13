@@ -4,30 +4,34 @@ using Common.Configuration;
 
 namespace Common.Customer
 {
+
 	public sealed class CustomerConfiguration
 	{
-        public readonly int maxNumberKeysToBrowse;
+        public int maxNumberKeysToBrowse;
         
-        public readonly Distribution keyDistribution;
+        public Distribution keyDistribution;
 
         // probability of a customer to checkout the cart
-        // public readonly Distribution checkoutDistribution;
+        public readonly int[] checkoutDistribution = new int[] { 1 };
 
-        public readonly Range keyRange;
+        public Range keyRange;
 
         // product, cart
-        public readonly Dictionary<string, string> urls;
+        public Dictionary<string, string> urls;
 
-        public readonly Range minMaxQtyRange;
+        public Range minMaxQtyRange;
 
-        public readonly int maxNumberKeysToAddToCart;
+        public int maxNumberKeysToAddToCart;
 
-        public readonly Range delayBetweenRequestsRange;
+        public Range delayBetweenRequestsRange;
 
-        public readonly int delayBeforeStart;
+        public int delayBeforeStart;
 
-        public readonly Func<long, int, string> BuildCartItemPayloadFunc;
+        // public Func<string, int, string> buildCartItemPayloadFunc;
 
+        public Guid streamId;
+
+        public string streamProvider;
     }
 }
 

@@ -11,5 +11,7 @@ namespace GrainInterfaces.Scenario
         // allows decoupling scneario orchestrator with specific workers
         CustomerConfiguration RetriveCustomerConfig();
 
+        void RegisterCustomerConfig(CustomerConfiguration customerConfiguration);
+
     }
 }

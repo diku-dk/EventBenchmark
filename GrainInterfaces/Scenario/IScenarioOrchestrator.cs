@@ -5,10 +5,10 @@ using Orleans;
 
 namespace GrainInterfaces.Scenario
 {
-	public interface IScenarioOrchestrator : IGrainWithStringKey
+	public interface IScenarioOrchestrator : IGrainWithIntegerKey
 	{
 
-        public Task Init(ScenarioConfiguration scenarioConfiguration);
+        public Task Run(ScenarioConfiguration scenarioConfiguration);
 
 
     }

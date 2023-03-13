@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <OutputType>Library</OutputType>
     <TargetFramework>net5.0</TargetFramework>
   </PropertyGroup>
 
@@ -11,11 +12,17 @@
     <None Remove="Http\" />
     <None Remove="Configuration\" />
     <None Remove="Customer\" />
+    <None Remove="Streaming\" />
+    <None Remove="Workload\" />
+    <None Remove="Workload\YCSB\" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Entities\" />
     <Folder Include="Entities\eShop\" />
     <Folder Include="Http\" />
     <Folder Include="Customer\" />
+    <Folder Include="Streaming\" />
+    <Folder Include="Workload\" />
+    <Folder Include="Workload\YCSB\" />
   </ItemGroup>
 </Project>

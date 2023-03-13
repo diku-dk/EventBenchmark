@@ -12,16 +12,15 @@ namespace Client.RabbitMQ
     public class RabbitMQConsumerSetup
     {
 
-        private readonly Dictionary<string, QueueToActorEntry> queueToActorMap;
+   
         private readonly ConnectionFactory connectionFactory;
         private readonly IClusterClient ClusterClient;
 
         public RabbitMQConsumerSetup(string host, int port, List<string> queues,
-            IClusterClient clusterClient, Dictionary<string,QueueToActorEntry> queueToActorMap )
+            IClusterClient clusterClient )
         {
             this.ClusterClient = clusterClient;
             this.connectionFactory = new ConnectionFactory() { HostName = host, Port = port };
-            this.queueToActorMap = queueToActorMap;
         }
 
         /*
@@ -54,11 +53,10 @@ namespace Client.RabbitMQ
             // AMQP 0-9-1 connections are multiplexed with channels that can be thought of as "lightweight connections that share a single TCP connection".
             // limiting the number of channels used per connection is highly recommended. As a rule of thumb, most applications can use a single digit number of channels per connection. 
 
+            /*
             foreach (KeyValuePair<string, QueueToActorEntry> entry in queueToActorMap)
             {
-
-                CustomConsumer consumer = new CustomConsumer(channel, ClusterClient, entry.Value.ActorId);
-
+                RabbitMQWorker consumer = new RabbitMQWorker(channel, ClusterClient, entry.Value.ActorId);
                 _ = channel.QueueDeclare(queue: entry.Key,
                                  durable: false,
                                  exclusive: false,
@@ -68,8 +66,8 @@ namespace Client.RabbitMQ
                 channel.BasicConsume(queue: entry.Key,
                                      autoAck: true,
                                      consumer: consumer);
-
             }
+            */
 
         }
 

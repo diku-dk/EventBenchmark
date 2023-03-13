@@ -15,8 +15,6 @@ namespace Common.Ingestion
      
         public List<string> data;
 
-        public BackPressureStrategy? backPressureStrategy = BackPressureStrategy.NONE;
-
         public GroupRequestsStrategy? groupRequestsStrategy = GroupRequestsStrategy.TASK_PER_REQUEST;
 
     }

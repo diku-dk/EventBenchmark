@@ -8,14 +8,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="PlayerGrain.cs_" />
-    <None Remove="Workers\" />
-    <None Remove="RabbitMQ.Client" />
-    <None Remove="System.Text.Json" />
-    <None Remove="Scenario\" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="6.0.0" />
     <PackageReference Include="Microsoft.Orleans.CodeGenerator.MSBuild" Version="3.5.1">
       <PrivateAssets>all</PrivateAssets>
@@ -23,6 +15,7 @@
     </PackageReference>
     <PackageReference Include="Microsoft.Orleans.Core.Abstractions" Version="3.5.1" />
     <PackageReference Include="System.Text.Json" Version="6.0.3" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 
   <ItemGroup>
@@ -30,6 +23,6 @@
     <ProjectReference Include="..\GrainInterfaces\GrainInterfaces.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="Scenario\" />
+    <None Remove="Newtonsoft.Json" />
   </ItemGroup>
 </Project>

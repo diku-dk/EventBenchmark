@@ -2,7 +2,7 @@
 
 namespace Client.Infra
 {
-    public class Stoppable
+    public class Stoppable : IStoppable, System.IDisposable
     {
 
         private readonly CountdownEvent cde;
@@ -17,10 +17,14 @@ namespace Client.Infra
             _ = cde.Signal();
         }
 
-        public bool IsStopped()
+        public bool IsRunning()
         {
-            return cde.IsSet;
+            return !cde.IsSet;
         }
 
+        public virtual void Dispose()
+        {
+            cde.Dispose();
+        }
     }
 }

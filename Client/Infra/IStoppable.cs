@@ -5,6 +5,7 @@
 
         public void Stop();
 
+        public bool IsRunning();
 
     }
 }

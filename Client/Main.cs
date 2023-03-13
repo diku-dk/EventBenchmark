@@ -1,7 +1,11 @@
-﻿using Common.Ingestion;
+﻿using Client.Server;
+using Common.Ingestion;
 using Common.Ingestion.Worker;
+using Common.Scenario;
+using Common.Streaming;
 using GrainInterfaces.Ingestion;
 using Orleans;
+using Orleans.Hosting;
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
@@ -17,13 +21,10 @@ namespace Client
     public class Program
     {
 
-        private static bool running;
-
         private static readonly IngestionConfiguration defaultIngestionConfig = new()
         {
             dataNatureType = DataSourceType.SYNTHETIC,
             partitioningStrategy = IngestionPartitioningStrategy.SINGLE_WORKER,
-            backPressureStrategy = BackPressureStrategy.CONTROL,
             numberCpus = 2,
             mapTableToUrl = new Dictionary<string, string>()
             {
@@ -33,13 +34,40 @@ namespace Client
                 ["healthCheck"] = "http://127.0.0.1:8001/healthCheck"
                 /*
                 ["customers"] = "http://127.0.0.1:8001/data",
-                ["stockItems"] = "http://127.0.0.1:8001/data", */
+                ["stockItems"] = "http://127.0.0.1:8001/data",
+                */
             }
         };
 
-        static void Main(string[] args)
+        private static readonly ScenarioConfiguration defaultScenarioConfig = new()
         {
-            Task.Run(() => InitializeOrleans());
+            weight = new TransactionType[] { TransactionType.CHECKOUT },
+            mapTableToUrl = defaultIngestionConfig.mapTableToUrl
+        };
+
+        public static async Task Main(string[] args)
+        {
+            Console.WriteLine("Initializing Mock Http server...");
+            HttpServer httpServer = new HttpServer();
+            Task httpServerTask = Task.Run(() => { httpServer.Run(); });
+
+            Console.WriteLine("Initializing Orleans client...");
+            var client = await ConnectClient();
+            Console.WriteLine("Orleans client initialized!");
+
+            MasterConfiguration masterConfiguration = new()
+            {
+                orleansClient = client,
+                streamEnabled = false
+            };
+
+            MasterOrchestrator orchestrator = new MasterOrchestrator(masterConfiguration, defaultIngestionConfig, defaultScenarioConfig);
+            await orchestrator.Run();
+
+            await client.Close();
+
+            httpServer.Stop();
+            await httpServerTask;
 
             /*
             HttpClient client = new HttpClient();
@@ -58,44 +86,21 @@ namespace Client
             }
             */
 
-            Console.ReadLine();
 
-            running = false;
-        }
-
-        static async Task InitializeOrleans()
-        {
-
-            var client = await ConnectClient();
-            
-            var ingestionOrchestrator = client.GetGrain<IIngestionOrchestrator>(1);
-
-            Console.WriteLine("Ingestion orchestrator grain obtained.");
-
-            await ingestionOrchestrator.Run(defaultIngestionConfig);
-
-            Console.WriteLine("Ingestion orchestrator grain finished.");
-
-            // TODO setup grains with default or provided config
-
-            // setup rabbitmq client after generating the data
-
-            await client.Close();
         }
 
         public static async Task<IClusterClient> ConnectClient()
         {
-            Console.WriteLine("Initializing...");
-
             var client = new ClientBuilder()
                                 .UseLocalhostClustering()
                                 //.ConfigureLogging(logging => logging.AddConsole())
+                                .AddSimpleMessageStreamProvider(StreamingConfiguration.defaultStreamProvider, options =>
+                                {
+                                    options.PubSubType = Orleans.Streams.StreamPubSubType.ExplicitGrainBasedAndImplicit;
+                                    options.FireAndForgetDelivery = false;
+                                })
                                 .Build();
             await client.Connect();
-
-            running = true;
-            Console.WriteLine("Initialized!");
-
             return client;
         }
 

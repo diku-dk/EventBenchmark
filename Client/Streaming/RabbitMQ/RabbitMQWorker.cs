@@ -7,12 +7,12 @@ using RabbitMQ.Client;
 
 namespace Client.RabbitMQ
 {
-    public class CustomConsumer : AsyncDefaultBasicConsumer
+    public class RabbitMQWorker : AsyncDefaultBasicConsumer
     {
 
         private readonly IEventDispatcher eventReceiver;
 
-        public CustomConsumer(IModel model, IClusterClient client, int actorId) : base(model)
+        public RabbitMQWorker(IModel model, IClusterClient client, int actorId) : base(model)
         {
             this.eventReceiver = client.GetGrain<IEventDispatcher>(actorId);
         }
@@ -20,12 +20,11 @@ namespace Client.RabbitMQ
 
         public override async Task HandleBasicDeliver(string consumerTag, ulong deliveryTag, bool redelivered, string exchange, string routingKey, IBasicProperties properties, ReadOnlyMemory<byte> body)
         {
-
             var body_ = body.ToArray();
             var message = Encoding.UTF8.GetString(body_);
             // Console.WriteLine(" [x] Received {0}", message);
 
-            await eventReceiver.ReceiveEvent(message);
+           // await eventReceiver.ReceiveEvent(message);
 
             return;
 
