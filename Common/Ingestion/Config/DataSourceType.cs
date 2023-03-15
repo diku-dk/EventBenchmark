@@ -4,8 +4,7 @@ namespace Common.Ingestion.Config
 {
     public enum DataSourceType
     {
-
-        SYNTHETIC,
-        REAL
+        SYNTHETIC, // generated synthetically
+        DERIVED // derived from a source
     }
 }

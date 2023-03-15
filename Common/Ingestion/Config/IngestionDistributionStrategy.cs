@@ -1,6 +1,6 @@
 ﻿namespace Common.Ingestion
 {
-    public enum IngestionPartitioningStrategy
+    public enum IngestionDistributionStrategy
     {
         SINGLE_WORKER, // one worker performs everything
         TABLE_PER_WORKER, // naive

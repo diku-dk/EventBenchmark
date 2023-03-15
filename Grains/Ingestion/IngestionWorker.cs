@@ -15,7 +15,11 @@ namespace Grains.Ingestion
 {
     /**
      * The unit of parallelism for data ingestion
-     * A dispatcher of HTTP POST requests
+     * A dispatcher of HTTP POST requests.
+     * Why not simply using threads? Because with thread-only approahc there is no
+     * simple way to track multiple machines. With grains, Orleans provides multi-machine
+     * settings by design.
+     * Basically this encapsulates a remote task...
      */
     [StatelessWorker]
     public class IngestionWorker : Grain, IIngestionWorker

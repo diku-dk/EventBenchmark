@@ -54,15 +54,29 @@ namespace Grains.Workers
                 new UniformLongGenerator(this.config.keyRange.Start.Value, this.config.keyRange.End.Value) : 
                 new ZipfianGenerator(this.config.keyRange.Start.Value, this.config.keyRange.End.Value);
 
-            var streamProvider = this.GetStreamProvider(this.config.streamProvider);
+            var streamProvider = this.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider);
             this.customerId = this.GetPrimaryKeyLong();
             this.stream = streamProvider.GetStream<Event>(this.config.streamId, customerId.ToString());
-            // await this.stream.SubscribeAsync<string>( ProcessEventAsync );
+            
             await stream.SubscribeAsync<Event>( ProcessEventAsync );
         }
 
         public async Task Run()
         {
+
+            if (this.config.urls.ContainsKey("products"))
+            {
+                Console.WriteLine("Customer {0} found no products URL!", this.customerId);
+                return;
+            }
+            if (this.config.urls.ContainsKey("carts"))
+            {
+                Console.WriteLine("Customer {0} found no carts URL!", this.customerId);
+                return;
+            }
+            string productUrl = this.config.urls["products"];
+            string cartUrl = this.config.urls["carts"];
+
             Console.WriteLine("Customer {0} started!", this.customerId);
 
             if(this.config.delayBeforeStart > 0) {
@@ -97,8 +111,7 @@ namespace Grains.Workers
 
             Console.WriteLine("Customer {0} defined the keys to browse {1}", this.customerId,  sb.ToString());
 
-            string productUrl = this.config.urls["product"];
-            string cartUrl = this.config.urls["cart"];
+            
 
             HttpResponseMessage[] responses = new HttpResponseMessage[numberOfKeysToBrowse];
 

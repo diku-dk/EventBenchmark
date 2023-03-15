@@ -8,7 +8,9 @@ namespace GrainInterfaces.Ingestion
     public interface IIngestionOrchestrator : IGrainWithIntegerKey
     {
 
-        Task<bool> Run(IngestionConfiguration config);
+        Task Init(IngestionConfiguration config);
+
+        // Task<bool> Run(IngestionConfiguration config);
 
         [AlwaysInterleave]
         Task<int> GetStatus();

@@ -28,15 +28,15 @@ namespace Client
 
         private static readonly IngestionConfiguration defaultIngestionConfig = new()
         {
-            dataNatureType = DataSourceType.SYNTHETIC,
-            partitioningStrategy = IngestionPartitioningStrategy.SINGLE_WORKER,
+            dataSourceType = DataSourceType.SYNTHETIC,
+            distributionStrategy = IngestionDistributionStrategy.SINGLE_WORKER,
             numberCpus = 2,
             mapTableToUrl = new Dictionary<string, string>()
             {
                 ["warehouses"] = "http://127.0.0.1:8001/warehouses",
                 ["districts"] = "http://127.0.0.1:8001/districts",
                 ["items"] = "http://127.0.0.1:8001/items",
-                ["healthCheck"] = "http://127.0.0.1:8001/healthCheck"
+                // ["healthCheck"] = "http://127.0.0.1:8001/healthCheck"
                 /*
                 ["customers"] = "http://127.0.0.1:8001/data",
                 ["stockItems"] = "http://127.0.0.1:8001/data",
@@ -83,11 +83,15 @@ namespace Client
             MasterConfiguration masterConfiguration = new()
             {
                 orleansClient = client,
-                streamEnabled = false
+                streamEnabled = false,
+                healthCheck = false,
+                ingestion = true,
+                transactionSubmission = false
             };
 
             MasterOrchestrator orchestrator = new MasterOrchestrator(masterConfiguration, defaultIngestionConfig, defaultScenarioConfig);
-            await orchestrator.Run();
+            Task masterTask = Task.Run(() => { orchestrator.Run(); });
+            await masterTask;
 
             Console.WriteLine("Master orchestrator finished!");
 

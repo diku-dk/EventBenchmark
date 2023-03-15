@@ -12,6 +12,9 @@ using Common.Ingestion.DataGeneration;
 using Common.Serdes;
 using Common.Http;
 using System.Collections.Concurrent;
+using Microsoft.VisualBasic;
+using Orleans.Streams;
+using Common.Streaming;
 
 namespace Grains.Ingestion
 {
@@ -27,11 +30,15 @@ namespace Grains.Ingestion
         // less than threshold, no need to partition
         private readonly static int partitioningThreshold = 10;
 
-        private readonly static string healthCheckKey = "healthCheck";
+        private GeneratedData data;
 
-        GeneratedData data;
+        private Status status;//  = Status.NEW;
 
-        private Status status = Status.NEW;
+        private long guid;
+
+        private IStreamProvider streamProvider;
+
+        private IngestionConfiguration config;
 
         private enum Status
         {
@@ -42,54 +49,53 @@ namespace Grains.Ingestion
 
         List<Task> taskList = new();
 
-        public async override Task OnActivateAsync()
+        public override async Task OnActivateAsync()
         {
             Console.WriteLine("Ingestion orchestrator on activate!");
-            await base.OnActivateAsync();
-            return;
+
+            this.guid = this.GetPrimaryKeyLong();
+            this.streamProvider = this.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider);
+            var streamIncoming = streamProvider.GetStream<object>(StreamingConfiguration.IngestionStreamId, this.guid.ToString());
+
+            var subscriptionHandles = await streamIncoming.GetAllSubscriptionHandles();
+            if (subscriptionHandles.Count > 0)
+            {
+                foreach (var subscriptionHandle in subscriptionHandles)
+                {
+                    await subscriptionHandle.ResumeAsync(Run);
+                }
+            }
+
+            await streamIncoming.SubscribeAsync(Run);
+        }
+
+        public Task Init(IngestionConfiguration config)
+        {
+            this.status = Status.NEW;
+            this.config = config;
+            return Task.CompletedTask;
         }
 
         /**
-         * This method may takr arbitrary amount of time. Better to resort to Orleans streams.
+         * This method may take arbitrary amount of time. Better to resort to Orleans streams.
          */
-        public async Task<bool> Run(IngestionConfiguration config)
+        private Task Run(object obj, StreamSequenceToken? token = null)
         {
 
             if (this.status == Status.IN_PROGRESS)
             {
-                // this only happens if reentrancy enbaled for this method
-                Console.WriteLine("Ingestion orchestrator called again while in progress. Disable reentrancy or maybe bug?");
-                return false;
-            }
-            if (this.status == Status.FINISHED) {
-                Console.WriteLine("Ingestion orchestrator called again in the same context. Data will be reused.");
-            }
-
-            // health check. is the microservice online?
-            if (!config.mapTableToUrl.ContainsKey(healthCheckKey))
-            {
-                Console.WriteLine("It was not possible to find the healthcheck API " + healthCheckKey);
-                return false;
-            }
-
-            Console.WriteLine("Ingestion orchestrator started!");
-
-            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, config.mapTableToUrl[healthCheckKey]);
-            using HttpResponseMessage response = await Task.Run(() => HttpUtils.client.SendAsync(message));
-
-            Console.WriteLine("Health check status code: " + response.StatusCode.ToString());
-            if (!response.IsSuccessStatusCode)
-            {
-                Console.WriteLine("Healthcheck failed");
-                return false;
+                // this only happens if master publishes the event again...
+                Console.WriteLine("Ingestion orchestrator called again while in progress. Maybe bug?");
+                // return;
             }
 
             // =====================
 
-            
-            if(this.status == Status.NEW)
+            Console.WriteLine("Ingestion orchestrator will start ingestion process!");
+
+            if (this.status == Status.NEW)
             {
-                if (config.dataNatureType == DataSourceType.SYNTHETIC)
+                if (config.dataSourceType == DataSourceType.SYNTHETIC)
                 {
                     data = SyntheticDataGenerator.Generate(SerdesFactory.build());
                 }
@@ -102,7 +108,7 @@ namespace Grains.Ingestion
             this.status = Status.IN_PROGRESS;
             
 
-            if (config.partitioningStrategy == IngestionPartitioningStrategy.SINGLE_WORKER)
+            if (config.distributionStrategy == IngestionDistributionStrategy.SINGLE_WORKER)
             {
                 Console.WriteLine("Single worker will start");
                 List<IngestionBatch> batches = new List<IngestionBatch>();
@@ -129,7 +135,7 @@ namespace Grains.Ingestion
 
                 Console.WriteLine("Single worker dispatching finished");
             }
-            else if (config.partitioningStrategy == IngestionPartitioningStrategy.TABLE_PER_WORKER)
+            else if (config.distributionStrategy == IngestionDistributionStrategy.TABLE_PER_WORKER)
             {
                 RunAsTablePerWorker(config, data);
             }
@@ -192,7 +198,7 @@ namespace Grains.Ingestion
             this.status = Status.FINISHED;
             Console.WriteLine("Ingestion orchestrator dispatched all workers!");
 
-            return true;
+            return Task.CompletedTask;
         }
 
         private void RunAsTablePerWorker(IngestionConfiguration config, GeneratedData data)

@@ -12,7 +12,7 @@ namespace Common.Scenario.Customer
         public Distribution keyDistribution;
 
         // probability of a customer to checkout the cart
-        public readonly int[] checkoutDistribution = new int[] { 1 };
+        public int[] checkoutDistribution = new int[] { 1 };
 
         public Range keyRange;
 
@@ -30,8 +30,6 @@ namespace Common.Scenario.Customer
         // public Func<string, int, string> buildCartItemPayloadFunc;
 
         public Guid streamId;
-
-        public string streamProvider;
     }
 }
 
