@@ -1,6 +1,4 @@
-﻿
-
-namespace Common.Ingestion
+﻿namespace Common.Ingestion
 {
     public enum IngestionPartitioningStrategy
     {

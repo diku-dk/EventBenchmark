@@ -5,17 +5,19 @@ using System.Dynamic;
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Common.Configuration;
-using Common.Customer;
 using Common.Http;
+using Common.Scenario.Customer;
 using Common.Streaming;
 using Common.YCSB;
 using GrainInterfaces.Scenario;
 using GrainInterfaces.Workers;
 using Newtonsoft.Json;
 using Orleans;
+using Orleans.Concurrency;
 using Orleans.Streams;
 
 namespace Grains.Workers
@@ -27,7 +29,7 @@ namespace Grains.Workers
 
         private CustomerConfiguration config;
 
-        private Status status;
+        // private Status status;
 
         private NumberGenerator keyGenerator;
 
@@ -45,7 +47,7 @@ namespace Grains.Workers
         public async override Task OnActivateAsync()
         {
             await base.OnActivateAsync();
-            this.status = Status.NEW;
+            // this.status = Status.NEW;
             IMetadataService metadataService = GrainFactory.GetGrain<IMetadataService>(0);
             this.config = await metadataService.RetriveCustomerConfig();
             this.keyGenerator = this.config.keyDistribution == Distribution.UNIFORM ?
@@ -64,14 +66,21 @@ namespace Grains.Workers
             Console.WriteLine("Customer {0} started!", this.customerId);
 
             if(this.config.delayBeforeStart > 0) {
+                Console.WriteLine("Customer {0} delay before start: {1}", this.customerId, this.config.delayBeforeStart);
                 await Task.Delay(this.config.delayBeforeStart);
+            } else
+            {
+                Console.WriteLine("Customer {0} NO delay before start!", this.customerId);
             }
 
             int numberOfKeysToBrowse = random.Next(1, this.config.maxNumberKeysToBrowse + 1);
 
-            // this dct must be numberOfKeysToCheckout
-            ConcurrentDictionary<long, int> keyToQtyMap = new ConcurrentDictionary<long, int>(numberOfKeysToBrowse, numberOfKeysToBrowse);
+            Console.WriteLine("Customer {0}, number of keys to browse {1}", customerId, numberOfKeysToBrowse);
 
+            // this dct must be numberOfKeysToCheckout
+            Dictionary<long, int> keyToQtyMap = new Dictionary<long, int>(numberOfKeysToBrowse);
+
+            StringBuilder sb = new StringBuilder();
             long value;
             for (int i = 0; i < numberOfKeysToBrowse; i++)
             {
@@ -80,34 +89,46 @@ namespace Grains.Workers
                 {
                     value = this.keyGenerator.NextValue();
                 }
-                keyToQtyMap[value] = 0;
+
+                keyToQtyMap.Add(value, 0);
+                sb.Append(value);
+                if(i < numberOfKeysToBrowse-1) sb.Append(", ");
             }
+
+            Console.WriteLine("Customer {0} defined the keys to browse {1}", this.customerId,  sb.ToString());
 
             string productUrl = this.config.urls["product"];
             string cartUrl = this.config.urls["cart"];
 
             HttpResponseMessage[] responses = new HttpResponseMessage[numberOfKeysToBrowse];
 
-            // TODO should we also model this behavior?
-            CountdownEvent numberOfKeysToCheckout =  new CountdownEvent(
-                random.Next(0, Math.Min( numberOfKeysToBrowse, this.config.maxNumberKeysToAddToCart)) );
+            // should we also model this behavior?
+            int numberOfKeysToCheckout =  
+                random.Next(0, Math.Min( numberOfKeysToBrowse, this.config.maxNumberKeysToAddToCart));
+
+
+            Console.WriteLine("Customer {0} will start browsing", this.customerId);
 
             // browsing
             int idx = 0;
-            foreach (var entry in keyToQtyMap)
+            foreach (KeyValuePair<long,int> entry in keyToQtyMap)
             {
                 responses[idx] = await Task.Run( async () =>
                 {
+
+                    Console.WriteLine("Customer {0} Task {1}", this.customerId, idx);
+
                     int delay = this.random.Next(this.config.delayBetweenRequestsRange.Start.Value, this.config.delayBetweenRequestsRange.End.Value + 1);
                     try
                     {
                         HttpResponseMessage response = await HttpUtils.client.GetAsync(productUrl + entry.Key);
+
                         await Task.Delay(delay);
 
                         // is this customer checking out?
                         // decide whether should add to cart now, right after browsing (it helps spreading the requests)
 
-                        if (numberOfKeysToCheckout.CurrentCount > 0)
+                        if (numberOfKeysToCheckout > 0)
                         {
                             // mark this product as already added to cart
                             keyToQtyMap[entry.Key] = random.Next( this.config.minMaxQtyRange.Start.Value, this.config.minMaxQtyRange.End.Value);
@@ -117,12 +138,12 @@ namespace Grains.Workers
                             try
                             {
                                 response = await HttpUtils.client.PutAsync(cartUrl + "/" + customerId, HttpUtils.BuildPayload(payload));
-                                numberOfKeysToCheckout.Signal();
                             } catch (HttpRequestException e) {
                                 Console.WriteLine("Exception Message: {0} Url {1} Key {2}", e.Message, productUrl, entry.Key);
                             } finally
                             {
-                                // signaling anyway to avoid hanging forever?
+                                // signaling anyway to avoid hanging forever
+                                numberOfKeysToCheckout--;
                             }
                         }
                         return response;
@@ -137,8 +158,10 @@ namespace Grains.Workers
                 idx++;
             }
 
+            Console.WriteLine("Customer " + customerId + " finished browsing!");
+
             // define whether client should send a checkout request
-            if(this.config.checkoutDistribution[random.Next(0, this.config.checkoutDistribution.Length)] == 1)
+            if (this.config.checkoutDistribution[random.Next(0, this.config.checkoutDistribution.Length)] == 1)
             {
                 Console.WriteLine("Customer " + customerId + " decided to send a checkout!");
                 await Task.Run(() => {

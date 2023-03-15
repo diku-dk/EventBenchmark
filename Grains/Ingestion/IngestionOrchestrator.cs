@@ -7,6 +7,11 @@ using System.Collections.Generic;
 using GrainInterfaces.Ingestion;
 using System.Linq;
 using System.Net.Http;
+using Common.Ingestion.Config;
+using Common.Ingestion.DataGeneration;
+using Common.Serdes;
+using Common.Http;
+using System.Collections.Concurrent;
 
 namespace Grains.Ingestion
 {
@@ -18,8 +23,6 @@ namespace Grains.Ingestion
      */
     public class IngestionOrchestrator : Grain, IIngestionOrchestrator
     {
-
-        private static readonly HttpClient client = new HttpClient();
 
         // less than threshold, no need to partition
         private readonly static int partitioningThreshold = 10;
@@ -37,6 +40,8 @@ namespace Grains.Ingestion
             FINISHED
         }
 
+        List<Task> taskList = new();
+
         public async override Task OnActivateAsync()
         {
             Console.WriteLine("Ingestion orchestrator on activate!");
@@ -44,13 +49,16 @@ namespace Grains.Ingestion
             return;
         }
 
+        /**
+         * This method may takr arbitrary amount of time. Better to resort to Orleans streams.
+         */
         public async Task<bool> Run(IngestionConfiguration config)
         {
 
             if (this.status == Status.IN_PROGRESS)
             {
-                // return;
-                Console.WriteLine("Ingestion orchestrator called again while in progress. Maybe bug?");
+                // this only happens if reentrancy enbaled for this method
+                Console.WriteLine("Ingestion orchestrator called again while in progress. Disable reentrancy or maybe bug?");
                 return false;
             }
             if (this.status == Status.FINISHED) {
@@ -64,34 +72,35 @@ namespace Grains.Ingestion
                 return false;
             }
 
-            Console.WriteLine("Ingestion orchestrator called!");
+            Console.WriteLine("Ingestion orchestrator started!");
 
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, config.mapTableToUrl[healthCheckKey]);
-            using HttpResponseMessage response = await Task.Run(() => client.SendAsync(message));
-            
-            Console.WriteLine("Health check status: "+response.StatusCode.ToString());
-            if(!response.IsSuccessStatusCode)
+            using HttpResponseMessage response = await Task.Run(() => HttpUtils.client.SendAsync(message));
+
+            Console.WriteLine("Health check status code: " + response.StatusCode.ToString());
+            if (!response.IsSuccessStatusCode)
             {
                 Console.WriteLine("Healthcheck failed");
                 return false;
             }
 
-            if (this.status == Status.NEW || this.status == Status.FINISHED)
+            // =====================
+
+            
+            if(this.status == Status.NEW)
             {
-                if(this.status == Status.NEW)
+                if (config.dataNatureType == DataSourceType.SYNTHETIC)
                 {
-                    if (config.dataNatureType == DataSourceType.SYNTHETIC)
-                    {
-                        data = SyntheticDataGenerator.Generate();
-                    }
-                    else
-                    {
-                        data = RealDataGenerator.Generate();
-                    }
-                    Console.WriteLine("Ingestion orchestrator data generated!");
+                    data = SyntheticDataGenerator.Generate(SerdesFactory.build());
                 }
-                this.status = Status.IN_PROGRESS;
+                else
+                {
+                    data = RealDataGenerator.Generate();
+                }
+                Console.WriteLine("Ingestion orchestrator data generated!");
             }
+            this.status = Status.IN_PROGRESS;
+            
 
             if (config.partitioningStrategy == IngestionPartitioningStrategy.SINGLE_WORKER)
             {
@@ -114,12 +123,15 @@ namespace Grains.Ingestion
                 }
                 IIngestionWorker worker = GrainFactory.GetGrain<IIngestionWorker>("SINGLE_WORKER");
                 Console.WriteLine("Single worker will be dispatched");
-                await worker.Send(batches);
-                Console.WriteLine("Single worker finished");
+                taskList.Add( worker.Send(batches) ); // FIXME probably exception here related to timeout
+
+                // trackedWorkerTasks[0].IsCompleted
+
+                Console.WriteLine("Single worker dispatching finished");
             }
             else if (config.partitioningStrategy == IngestionPartitioningStrategy.TABLE_PER_WORKER)
             {
-                await RunAsTablePerWorker(config, data);
+                RunAsTablePerWorker(config, data);
             }
             else
             {
@@ -128,7 +140,7 @@ namespace Grains.Ingestion
                 int numberOfRecords = data.tables.Values.Sum(list => list.Count);
                 if (numberOfRecords < partitioningThreshold)
                 {
-                    await RunAsTablePerWorker(config, data);
+                    RunAsTablePerWorker(config, data);
                 }
                 else
                 {
@@ -171,20 +183,21 @@ namespace Grains.Ingestion
 
                     }
 
-                    await Task.WhenAll(taskList);
+                    // await Task.WhenAll(taskList);
 
                 }
 
             }
 
             this.status = Status.FINISHED;
+            Console.WriteLine("Ingestion orchestrator dispatched all workers!");
 
             return true;
         }
 
-        private async Task RunAsTablePerWorker(IngestionConfiguration config, GeneratedData data)
+        private void RunAsTablePerWorker(IngestionConfiguration config, GeneratedData data)
         {
-            List<Task> taskList = new List<Task>();
+            // List<Task> taskList = new List<Task>();
 
             foreach (var table in data.tables)
             {
@@ -198,7 +211,23 @@ namespace Grains.Ingestion
                 taskList.Add(worker.Send(ingestionBatch));
             }
 
-            await Task.WhenAll(taskList);
+            // await Task.WhenAll(taskList);
         }
+
+
+        public Task<int> GetStatus()
+        {
+
+            for(int i = 0; i < taskList.Count; i++)
+            {
+                if(!taskList.ElementAt(i).IsCompleted)
+                {
+                    return Task.FromResult(0);
+                }
+            }
+
+            return this.status == Status.FINISHED ? Task.FromResult(1) : Task.FromResult(0);
+        }
+
     }
 }

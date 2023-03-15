@@ -1,5 +1,6 @@
 ﻿using Common.Http;
 using Common.Ingestion;
+using Common.Ingestion.DTO;
 using GrainInterfaces.Ingestion;
 using Orleans;
 using Orleans.Concurrency;
@@ -7,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Grains.Ingestion
@@ -28,14 +30,8 @@ namespace Grains.Ingestion
 
         public async Task Send(IngestionBatch batch)
         {
-            Task<HttpStatusCode>[] tasks = RunBatch(batch);
+            var tasks = RunBatch(batch);
             await Task.WhenAll(tasks);
-            /*
-            foreach (Task<HttpStatusCode> task in tasks)
-            {
-                await task;
-            }
-            */
             return;
         }
 
@@ -44,26 +40,20 @@ namespace Grains.Ingestion
 
             Console.WriteLine("Batches received: "+ batches.Count);
 
-            List<Task<HttpStatusCode>[]> responses = new List<Task<HttpStatusCode>[]>();
+            List<Task<HttpStatusCode[]>> responses = new();
 
             foreach(IngestionBatch batch in batches) 
             {
                 responses.Add(RunBatch(batch));
             }
 
-            Console.WriteLine("All http requests sent");
-
-            foreach (Task<HttpStatusCode>[] tasks in responses)
+            Console.WriteLine("All HTTP requests sent. Time to wait for the responses...");
+            
+            foreach (var tasks in responses)
             {
                 await Task.WhenAll(tasks);
-                /*
-                foreach (Task<HttpStatusCode> task in tasks) 
-                {
-                    await task; 
-                }
-                */
             }
-
+            
             Console.WriteLine("All responses received");
 
             // TODO check correctness... make get requests looking for some random IDs. also total sql to count total of items ingested
@@ -82,34 +72,40 @@ namespace Grains.Ingestion
             return true;
         }
 
-        private Task<HttpStatusCode>[] RunBatch(IngestionBatch batch)
+        private async Task<HttpStatusCode[]> RunBatch(IngestionBatch batch)
         {
-            Task<HttpStatusCode>[] responses = new Task<HttpStatusCode>[batch.data.Count];
+            HttpStatusCode[] responses = new HttpStatusCode[batch.data.Count];
             int idx = 0;
+            Random random = new();
             foreach (string payload in batch.data)
             {
                 // https://learn.microsoft.com/en-us/dotnet/orleans/grains/external-tasks-and-grains
                 // https://stackoverflow.com/questions/10343632/httpclient-getasync-never-returns-when-using-await-async
                 // https://blog.stephencleary.com/2012/07/dont-block-on-async-code.html
-                responses[idx] = (Task.Run(() =>
-                {
-                    try
-                    {
-                        HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, batch.url);
-                        Console.WriteLine("Generating payload: {0}", payload);
-                        message.Content = HttpUtils.BuildPayload(payload);
-                        using HttpResponseMessage response = HttpUtils.client.Send(message);
-                        return response.StatusCode;
-                    }
-                    catch (HttpRequestException e)
-                    {
-                        Console.WriteLine("\nException Caught!");
-                        Console.WriteLine("Message: {0}", e.Message);
-                        return HttpStatusCode.ServiceUnavailable;
-                    }
-                }
-                ));
 
+
+                // maybe implement mechanism for backpressure! start with concurrent submissions and then 4, 8, 16, if error downgrade to 8, 4, 2, 1 ...
+                // actually the unit of backpressure is the number of ingestion workers...
+                responses[idx] = await (Task.Run( () =>
+                {
+                    HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, batch.url);
+                    message.Content = HttpUtils.BuildPayload(payload);
+                    while (true)
+                    {
+                        try
+                        {
+                            using HttpResponseMessage response = HttpUtils.client.Send(message);
+                            return response.StatusCode;
+                        }
+                        catch (HttpRequestException e)
+                        {
+                            // Console.WriteLine("\nException Caught!");
+                            Console.WriteLine("Message: {0}", e.Message);
+                            Thread.Sleep(random.Next(1,1001)); // spread the several errors that may happen across different workers
+                            // return HttpStatusCode.ServiceUnavailable;
+                        }
+                    }
+                }));
                 idx++;
 
             }

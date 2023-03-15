@@ -10,6 +10,7 @@ namespace Grains.Scenario
 {
 
     /*
+     * AKA transaction submission 
      * sets up the service grain. for each external service, properly set the event listener
      *  https://www.google.com/search?client=firefox-b-d&q=grain+as+socket+server+orleans
      *  https://stackoverflow.com/questions/55021791/orleans-custom-tcp-socket-connection
@@ -20,9 +21,11 @@ namespace Grains.Scenario
 
         private bool running = true;
 
-        IDisposable timer;
+        private IDisposable timer;
 
-        Random random = new Random();
+        private readonly Random random = new Random();
+
+        private ScenarioConfiguration scenarioConfiguration;
 
         // 
         Dictionary<TransactionType, long> nextIdPerTxType = new Dictionary<TransactionType, long>();
@@ -40,11 +43,18 @@ namespace Grains.Scenario
         /**
          * Later, to make more agnostic, receive as parameter a config builder
          */
-        public async Task Run(ScenarioConfiguration scenarioConfiguration)
+        public Task Start_(ScenarioConfiguration scenarioConfiguration)
         {
-
+            this.scenarioConfiguration = scenarioConfiguration;
             // setup timer according to the config passed. the timer defines the end of the experiment
-            this.timer = this.RegisterTimer(Tick, null, scenarioConfiguration.dueTime, scenarioConfiguration.period);
+            // this.timer = this.RegisterTimer(Tick, null, TimeSpan.Zero, TimeSpan.MaxValue);
+            return Task.CompletedTask;
+        }
+
+        public async Task Start(ScenarioConfiguration scenarioConfiguration)
+        {
+            // this.timer.Dispose();
+            Console.WriteLine("Scenario orchestrator initialized.");
 
             switch (scenarioConfiguration.submissionStrategy)
             {
@@ -61,9 +71,10 @@ namespace Grains.Scenario
                         do {
                             var task = SubmitTransaction(scenarioConfiguration.weight);
                             tasksSubmitted.Add(task.Id, task);
-                        } while (DateTime.Now.Millisecond >= stopAt);
+                        } while (DateTime.Now.Millisecond < stopAt);
 
-                    } else {
+                    } else
+                    {
                         int val = scenarioConfiguration.windowOrBurstValue;
                         do {
                             var task = SubmitTransaction(scenarioConfiguration.weight);
@@ -72,9 +83,11 @@ namespace Grains.Scenario
                         } while (val > 0);
                     }
 
+                    Console.WriteLine("Scenario orchestrator first batch terminated! Initializing main loop.");
                     Task completedTask = await Task.WhenAny(tasksSubmitted.Values);
                     while (this.running)
                     {
+                        await Task.Delay(1000);
                         tasksSubmitted.Remove(completedTask.Id);
                         completedTask = await Task.WhenAny(tasksSubmitted.Values);
                     }
@@ -86,17 +99,22 @@ namespace Grains.Scenario
                     // not supported yet
                     break;
                 }
-                case SubmissionStrategy.WINDOW: {
+                case SubmissionStrategy.WINDOW:
+                {
                     // not supported yet
                     break;
                 }
                 default: { throw new Exception(); }
             }
 
-            Console.WriteLine("Orchestrator main loop terminated.");
+            Console.WriteLine("Scenario orchestrator main loop terminated.");
             return;
         }
 
+        /**
+         * 
+         * 
+         */
         private Task SubmitTransaction(TransactionType[] weight)
         {
             int idx = random.Next(0, weight.Length);
@@ -111,6 +129,7 @@ namespace Grains.Scenario
             { 
                 case TransactionType.CHECKOUT: 
                 {
+                    
                     ICustomerWorker customerWorker = GrainFactory.GetGrain<ICustomerWorker>(val);
                     return customerWorker.Run();
                 }
@@ -127,13 +146,13 @@ namespace Grains.Scenario
             return Task.CompletedTask;
         }
 
-        private Task Tick(object _)
+        public Task Stop()
         {
             Console.WriteLine("Submission of transactions will be terminated.");
             this.running = false;
             // dispose timer
-            this.timer.Dispose();
-            return Task.CompletedTask; 
+            // this.timer.Dispose();
+            return Task.CompletedTask;
         }
 
     }

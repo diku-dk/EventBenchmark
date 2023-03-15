@@ -1,4 +1,5 @@
 ﻿using Common.Ingestion;
+using Common.Ingestion.DTO;
 using Orleans;
 using System.Collections.Generic;
 using System.Threading.Tasks;

@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using Common.Configuration;
 
-namespace Common.Customer
+namespace Common.Scenario.Customer
 {
 
 	public sealed class CustomerConfiguration

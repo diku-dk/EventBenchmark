@@ -5,14 +5,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Grains.Ingestion
+namespace Common.Ingestion.DataGeneration
 {
     /**
      * 
      */
     public class RealDataGenerator
     {
-        internal static GeneratedData Generate()
+        public static GeneratedData Generate()
         {
             throw new NotImplementedException();
         }

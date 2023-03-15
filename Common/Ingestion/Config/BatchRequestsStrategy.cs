@@ -1,6 +1,6 @@
-﻿namespace Common.Ingestion.Worker
+﻿namespace Common.Ingestion.Config
 {
-    public enum GroupRequestsStrategy
+    public enum BatchRequestsStrategy
     {
         TASK_PER_REQUEST, // let the scheduler perform all requests individually
         TASK_PER_CPU, // divide the data across CPU number of tasks

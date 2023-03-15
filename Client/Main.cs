@@ -1,9 +1,14 @@
 ﻿using Client.Server;
+using Common.Entities.TPC_C;
 using Common.Ingestion;
-using Common.Ingestion.Worker;
+using Common.Ingestion.Config;
+using Common.Ingestion.DataGeneration;
+using Common.Ingestion.DTO;
 using Common.Scenario;
+using Common.Serdes;
 using Common.Streaming;
 using GrainInterfaces.Ingestion;
+using Newtonsoft.Json;
 using Orleans;
 using Orleans.Hosting;
 using System;
@@ -28,7 +33,7 @@ namespace Client
             numberCpus = 2,
             mapTableToUrl = new Dictionary<string, string>()
             {
-                ["warehouse"] = "http://127.0.0.1:8001/warehouse",
+                ["warehouses"] = "http://127.0.0.1:8001/warehouses",
                 ["districts"] = "http://127.0.0.1:8001/districts",
                 ["items"] = "http://127.0.0.1:8001/items",
                 ["healthCheck"] = "http://127.0.0.1:8001/healthCheck"
@@ -49,6 +54,22 @@ namespace Client
             }
         };
 
+        public static async Task Main_(string[] args)
+        {
+             GeneratedData data = SyntheticDataGenerator.Generate(SerdesFactory.build());
+
+            // var ware = data.tables["warehouses"];
+            var item = new Item(1, 1, "frfrf", 34f, "frfrfr");
+            var str = JsonConvert.SerializeObject(item);
+
+            Console.WriteLine(str);
+
+            var deser = JsonConvert.DeserializeObject(str);
+
+            Console.WriteLine(deser.GetType().ToString());
+
+        }
+
         public static async Task Main(string[] args)
         {
             Console.WriteLine("Initializing Mock Http server...");
@@ -68,12 +89,12 @@ namespace Client
             MasterOrchestrator orchestrator = new MasterOrchestrator(masterConfiguration, defaultIngestionConfig, defaultScenarioConfig);
             await orchestrator.Run();
 
-            Console.WriteLine("Master Orchestrator finished!");
+            Console.WriteLine("Master orchestrator finished!");
 
             await client.Close();
 
             httpServer.Stop();
-            await httpServerTask;
+            // await httpServerTask;
 
             /*
             HttpClient client = new HttpClient();
@@ -96,7 +117,7 @@ namespace Client
 
         public static async Task<IClusterClient> ConnectClient()
         {
-            var client = new ClientBuilder()
+            IClusterClient client = new ClientBuilder()
                                 .UseLocalhostClustering()
                                 //.ConfigureLogging(logging => logging.AddConsole())
                                 .AddSimpleMessageStreamProvider(StreamingConfiguration.defaultStreamProvider, options =>
@@ -105,7 +126,15 @@ namespace Client
                                     options.FireAndForgetDelivery = false;
                                 })
                                 .Build();
-            await client.Connect();
+
+            // Boolean connected = true;
+            Func<Exception, Task<bool>> func = (x) => {
+                // connected = false;
+                return Task.FromResult(false);
+            };
+
+            Task connectTask = client.Connect(func);
+            await connectTask;
             return client;
         }
 

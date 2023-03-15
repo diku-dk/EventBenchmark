@@ -227,13 +227,13 @@ namespace Common.Entities.TPC_C
         public int S_I_ID;
         public int S_W_ID;
         public int S_QUANTITY;
-        public string S_DIST;
+        public Dictionary<int, string> S_DIST;
         public int S_YTD;
         public int S_ORDER_CNT;
         public int S_REMOTE_CNT;
         public string S_DATA;
 
-        public Stock(int S_I_ID, int S_W_ID, int S_QUANTITY, string S_DIST, int S_YTD, int S_ORDER_CNT, int S_REMOTE_CNT, string S_DATA)
+        public Stock(int S_I_ID, int S_W_ID, int S_QUANTITY, Dictionary<int, string> S_DIST, int S_YTD, int S_ORDER_CNT, int S_REMOTE_CNT, string S_DATA)
         {
             this.S_I_ID = S_I_ID;
             this.S_W_ID = S_W_ID;

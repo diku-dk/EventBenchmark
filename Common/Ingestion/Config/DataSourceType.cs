@@ -1,6 +1,6 @@
 ﻿
 
-namespace Common.Ingestion
+namespace Common.Ingestion.Config
 {
     public enum DataSourceType
     {

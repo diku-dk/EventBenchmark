@@ -1,6 +1,6 @@
-﻿using Common.Customer;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using Orleans;
+using Common.Scenario.Customer;
 
 namespace GrainInterfaces.Scenario
 {

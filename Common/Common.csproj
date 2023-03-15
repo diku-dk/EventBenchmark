@@ -11,18 +11,26 @@
     <None Remove="YCSB\" />
     <None Remove="Http\" />
     <None Remove="Configuration\" />
-    <None Remove="Customer\" />
     <None Remove="Streaming\" />
     <None Remove="Workload\" />
     <None Remove="Workload\YCSB\" />
+    <None Remove="Ingestion\DataGeneration\" />
+    <None Remove="Scenario\Customer\" />
+    <None Remove="Serdes\" />
+    <None Remove="Newtonsoft.Json" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Entities\" />
     <Folder Include="Entities\eShop\" />
     <Folder Include="Http\" />
-    <Folder Include="Customer\" />
     <Folder Include="Streaming\" />
     <Folder Include="Workload\" />
     <Folder Include="Workload\YCSB\" />
+    <Folder Include="Ingestion\DataGeneration\" />
+    <Folder Include="Scenario\Customer\" />
+    <Folder Include="Serdes\" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 </Project>

@@ -1,11 +1,12 @@
 ﻿using Common.Entities.TPC_C;
 using Common.Ingestion.DTO;
+using Common.Serdes;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 
-namespace Grains.Ingestion
+namespace Common.Ingestion.DataGeneration
 {
     /**
      * Based on TPC-C
@@ -16,7 +17,7 @@ namespace Grains.Ingestion
         const string numbers = "0123456789";
         const string alphanumeric = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
-        public static GeneratedData Generate()
+        public static GeneratedData Generate(ISerdes serdes)
         {
             List<string> warehouses = new List<string>();
             List<string> districts = new List<string>();
@@ -26,27 +27,27 @@ namespace Grains.Ingestion
 
             for (int i = 1; i <= TpccConstants.NUM_I; i++)
             {
-                items.Add(JsonSerializer.Serialize( GenerateItem(i) ));
+                items.Add(serdes.Serialize( GenerateItem(i) ));
             }
 
             for (int w = 1; w <= TpccConstants.NUM_W; w++)
             {
-                warehouses.Add(JsonSerializer.Serialize(GenerateWarehouseInfo(w)));
+                warehouses.Add(serdes.Serialize(GenerateWarehouseInfo(w)));
 
                 for (int d = 1; d <= TpccConstants.NUM_D_PER_W; d++)
                 {
-                    districts.Add(JsonSerializer.Serialize(GenerateDistrictInfo(d,w)));
+                    districts.Add(serdes.Serialize(GenerateDistrictInfo(d,w)));
 
                     for (int c = 0; c <= TpccConstants.NUM_C_PER_D; c++)
                     {
-                        customers.Add(JsonSerializer.Serialize(GenerateCustomer(c,d,w)));
+                        customers.Add(serdes.Serialize(GenerateCustomer(c,d,w)));
                     }
 
                 }
 
                 for(int s = 1; s <= TpccConstants.NUM_I; s++)
                 {
-                    stockItems.Add(JsonSerializer.Serialize(
+                    stockItems.Add(serdes.Serialize(
                     GenerateStockItem(s, w)) );
                 }
 
@@ -56,7 +57,7 @@ namespace Grains.Ingestion
             {
                 tables = new Dictionary<string, List<string>>
                 {
-                    ["warehouse"] = warehouses,
+                    ["warehouses"] = warehouses,
                     ["districts"] = districts,
                     ["items"] = items,
                     ["customers"] = customers,
@@ -155,12 +156,11 @@ namespace Grains.Ingestion
             // more in: https://github.com/AgilData/tpcc/blob/master/src/main/java/com/codefutures/tpcc/Load.java
             var S_DIST_DIC = new Dictionary<int, string>();
             for (int d = 0; d < TpccConstants.NUM_D_PER_W; d++) S_DIST_DIC.Add(d, RandomString(24, alphanumeric));
-            var S_DIST = JsonSerializer.Serialize(S_DIST_DIC);
             var S_YTD = numeric(8, false);
             var S_ORDER_CNT = numeric(4, false);
             var S_REMOTE_CNT = numeric(4, false);
             var S_DATA = RandomString(50, alphanumeric);
-            return new Stock(S_I_ID, W_ID, S_QUANTITY, S_DIST, S_YTD, S_ORDER_CNT, S_REMOTE_CNT, S_DATA);
+            return new Stock(S_I_ID, W_ID, S_QUANTITY, S_DIST_DIC, S_YTD, S_ORDER_CNT, S_REMOTE_CNT, S_DATA);
         }
 
         public static Dictionary<int, Stock> GenerateStockTable(int W_ID)

@@ -10,7 +10,7 @@ namespace Common.Entities.TPC_C
         public const int NUM_C_PER_D = 3;
 
         // public const int NUM_I = 100000;
-        public const int NUM_I = 1;
+        public const int NUM_I = 100;
 
         public const int NUM_StockGrain_PER_W = 10000;
     }

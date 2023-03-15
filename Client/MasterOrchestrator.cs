@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Dynamic;
+using System.Threading;
 using System.Threading.Tasks;
 using Client.Infra;
 using Client.Streaming.Kafka;
-using Common.Customer;
 using Common.Entities.TPC_C;
 using Common.Ingestion;
+using Common.Ingestion.Config;
 using Common.Scenario;
+using Common.Scenario.Customer;
 using Common.Streaming;
 using Confluent.Kafka;
 using GrainInterfaces.Ingestion;
@@ -39,9 +41,18 @@ namespace Client
 		{
             IIngestionOrchestrator ingestionOrchestrator = masterConfig.orleansClient.GetGrain<IIngestionOrchestrator>(0);
 
+
             Console.WriteLine("Ingestion orchestrator grain will start.");
 
-            await ingestionOrchestrator.Run(ingestionConfig);
+            _ = ingestionOrchestrator.Run(ingestionConfig);
+
+            // can be made simpler with orleans streams
+            var status = 0;
+            while(status == 0)
+            {
+                Thread.Sleep(2000);
+                status = await ingestionOrchestrator.GetStatus();
+            }
 
             Console.WriteLine("Ingestion orchestrator grain finished.");
 
@@ -50,14 +61,21 @@ namespace Client
             {
                 maxNumberKeysToBrowse = 10,
                 keyDistribution = Common.Configuration.Distribution.UNIFORM,
-                keyRange = new Range(1, TpccConstants.NUM_I + 1),
+                // keyRange = new Range(1, TpccConstants.NUM_I + 1),
+                keyRange = new Range(1, 15),
                 urls = ingestionConfig.mapTableToUrl,
                 minMaxQtyRange = new Range(1, 11),
                 maxNumberKeysToAddToCart = 10,
                 delayBetweenRequestsRange = new Range(1, 1000),
-                delayBeforeStart = 1000,
+                delayBeforeStart = 0,
                 streamProvider = StreamingConfiguration.defaultStreamProvider
             };
+
+            var endValue = customerConfig.keyRange.End.Value;
+            if (endValue < customerConfig.maxNumberKeysToBrowse || endValue < customerConfig.maxNumberKeysToAddToCart)
+            {
+                throw new Exception("That will lead to a bug!");
+            }
 
             IMetadataService metadataService = masterConfig.orleansClient.GetGrain<IMetadataService>(0);
             metadataService.RegisterCustomerConfig(customerConfig);
@@ -85,8 +103,13 @@ namespace Client
             // setup transaction orchestrator
             IScenarioOrchestrator scenarioOrchestrator = masterConfig.orleansClient.GetGrain<IScenarioOrchestrator>(0);
 
-            // await end of submission of transactions
-            await scenarioOrchestrator.Run(scenarioConfiguration);
+            // FIXME  await end of submission of transactions
+            // setup clock here instead of inisde the scenario orchestrator
+            _ = scenarioOrchestrator.Start(scenarioConfiguration);
+
+            Thread.Sleep(scenarioConfiguration.period);
+
+            await scenarioOrchestrator.Stop();
 
             // set up data collection for metrics
 

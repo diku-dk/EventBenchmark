@@ -19,7 +19,7 @@ var builder = new HostBuilder()
             // .ConfigureLogging(logging => logging.ClearProviders())   //.AddSimpleConsole())
             .ConfigureLogging(logging =>
             {
-                logging.SetMinimumLevel(LogLevel.Warning);
+                logging.SetMinimumLevel(LogLevel.Information);
                 //logging.ClearProviders();
                 //logging.AddConsole();
             }) // https://learn.microsoft.com/en-us/aspnet/core/fundamentals/logging/?tabs=aspnetcore2x&view=aspnetcore-7.0
@@ -30,7 +30,7 @@ var builder = new HostBuilder()
 var server = builder.Build();
 await server.StartAsync();
 Console.WriteLine("\n *************************************************************************");
-Console.WriteLine("            The Orleans server started. Press Enter to terminate...         ");
+Console.WriteLine("            The Orleans silo started. Press any key to terminate...         ");
 Console.WriteLine("\n *************************************************************************");
 Console.ReadLine();
 await server.StopAsync();

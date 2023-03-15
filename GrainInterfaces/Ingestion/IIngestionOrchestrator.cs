@@ -1,5 +1,6 @@
-﻿using Common.Ingestion;
+﻿using Common.Ingestion.Config;
 using Orleans;
+using Orleans.Concurrency;
 using System.Threading.Tasks;
 
 namespace GrainInterfaces.Ingestion
@@ -8,6 +9,9 @@ namespace GrainInterfaces.Ingestion
     {
 
         Task<bool> Run(IngestionConfiguration config);
+
+        [AlwaysInterleave]
+        Task<int> GetStatus();
 
     }
 }

@@ -17,10 +17,10 @@ namespace Client.Server
             this.listener = new HttpListener();
         }
 
-        public async Task HandleIncomingConnections()
+        private async Task HandleIncomingConnections()
         {
 
-            while (IsRunning())
+            while (this.IsRunning())
             {
                 HttpListenerContext ctx = await listener.GetContextAsync();
 
@@ -44,7 +44,7 @@ namespace Client.Server
                 resp.ContentEncoding = Encoding.UTF8;
                 resp.ContentLength64 = data.Length;
                 resp.StatusCode = 200;
-                await resp.OutputStream.WriteAsync(data, 0, data.Length);
+                await resp.OutputStream.WriteAsync(data);
 
                 resp.Close();
             }
@@ -52,15 +52,11 @@ namespace Client.Server
 
         public void Run()
         {
-            
-           
             listener.Prefixes.Add(url);
             listener.Start();
             Console.WriteLine("Listening for connections on {0}", url);
-  
-            Task listenTask = HandleIncomingConnections();
-            listenTask.GetAwaiter().GetResult();
-
+            Task task = HandleIncomingConnections();
+            task.GetAwaiter().GetResult();
             listener.Close();
         }
 

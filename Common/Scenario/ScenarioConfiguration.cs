@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using Common.Ingestion.Worker;
 
 namespace Common.Scenario
 {

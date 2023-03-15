@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Common.Ingestion.Worker;
+using Common.Ingestion.Config;
 
-namespace Common.Ingestion
+namespace Common.Ingestion.DTO
 {
 
     public class IngestionBatch
@@ -15,7 +15,7 @@ namespace Common.Ingestion
      
         public List<string> data;
 
-        public GroupRequestsStrategy? groupRequestsStrategy = GroupRequestsStrategy.TASK_PER_REQUEST;
+        public BatchRequestsStrategy? groupRequestsStrategy = BatchRequestsStrategy.TASK_PER_REQUEST;
 
     }
 }
