@@ -23,5 +23,6 @@ namespace Common.Streaming
          * APP
          */
         public static readonly Guid IngestionStreamId = new("AD713788-B5AE-49FF-8B2C-F311B9CB0CC5");
+        public static readonly Guid IngestionWrokerStreamId = new("AD713788-B5AE-49FF-8B2C-F311B9CB0CC6");
     }
 }

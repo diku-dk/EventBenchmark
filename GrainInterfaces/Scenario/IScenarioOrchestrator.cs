@@ -8,9 +8,7 @@ namespace GrainInterfaces.Scenario
 	public interface IScenarioOrchestrator : IGrainWithIntegerKey
 	{
 
-        public Task Start(ScenarioConfiguration scenarioConfiguration);
-
-        public Task Stop();
+        public Task Init(ScenarioConfiguration scenarioConfiguration);
 
     }
 }

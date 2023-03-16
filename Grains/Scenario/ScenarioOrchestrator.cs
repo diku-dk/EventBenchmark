@@ -5,6 +5,9 @@ using Common.Scenario;
 using System;
 using System.Collections.Generic;
 using GrainInterfaces.Workers;
+using Common.Streaming;
+using System.Text;
+using Orleans.Streams;
 
 namespace Grains.Scenario
 {
@@ -25,6 +28,10 @@ namespace Grains.Scenario
 
         private readonly Random random = new Random();
 
+        private long guid;
+
+        private IStreamProvider streamProvider;
+
         private ScenarioConfiguration scenarioConfiguration;
 
         // 
@@ -32,29 +39,41 @@ namespace Grains.Scenario
 
         public async override Task OnActivateAsync()
         {
-            foreach(TransactionType tx in Enum.GetValues(typeof(TransactionType)))
+            this.guid = this.GetPrimaryKeyLong();
+            this.streamProvider = this.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider);
+            var streamIncoming = streamProvider.GetStream<object>(StreamingConfiguration.IngestionStreamId, this.guid.ToString());
+
+            var subscriptionHandles = await streamIncoming.GetAllSubscriptionHandles();
+            if (subscriptionHandles.Count > 0)
+            {
+                foreach (var subscriptionHandle in subscriptionHandles)
+                {
+                    await subscriptionHandle.ResumeAsync(Run);
+                }
+            }
+
+            await streamIncoming.SubscribeAsync(Run);
+
+            Console.WriteLine("Scenario orchestrator activated!");
+        }
+
+        public Task Init(ScenarioConfiguration scenarioConfiguration)
+        {
+            foreach (TransactionType tx in Enum.GetValues(typeof(TransactionType)))
             {
                 nextIdPerTxType.Add(tx, 0);
             }
-            await base.OnActivateAsync();
-            return;
-        }
-
-        /**
-         * Later, to make more agnostic, receive as parameter a config builder
-         */
-        public Task Start_(ScenarioConfiguration scenarioConfiguration)
-        {
             this.scenarioConfiguration = scenarioConfiguration;
-            // setup timer according to the config passed. the timer defines the end of the experiment
-            // this.timer = this.RegisterTimer(Tick, null, TimeSpan.Zero, TimeSpan.MaxValue);
+            
             return Task.CompletedTask;
         }
 
-        public async Task Start(ScenarioConfiguration scenarioConfiguration)
+        private async Task Run(object obj, StreamSequenceToken token = null)
         {
-            // this.timer.Dispose();
-            Console.WriteLine("Scenario orchestrator initialized.");
+            // setup timer according to the config passed. the timer defines the end of the experiment
+            this.timer = this.RegisterTimer(Stop, null, this.scenarioConfiguration.dueTime, this.scenarioConfiguration.period);
+
+            Console.WriteLine("Scenario orchestrator execution started.");
 
             switch (scenarioConfiguration.submissionStrategy)
             {
@@ -146,12 +165,12 @@ namespace Grains.Scenario
             return Task.CompletedTask;
         }
 
-        public Task Stop()
+        private Task Stop(object arg)
         {
             Console.WriteLine("Submission of transactions will be terminated.");
             this.running = false;
             // dispose timer
-            // this.timer.Dispose();
+            this.timer.Dispose();
             return Task.CompletedTask;
         }
 

@@ -12,8 +12,8 @@ namespace GrainInterfaces.Ingestion
 
         // Task<bool> Run(IngestionConfiguration config);
 
-        [AlwaysInterleave]
-        Task<int> GetStatus();
+        // [AlwaysInterleave]
+        // Task<int> GetStatus();
 
     }
 }

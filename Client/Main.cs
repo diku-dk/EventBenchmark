@@ -90,7 +90,7 @@ namespace Client
             };
 
             MasterOrchestrator orchestrator = new MasterOrchestrator(masterConfiguration, defaultIngestionConfig, defaultScenarioConfig);
-            Task masterTask = Task.Run(() => { orchestrator.Run(); });
+            Task masterTask = Task.Run(async () => { await orchestrator.Run(); });
             await masterTask;
 
             Console.WriteLine("Master orchestrator finished!");
@@ -124,16 +124,15 @@ namespace Client
             IClusterClient client = new ClientBuilder()
                                 .UseLocalhostClustering()
                                 //.ConfigureLogging(logging => logging.AddConsole())
-                                .AddSimpleMessageStreamProvider(StreamingConfiguration.defaultStreamProvider, options =>
+                                .AddSimpleMessageStreamProvider(StreamingConfiguration.DefaultStreamProvider, options =>
                                 {
                                     options.PubSubType = Orleans.Streams.StreamPubSubType.ExplicitGrainBasedAndImplicit;
                                     options.FireAndForgetDelivery = false;
+                                    //options.OptimizeForImmutableData = true;
                                 })
                                 .Build();
 
-            // Boolean connected = true;
             Func<Exception, Task<bool>> func = (x) => {
-                // connected = false;
                 return Task.FromResult(false);
             };
 

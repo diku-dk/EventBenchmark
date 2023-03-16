@@ -10,12 +10,12 @@ var builder = new HostBuilder()
     {
         siloBuilder
             .UseLocalhostClustering()
-            .AddMemoryGrainStorage(StreamingConfiguration.defaultStreamStorage)
-            .AddSimpleMessageStreamProvider(StreamingConfiguration.defaultStreamProvider, options =>
+            .AddMemoryGrainStorage(StreamingConfiguration.DefaultStreamStorage)
+            .AddSimpleMessageStreamProvider(StreamingConfiguration.DefaultStreamProvider, options =>
             {
                 options.PubSubType = Orleans.Streams.StreamPubSubType.ExplicitGrainBasedAndImplicit;
-                options.FireAndForgetDelivery = false;
-                options.OptimizeForImmutableData = true; // to pass by reference, saving costs
+                //options.FireAndForgetDelivery = false;
+                //options.OptimizeForImmutableData = true; // to pass by reference, saving costs
             })
             // .ConfigureLogging(logging => logging.ClearProviders())   //.AddSimpleConsole())
             .ConfigureLogging(logging =>

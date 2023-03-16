@@ -27,12 +27,12 @@ namespace Grains.Ingestion
     public class IngestionOrchestrator : Grain, IIngestionOrchestrator
     {
 
-        // less than threshold, no need to partition
+        // if lower than the threshold, no need to partition
         private readonly static int partitioningThreshold = 10;
 
         private GeneratedData data;
 
-        private Status status;//  = Status.NEW;
+        private Status status;
 
         private long guid;
 
@@ -49,13 +49,13 @@ namespace Grains.Ingestion
 
         List<Task> taskList = new();
 
+        private IDisposable timer;
+
         public override async Task OnActivateAsync()
         {
-            Console.WriteLine("Ingestion orchestrator on activate!");
-
             this.guid = this.GetPrimaryKeyLong();
             this.streamProvider = this.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider);
-            var streamIncoming = streamProvider.GetStream<object>(StreamingConfiguration.IngestionStreamId, this.guid.ToString());
+            var streamIncoming = streamProvider.GetStream<int>(StreamingConfiguration.IngestionStreamId, this.guid.ToString());
 
             var subscriptionHandles = await streamIncoming.GetAllSubscriptionHandles();
             if (subscriptionHandles.Count > 0)
@@ -67,6 +67,8 @@ namespace Grains.Ingestion
             }
 
             await streamIncoming.SubscribeAsync(Run);
+
+            Console.WriteLine("Ingestion orchestrator activated!");
         }
 
         public Task Init(IngestionConfiguration config)
@@ -79,14 +81,13 @@ namespace Grains.Ingestion
         /**
          * This method may take arbitrary amount of time. Better to resort to Orleans streams.
          */
-        private Task Run(object obj, StreamSequenceToken? token = null)
+        private Task Run(int obj, StreamSequenceToken token = null)
         {
 
             if (this.status == Status.IN_PROGRESS)
             {
                 // this only happens if master publishes the event again...
-                Console.WriteLine("Ingestion orchestrator called again while in progress. Maybe bug?");
-                // return;
+                throw new Exception("Ingestion orchestrator called again while in progress. Maybe bug?");
             }
 
             // =====================
@@ -130,9 +131,6 @@ namespace Grains.Ingestion
                 IIngestionWorker worker = GrainFactory.GetGrain<IIngestionWorker>("SINGLE_WORKER");
                 Console.WriteLine("Single worker will be dispatched");
                 taskList.Add( worker.Send(batches) ); // FIXME probably exception here related to timeout
-
-                // trackedWorkerTasks[0].IsCompleted
-
                 Console.WriteLine("Single worker dispatching finished");
             }
             else if (config.distributionStrategy == IngestionDistributionStrategy.TABLE_PER_WORKER)
@@ -189,8 +187,6 @@ namespace Grains.Ingestion
 
                     }
 
-                    // await Task.WhenAll(taskList);
-
                 }
 
             }
@@ -198,13 +194,14 @@ namespace Grains.Ingestion
             this.status = Status.FINISHED;
             Console.WriteLine("Ingestion orchestrator dispatched all workers!");
 
+            // setup timer according to the config passed. the timer defines the end of the experiment
+            this.timer = this.RegisterTimer(CheckTermination, null, TimeSpan.FromMilliseconds(2000), TimeSpan.FromMilliseconds(5000));
+
             return Task.CompletedTask;
         }
 
         private void RunAsTablePerWorker(IngestionConfiguration config, GeneratedData data)
         {
-            // List<Task> taskList = new List<Task>();
-
             foreach (var table in data.tables)
             {
                 IIngestionWorker worker = GrainFactory.GetGrain<IIngestionWorker>(table.Key);
@@ -216,23 +213,30 @@ namespace Grains.Ingestion
                 };
                 taskList.Add(worker.Send(ingestionBatch));
             }
-
-            // await Task.WhenAll(taskList);
         }
 
 
-        public Task<int> GetStatus()
+        private async Task CheckTermination(object arg)
         {
 
             for(int i = 0; i < taskList.Count; i++)
             {
                 if(!taskList.ElementAt(i).IsCompleted)
                 {
-                    return Task.FromResult(0);
+                    return;
                 }
             }
 
-            return this.status == Status.FINISHED ? Task.FromResult(1) : Task.FromResult(0);
+            Console.WriteLine("Ingestion process has finished.");
+
+            // send the event to master
+            var resultStream = streamProvider.GetStream<int>(StreamingConfiguration.IngestionStreamId, "master");
+            await resultStream.OnNextAsync(1);
+
+            // dispose  timer
+            this.timer.Dispose();
+
+            return;
         }
 
     }

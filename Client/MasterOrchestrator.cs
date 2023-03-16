@@ -54,7 +54,7 @@ namespace Client
             this.streamProvider = clusterClient.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider);
         }
 
-        private Task FinalizeIngestion(object obj, StreamSequenceToken token = null)
+        private Task FinalizeIngestion(int obj, StreamSequenceToken token = null)
         {
             if (this.ingestionProcess == null) throw new Exception("Semaphore not initialized properly!");
             this.ingestionProcess.Signal();
@@ -64,7 +64,7 @@ namespace Client
         /**
          * Initialize the first step
          */
-        public async void Run()
+        public async Task Run()
 		{
 
             if (masterConfig.healthCheck)
@@ -74,7 +74,7 @@ namespace Client
                 var responses = new List<Task<HttpResponseMessage>>();
                 foreach(var tableUrl in ingestionConfig.mapTableToUrl)
                 {
-                    HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, tableUrl.Value + "/1");
+                    HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, tableUrl.Value);
                     responses.Add( HttpUtils.client.SendAsync(message) );
                 }
 
@@ -105,24 +105,16 @@ namespace Client
 
                 Console.WriteLine("Ingestion orchestrator grain will start.");
 
-                var ingestionStream = streamProvider.GetStream<object>(StreamingConfiguration.IngestionStreamId, "0");
+                IAsyncStream<int> ingestionStream = streamProvider.GetStream<int>(StreamingConfiguration.IngestionStreamId, 0.ToString());
 
-                // _ = ingestionOrchestrator.Run(ingestionConfig);
-                await ingestionStream.OnNextAsync(new object());
+                // FIXME this is not progressing...
+                await ingestionStream.OnNextAsync(0);
 
-                var resultStream = streamProvider.GetStream<object>(StreamingConfiguration.IngestionStreamId, "master");
+                IAsyncStream<int> resultStream = streamProvider.GetStream<int>(StreamingConfiguration.IngestionStreamId, "master");
 
                 this.ingestionProcess = new CountdownEvent(1);
 
-                await ingestionStream.SubscribeAsync(FinalizeIngestion);
-
-                // can be made simpler with orleans streams
-                //var status = 0;
-                //while (status == 0)
-                //{
-                //    Thread.Sleep(2000);
-                //    status = await ingestionOrchestrator.GetStatus();
-                //}
+                await resultStream.SubscribeAsync(FinalizeIngestion);
 
                 ingestionProcess.Wait();
 
@@ -179,16 +171,19 @@ namespace Client
                 // setup transaction orchestrator
                 IScenarioOrchestrator scenarioOrchestrator = masterConfig.orleansClient.GetGrain<IScenarioOrchestrator>(0);
 
+                await scenarioOrchestrator.Init(scenarioConfiguration);
+
                 // FIXME  await end of submission of transactions
                 // setup clock here instead of inisde the scenario orchestrator
-                _ = scenarioOrchestrator.Start(scenarioConfiguration);
+                // _ = scenarioOrchestrator.Start(scenarioConfiguration);
                 // var watch = new Stopwatch();
                 Thread.Sleep(scenarioConfiguration.period);
 
-                await scenarioOrchestrator.Stop();
+                // await scenarioOrchestrator.Stop();
             }
 
             // set up data collection for metrics
+            return;
 
         }
 
