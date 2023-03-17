@@ -28,8 +28,6 @@ namespace Common.Scenario.Customer
         public int delayBeforeStart;
 
         // public Func<string, int, string> buildCartItemPayloadFunc;
-
-        public Guid streamId;
     }
 }
 

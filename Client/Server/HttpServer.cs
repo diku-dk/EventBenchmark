@@ -4,6 +4,7 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using Client.Infra;
+using Newtonsoft.Json;
 
 namespace Client.Server
 {
@@ -38,12 +39,19 @@ namespace Client.Server
             Console.WriteLine("==== END OF REQUEST =====\n");
 
             // return a basic product json to test the driver
-            byte[] data = Encoding.UTF8.GetBytes("{ productId: 1, quantity: 1 }");
+            // byte[] data = Encoding.UTF8.GetBytes("{ productId: 1, quantity: 1 }");
+
+            var model = new{ productId = 1, quantity = 1 };
+
+            byte[] data = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(model));
+
             resp.ContentType = "application/json";
-            resp.ContentEncoding = Encoding.UTF8;
+            // resp.ContentEncoding = Encoding.UTF8;
             resp.ContentLength64 = data.Length;
             resp.StatusCode = 200;
-            resp.OutputStream.Write(data);
+            using System.IO.Stream output = resp.OutputStream;
+            output.Write(data, 0, data.Length);
+            output.Close();
 
             resp.Close();
         }
@@ -77,7 +85,7 @@ namespace Client.Server
         {
             listener.Prefixes.Add(url);
             listener.Start();
-            Console.WriteLine("Listening for connections on {0}", url);
+            Console.WriteLine("Listening to connections in {0}", url);
             Task task = HandleIncomingConnections();
             task.GetAwaiter().GetResult();
             listener.Close();

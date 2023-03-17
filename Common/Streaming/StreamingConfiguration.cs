@@ -26,11 +26,12 @@ namespace Common.Streaming
         public static readonly Guid IngestionWorkerStreamId = new("AD713788-B5AE-49FF-8B2C-F311B9CB0CC6");
 
         public static readonly Guid WorkloadStreamId = new("AD713788-B5AE-49FF-8B2C-F311B9CB0CC7");
-
+        public static readonly Guid CustomerStreamId = new("AD713788-B5AE-49FF-8B2C-F311B9CB0CC8");
 
         /*
          * APP
          */
-        public static readonly Guid CustomerStreamId = new("AD713788-B5AE-49FF-8B2C-F311B9CB0CC7");
+        public static readonly Guid CustomerReactStreamId = new("AD713788-B5AE-49FF-8B2C-F311B9CB0CC9");
+
     }
 }

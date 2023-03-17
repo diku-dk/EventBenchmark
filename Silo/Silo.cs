@@ -13,7 +13,7 @@ var builder = new HostBuilder()
             .AddMemoryGrainStorage(StreamingConfiguration.DefaultStreamStorage)
             .AddSimpleMessageStreamProvider(StreamingConfiguration.DefaultStreamProvider, options =>
             {
-                options.PubSubType = Orleans.Streams.StreamPubSubType.ExplicitGrainBasedAndImplicit;
+                options.PubSubType = Orleans.Streams.StreamPubSubType.ExplicitGrainBasedOnly;
                 //options.FireAndForgetDelivery = false;
                 //options.OptimizeForImmutableData = true; // to pass by reference, saving costs
             })

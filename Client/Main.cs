@@ -1,20 +1,13 @@
 ﻿using Client.Server;
-using Common.Entities.TPC_C;
 using Common.Ingestion;
 using Common.Ingestion.Config;
-using Common.Ingestion.DataGeneration;
-using Common.Ingestion.DTO;
 using Common.Scenario;
-using Common.Serdes;
 using Common.Streaming;
-using GrainInterfaces.Ingestion;
-using Newtonsoft.Json;
 using Orleans;
 using Orleans.Hosting;
+using Orleans.Runtime.Messaging;
 using System;
 using System.Collections.Generic;
-using System.Net.Http;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Client
@@ -49,36 +42,25 @@ namespace Client
             weight = new TransactionType[] { TransactionType.CHECKOUT },
             mapTableToUrl = new Dictionary<string, string>()
             {
-                ["product"] = "http://127.0.0.1:8001/product",
-                ["cart"] = "http://127.0.0.1:8001/cart",
-            }
-        };
-
-        public static async Task Main_(string[] args)
-        {
-             GeneratedData data = SyntheticDataGenerator.Generate(SerdesFactory.build());
-
-            // var ware = data.tables["warehouses"];
-            var item = new Item(1, 1, "frfrf", 34f, "frfrfr");
-            var str = JsonConvert.SerializeObject(item);
-
-            Console.WriteLine(str);
-
-            var deser = JsonConvert.DeserializeObject(str);
-
-            Console.WriteLine(deser.GetType().ToString());
-
-        }
+                ["products"] = "http://127.0.0.1:8001/products",
+                ["carts"] = "http://127.0.0.1:8001/carts",
+            },
+            submissionType = SubmissionEnum.QUANTITY,
+            windowOrBurstValue = 1,
+            period = TimeSpan.FromSeconds(600), // 10 min
+            waitBetweenSubmissions = 60000 // 60 seconds
+    };
 
         public static async Task Main(string[] args)
         {
+            Console.WriteLine("Initializing Orleans client...");
+            var client = await ConnectClient();
+            if (client == null) return;
+            Console.WriteLine("Orleans client initialized!");
+
             Console.WriteLine("Initializing Mock Http server...");
             HttpServer httpServer = new HttpServer();
             Task httpServerTask = Task.Run(() => { httpServer.Run(); });
-
-            Console.WriteLine("Initializing Orleans client...");
-            var client = await ConnectClient();
-            Console.WriteLine("Orleans client initialized!");
 
             MasterConfiguration masterConfiguration = new()
             {
@@ -86,12 +68,12 @@ namespace Client
                 streamEnabled = false,
                 healthCheck = false,
                 ingestion = true,
-                transactionSubmission = true
+                transactionSubmission = true,
+                cleanup = false
             };
 
             MasterOrchestrator orchestrator = new MasterOrchestrator(masterConfiguration, defaultIngestionConfig, defaultScenarioConfig);
-            Task masterTask = Task.Run(async () => { await orchestrator.Run(); });
-            await masterTask;
+            await orchestrator.Run();
 
             Console.WriteLine("Master orchestrator finished!");
 
@@ -108,7 +90,7 @@ namespace Client
                                 //.ConfigureLogging(logging => logging.AddConsole())
                                 .AddSimpleMessageStreamProvider(StreamingConfiguration.DefaultStreamProvider, options =>
                                 {
-                                    options.PubSubType = Orleans.Streams.StreamPubSubType.ExplicitGrainBasedAndImplicit;
+                                    options.PubSubType = Orleans.Streams.StreamPubSubType.ExplicitGrainBasedOnly;
                                     options.FireAndForgetDelivery = false;
                                     //options.OptimizeForImmutableData = true;
                                 })
@@ -118,9 +100,16 @@ namespace Client
                 return Task.FromResult(false);
             };
 
-            Task connectTask = client.Connect(func);
-            await connectTask;
-            return client;
+            try
+            {
+                Task connectTask = client.Connect(func);
+                await connectTask;
+                return client;
+            } catch(ConnectionFailedException e)
+            {
+                Console.WriteLine("Error connecting to Silo: {0}", e.Message);
+            }
+            return null;
         }
 
     }

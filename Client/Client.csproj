@@ -16,6 +16,7 @@
     <None Remove="MessagePack" />
     <None Remove="Server\" />
     <None Remove="Newtonsoft.Json" />
+    <None Remove="Transaction\" />
   </ItemGroup>
 
   <ItemGroup>
@@ -37,5 +38,6 @@
     <Folder Include="Streaming\RabbitMQ\" />
     <Folder Include="Streaming\Kafka\" />
     <Folder Include="Server\" />
+    <Folder Include="Transaction\" />
   </ItemGroup>
 </Project>

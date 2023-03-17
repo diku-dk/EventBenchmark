@@ -21,6 +21,7 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Orleans;
 using Orleans.Streams;
+using Transaction;
 using static Confluent.Kafka.ConfigPropertyNames;
 
 namespace Client
@@ -38,10 +39,8 @@ namespace Client
         // streams
         private readonly IStreamProvider streamProvider;
 
-        //
+        // synchronization with possible many ingestion orchestrator
         CountdownEvent ingestionProcess;
-
-        CountdownEvent workloadProcess;
 
         public MasterOrchestrator(
             MasterConfiguration masterConfig,
@@ -63,28 +62,21 @@ namespace Client
             return Task.CompletedTask;
         }
 
-        private Task FinalizeWorkload(int obj, StreamSequenceToken token = null)
-        {
-            if (this.workloadProcess == null) throw new Exception("Semaphore not initialized properly!");
-            this.workloadProcess.Signal();
-            return Task.CompletedTask;
-        }
-
         /**
          * Initialize the first step
          */
         public async Task Run()
-		{
+        {
 
             if (masterConfig.healthCheck)
             {
                 // for each table and associated url, perform a GET request to check if return is OK
                 // health check. is the microservice online?
                 var responses = new List<Task<HttpResponseMessage>>();
-                foreach(var tableUrl in ingestionConfig.mapTableToUrl)
+                foreach (var tableUrl in ingestionConfig.mapTableToUrl)
                 {
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, tableUrl.Value);
-                    responses.Add( HttpUtils.client.SendAsync(message) );
+                    responses.Add(HttpUtils.client.SendAsync(message));
                 }
 
                 await Task.WhenAll(responses);
@@ -92,7 +84,6 @@ namespace Client
                 int idx = 0;
                 foreach (var tableUrl in ingestionConfig.mapTableToUrl)
                 {
-                    // Console.WriteLine("Health check status code: " + response.StatusCode.ToString());
                     if (!responses[idx].Result.IsSuccessStatusCode)
                     {
                         Console.WriteLine("Healthcheck failed for {0}", tableUrl.Value);
@@ -120,11 +111,13 @@ namespace Client
 
                 IAsyncStream<int> resultStream = streamProvider.GetStream<int>(StreamingConfiguration.IngestionStreamId, "master");
 
-                await resultStream.SubscribeAsync(FinalizeIngestion);
+                var subscription = await resultStream.SubscribeAsync(FinalizeIngestion);
 
                 await ingestionStream.OnNextAsync(0);
 
                 ingestionProcess.Wait();
+
+                await subscription.UnsubscribeAsync();
 
                 Console.WriteLine("Ingestion orchestrator grain finished.");
             }
@@ -139,7 +132,7 @@ namespace Client
                     keyDistribution = Common.Configuration.Distribution.UNIFORM,
                     // keyRange = new Range(1, TpccConstants.NUM_I + 1),
                     keyRange = new Range(1, 15),
-                    urls = ingestionConfig.mapTableToUrl,
+                    urls = scenarioConfiguration.mapTableToUrl,
                     minMaxQtyRange = new Range(1, 11),
                     maxNumberKeysToAddToCart = 10,
                     delayBetweenRequestsRange = new Range(1, 1000),
@@ -156,6 +149,7 @@ namespace Client
                 IMetadataService metadataService = masterConfig.orleansClient.GetGrain<IMetadataService>(0);
                 metadataService.RegisterCustomerConfig(customerConfig);
 
+                List<KafkaConsumer> kafkaTasks = new();
                 if (this.masterConfig.streamEnabled)
                 {
                     // setup kafka consumer. setup forwarding events to proper grains (e.g., customers)
@@ -171,32 +165,35 @@ namespace Client
                             entry.Value,
                             entry.Key);
 
-                        Task kafkaConsumerTask = Task.Run(() => kafkaConsumer.Run());
+                        _ = Task.Run(() => kafkaConsumer.Run());
+                        kafkaTasks.Add(kafkaConsumer);
                     }
 
                     Console.WriteLine("Streaming set up finished.");
                 }
 
                 // setup transaction orchestrator
-                IScenarioOrchestrator scenarioOrchestrator = masterConfig.orleansClient.GetGrain<IScenarioOrchestrator>(0);
+                TransactionOrchestrator transactionOrchestrator = new TransactionOrchestrator(clusterClient, scenarioConfiguration);
 
-                await scenarioOrchestrator.Init(scenarioConfiguration);
+                _ = Task.Run(() => transactionOrchestrator.Run());
 
-                IAsyncStream<int> workloadStream = streamProvider.GetStream<int>(StreamingConfiguration.WorkloadStreamId, 0.ToString());
+                Thread.Sleep(scenarioConfiguration.period);
 
-                this.workloadProcess = new CountdownEvent(1);
+                transactionOrchestrator.Stop();
 
-                IAsyncStream<int> resultStream = streamProvider.GetStream<int>(StreamingConfiguration.WorkloadStreamId, "master");
+                // stop kafka consumers if necessary
+                if (this.masterConfig.streamEnabled)
+                {
+                    foreach (var task in kafkaTasks)
+                    {
+                        task.Stop();
+                    }
+                }
 
-                await resultStream.SubscribeAsync(FinalizeWorkload);
+                // set up data collection for metrics
+                return;
 
-                await workloadStream.OnNextAsync(0);
-
-                this.workloadProcess.Wait();
             }
-
-            // set up data collection for metrics
-            return;
 
         }
 

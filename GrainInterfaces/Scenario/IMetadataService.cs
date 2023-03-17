@@ -10,7 +10,7 @@ namespace GrainInterfaces.Scenario
         // Task<string> RetrieveAssignedQueue(int actorId);
 
         // allows decoupling scneario orchestrator with specific workers
-        Task<CustomerConfiguration> RetriveCustomerConfig();
+        Task<CustomerConfiguration> RetrieveCustomerConfig();
 
         void RegisterCustomerConfig(CustomerConfiguration customerConfiguration);
 

@@ -19,7 +19,7 @@ namespace Common.Scenario
         public SubmissionEnum submissionType = SubmissionEnum.TIME_IN_MILLI;
 
         // how much time a window or burst may remain. in milliseconds
-        public int windowOrBurstValue = 1000;
+        public int windowOrBurstValue = 5000;
 
         public long waitBetweenSubmissions = 0;
 

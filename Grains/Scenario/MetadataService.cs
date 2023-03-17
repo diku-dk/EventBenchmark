@@ -17,7 +17,7 @@ namespace Grains.Scenario
             this.customerConfiguration = customerConfiguration;
         }
 
-        public Task<CustomerConfiguration> RetriveCustomerConfig()
+        public Task<CustomerConfiguration> RetrieveCustomerConfig()
         {
             return Task.FromResult( customerConfiguration );
         }
