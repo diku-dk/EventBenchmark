@@ -6,6 +6,6 @@ namespace GrainInterfaces.Workers
 {
 	public interface ICustomerWorker : IGrainWithIntegerKey
 	{
-        public Task Run();
+        public Task Init();
 	}
 }

@@ -86,7 +86,7 @@ namespace Client
                 streamEnabled = false,
                 healthCheck = false,
                 ingestion = true,
-                transactionSubmission = false
+                transactionSubmission = true
             };
 
             MasterOrchestrator orchestrator = new MasterOrchestrator(masterConfiguration, defaultIngestionConfig, defaultScenarioConfig);
@@ -98,24 +98,6 @@ namespace Client
             await client.Close();
 
             httpServer.Stop();
-            // await httpServerTask;
-
-            /*
-            HttpClient client = new HttpClient();
-            try
-            {
-                using HttpResponseMessage response = client.PostAsync("http://127.0.0.1:8001/data", new StringContent("TESTE", Encoding.UTF8, "application/json")).Result;
-                response.EnsureSuccessStatusCode();
-                Console.WriteLine("Here we are: " + response.StatusCode);
-                
-            }
-            catch (HttpRequestException e)
-            {
-                Console.WriteLine("\nException Caught!");
-                Console.WriteLine("Message :{0} ", e.Message);
-                Console.WriteLine(e.StatusCode.Value);
-            }
-            */
 
         }
 

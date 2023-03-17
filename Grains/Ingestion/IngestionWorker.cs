@@ -34,8 +34,7 @@ namespace Grains.Ingestion
 
         public async Task Send(IngestionBatch batch)
         {
-            var tasks = RunBatch(batch);
-            await Task.WhenAll(tasks);
+            await RunBatch(batch);
             return;
         }
 
@@ -44,26 +43,29 @@ namespace Grains.Ingestion
 
             Console.WriteLine("Batches received: "+ batches.Count);
 
-            List<Task<HttpStatusCode[]>> responses = new();
+            // List<Task<HttpStatusCode[]>> responses = new();
 
             foreach(IngestionBatch batch in batches) 
             {
-                responses.Add(RunBatch(batch));
+                // responses.Add(RunBatch(batch));
+                await RunBatch(batch);
             }
 
-            Console.WriteLine("All HTTP requests sent. Time to wait for the responses...");
-            
+            Console.WriteLine("All HTTP requests sent.");
+
+            /*
             foreach (var tasks in responses)
             {
                 await Task.WhenAll(tasks);
             }
-            
-            Console.WriteLine("All responses received");
+            */
+
+            // Console.WriteLine("All responses received");
 
             // TODO check correctness... make get requests looking for some random IDs. also total sql to count total of items ingested
             CheckCorrectness();
 
-            return;
+            // return;
         }
 
         /*
@@ -76,9 +78,9 @@ namespace Grains.Ingestion
             return true;
         }
 
-        private async Task<HttpStatusCode[]> RunBatch(IngestionBatch batch)
+        private async Task RunBatch(IngestionBatch batch)
         {
-            HttpStatusCode[] responses = new HttpStatusCode[batch.data.Count];
+            // HttpStatusCode[] responses = new HttpStatusCode[batch.data.Count];
             int idx = 0;
             Random random = new();
             foreach (string payload in batch.data)
@@ -90,30 +92,31 @@ namespace Grains.Ingestion
 
                 // maybe implement mechanism for backpressure! start with concurrent submissions and then 4, 8, 16, if error downgrade to 8, 4, 2, 1 ...
                 // actually the unit of backpressure is the number of ingestion workers...
-                responses[idx] = await (Task.Run( () =>
+                // responses[idx] =
+                await (Task.Run( () =>
                 {
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, batch.url);
                     message.Content = HttpUtils.BuildPayload(payload);
-                    while (true)
-                    {
+                    // while (true){
                         try
                         {
                             using HttpResponseMessage response = HttpUtils.client.Send(message);
-                            return response.StatusCode;
+                            // return response.StatusCode;
                         }
                         catch (HttpRequestException e)
                         {
                             // Console.WriteLine("\nException Caught!");
-                            Console.WriteLine("Message: {0}", e.Message);
-                            Thread.Sleep(random.Next(1,1001)); // spread the several errors that may happen across different workers
+                            Console.WriteLine("Exception message: {0}", e.Message);
+                            
+                            // Thread.Sleep(random.Next(1,1001)); // spread the several errors that may happen across different workers
                             // return HttpStatusCode.ServiceUnavailable;
                         }
-                    }
+                    // }
                 }));
                 idx++;
 
             }
-            return responses;
+            return; // responses;
         }
 
     }

@@ -81,7 +81,7 @@ namespace Grains.Ingestion
         /**
          * This method may take arbitrary amount of time. Better to resort to Orleans streams.
          */
-        private Task Run(int obj, StreamSequenceToken token = null)
+        private async Task Run(int obj, StreamSequenceToken token = null)
         {
 
             if (this.status == Status.IN_PROGRESS)
@@ -111,27 +111,40 @@ namespace Grains.Ingestion
 
             if (config.distributionStrategy == IngestionDistributionStrategy.SINGLE_WORKER)
             {
-                Console.WriteLine("Single worker will start");
-                List<IngestionBatch> batches = new List<IngestionBatch>();
+                // just perform tasks here, no need to create worker grain
                 foreach (var table in data.tables)
                 {
+
                     if (!config.mapTableToUrl.ContainsKey(table.Key))
                     {
                         Console.WriteLine("It was not possible to find the URL for table " + table.Key);
                         continue;
                     }
                     string url = config.mapTableToUrl[table.Key];
-                    IngestionBatch ingestionBatch = new IngestionBatch()
+
+                    foreach (var item in table.Value)
                     {
-                        url = url,
-                        data = table.Value
-                    };
-                    batches.Add(ingestionBatch);
+                        await (Task.Run(() =>
+                        {
+                            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, url);
+                            message.Content = HttpUtils.BuildPayload(item);
+                           
+                            try
+                            {
+                                using HttpResponseMessage response = HttpUtils.client.Send(message);
+                            }
+                            catch (HttpRequestException e)
+                            {
+                                Console.WriteLine("Exception message: {0}", e.Message);
+                            }
+                            
+                        }));
+                    }
                 }
-                IIngestionWorker worker = GrainFactory.GetGrain<IIngestionWorker>("SINGLE_WORKER");
-                Console.WriteLine("Single worker will be dispatched");
-                taskList.Add( worker.Send(batches) ); // FIXME probably exception here related to timeout
-                Console.WriteLine("Single worker dispatching finished");
+
+                await SignalCompletion();
+                return;
+
             }
             else if (config.distributionStrategy == IngestionDistributionStrategy.TABLE_PER_WORKER)
             {
@@ -154,7 +167,16 @@ namespace Grains.Ingestion
                     List<Task> taskList = new List<Task>();
                     foreach (var table in data.tables)
                     {
-                        if(table.Value.Count > numberOfRecordsPerWorker)
+
+                        if (!config.mapTableToUrl.ContainsKey(table.Key))
+                        {
+                            Console.WriteLine("It was not possible to find the URL for table " + table.Key);
+                            continue;
+                        }
+
+                        string url = config.mapTableToUrl[table.Key];
+
+                        if (table.Value.Count > numberOfRecordsPerWorker)
                         {
                             int numberOfWorkersToAssign = table.Value.Count / numberOfRecordsPerWorker;
                             int indexInit;
@@ -191,13 +213,12 @@ namespace Grains.Ingestion
 
             }
 
-            this.status = Status.FINISHED;
             Console.WriteLine("Ingestion orchestrator dispatched all workers!");
 
             // setup timer according to the config passed. the timer defines the end of the experiment
             this.timer = this.RegisterTimer(CheckTermination, null, TimeSpan.FromMilliseconds(2000), TimeSpan.FromMilliseconds(5000));
 
-            return Task.CompletedTask;
+            return; // Task.CompletedTask;
         }
 
         private void RunAsTablePerWorker(IngestionConfiguration config, GeneratedData data)
@@ -205,7 +226,13 @@ namespace Grains.Ingestion
             foreach (var table in data.tables)
             {
                 IIngestionWorker worker = GrainFactory.GetGrain<IIngestionWorker>(table.Key);
+                if (!config.mapTableToUrl.ContainsKey(table.Key))
+                {
+                    Console.WriteLine("It was not possible to find the URL for table " + table.Key);
+                    continue;
+                }
                 string url = config.mapTableToUrl[table.Key];
+
                 IngestionBatch ingestionBatch = new IngestionBatch()
                 {
                     url = url,
@@ -227,16 +254,21 @@ namespace Grains.Ingestion
                 }
             }
 
-            Console.WriteLine("Ingestion process has finished.");
+            await SignalCompletion();
 
-            // send the event to master
-            var resultStream = streamProvider.GetStream<int>(StreamingConfiguration.IngestionStreamId, "master");
-            await resultStream.OnNextAsync(1);
-
-            // dispose  timer
+            // dispose timer
             this.timer.Dispose();
 
             return;
+        }
+
+        private async Task SignalCompletion()
+        {
+            this.status = Status.FINISHED;
+            Console.WriteLine("Ingestion process has finished.");
+            // send the event to master
+            var resultStream = streamProvider.GetStream<int>(StreamingConfiguration.IngestionStreamId, "master");
+            await resultStream.OnNextAsync(1);
         }
 
     }

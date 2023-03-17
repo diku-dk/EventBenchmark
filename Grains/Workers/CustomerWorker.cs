@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Common.Configuration;
 using Common.Http;
+using Common.Ingestion.Config;
 using Common.Scenario.Customer;
 using Common.Streaming;
 using Common.YCSB;
@@ -33,32 +34,52 @@ namespace Grains.Workers
 
         private NumberGenerator keyGenerator;
 
+        private IStreamProvider streamProvider;
+
         private IAsyncStream<Event> stream;
 
         private long customerId;
 
+        private Status status;
+
         private enum Status
         {
             NEW,
-            IN_PROGRESS,
+            BROWSING,
+            CHECKOUT,
+            REACT_OUT_OF_STOCK,
+            REACT_FAILED_PAYMENT,
+            REACT_ABANDONED_CART,
             FINISHED
         }
 
         public async override Task OnActivateAsync()
         {
-            await base.OnActivateAsync();
-            // this.status = Status.NEW;
+            this.streamProvider = this.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider);
+            this.stream = streamProvider.GetStream<Event>(this.config.streamId, customerId.ToString());
+
+            var subscriptionHandles = await stream.GetAllSubscriptionHandles();
+            if (subscriptionHandles.Count > 0)
+            {
+                foreach (var subscriptionHandle in subscriptionHandles)
+                {
+                    await subscriptionHandle.ResumeAsync(ProcessEventAsync);
+                }
+            }
+
+            await stream.SubscribeAsync<Event>( ProcessEventAsync );
+        }
+
+        public async Task Init()
+        {
+            this.customerId = this.GetPrimaryKeyLong();
+            this.status = Status.NEW;
             IMetadataService metadataService = GrainFactory.GetGrain<IMetadataService>(0);
             this.config = await metadataService.RetriveCustomerConfig();
             this.keyGenerator = this.config.keyDistribution == Distribution.UNIFORM ?
-                new UniformLongGenerator(this.config.keyRange.Start.Value, this.config.keyRange.End.Value) : 
+                new UniformLongGenerator(this.config.keyRange.Start.Value, this.config.keyRange.End.Value) :
                 new ZipfianGenerator(this.config.keyRange.Start.Value, this.config.keyRange.End.Value);
-
-            var streamProvider = this.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider);
-            this.customerId = this.GetPrimaryKeyLong();
-            this.stream = streamProvider.GetStream<Event>(this.config.streamId, customerId.ToString());
-            
-            await stream.SubscribeAsync<Event>( ProcessEventAsync );
+            return;
         }
 
         public async Task Run()
@@ -110,8 +131,6 @@ namespace Grains.Workers
             }
 
             Console.WriteLine("Customer {0} defined the keys to browse {1}", this.customerId,  sb.ToString());
-
-            
 
             HttpResponseMessage[] responses = new HttpResponseMessage[numberOfKeysToBrowse];
 

@@ -20,9 +20,17 @@ namespace Common.Streaming
         public const string ZooKeeperService = "localhost:2181";
 
         /*
-         * APP
+         * DRIVER
          */
         public static readonly Guid IngestionStreamId = new("AD713788-B5AE-49FF-8B2C-F311B9CB0CC5");
-        public static readonly Guid IngestionWrokerStreamId = new("AD713788-B5AE-49FF-8B2C-F311B9CB0CC6");
+        public static readonly Guid IngestionWorkerStreamId = new("AD713788-B5AE-49FF-8B2C-F311B9CB0CC6");
+
+        public static readonly Guid WorkloadStreamId = new("AD713788-B5AE-49FF-8B2C-F311B9CB0CC7");
+
+
+        /*
+         * APP
+         */
+        public static readonly Guid CustomerStreamId = new("AD713788-B5AE-49FF-8B2C-F311B9CB0CC7");
     }
 }

@@ -41,6 +41,8 @@ namespace Client
         //
         CountdownEvent ingestionProcess;
 
+        CountdownEvent workloadProcess;
+
         public MasterOrchestrator(
             MasterConfiguration masterConfig,
             IngestionConfiguration ingestionConfig,
@@ -58,6 +60,13 @@ namespace Client
         {
             if (this.ingestionProcess == null) throw new Exception("Semaphore not initialized properly!");
             this.ingestionProcess.Signal();
+            return Task.CompletedTask;
+        }
+
+        private Task FinalizeWorkload(int obj, StreamSequenceToken token = null)
+        {
+            if (this.workloadProcess == null) throw new Exception("Semaphore not initialized properly!");
+            this.workloadProcess.Signal();
             return Task.CompletedTask;
         }
 
@@ -107,14 +116,13 @@ namespace Client
 
                 IAsyncStream<int> ingestionStream = streamProvider.GetStream<int>(StreamingConfiguration.IngestionStreamId, 0.ToString());
 
-                // FIXME this is not progressing...
-                await ingestionStream.OnNextAsync(0);
+                this.ingestionProcess = new CountdownEvent(1);
 
                 IAsyncStream<int> resultStream = streamProvider.GetStream<int>(StreamingConfiguration.IngestionStreamId, "master");
 
-                this.ingestionProcess = new CountdownEvent(1);
-
                 await resultStream.SubscribeAsync(FinalizeIngestion);
+
+                await ingestionStream.OnNextAsync(0);
 
                 ingestionProcess.Wait();
 
@@ -144,6 +152,7 @@ namespace Client
                     throw new Exception("That may lead to customer grain looping forever!");
                 }
 
+                // register customer config
                 IMetadataService metadataService = masterConfig.orleansClient.GetGrain<IMetadataService>(0);
                 metadataService.RegisterCustomerConfig(customerConfig);
 
@@ -173,13 +182,17 @@ namespace Client
 
                 await scenarioOrchestrator.Init(scenarioConfiguration);
 
-                // FIXME  await end of submission of transactions
-                // setup clock here instead of inisde the scenario orchestrator
-                // _ = scenarioOrchestrator.Start(scenarioConfiguration);
-                // var watch = new Stopwatch();
-                Thread.Sleep(scenarioConfiguration.period);
+                IAsyncStream<int> workloadStream = streamProvider.GetStream<int>(StreamingConfiguration.WorkloadStreamId, 0.ToString());
 
-                // await scenarioOrchestrator.Stop();
+                this.workloadProcess = new CountdownEvent(1);
+
+                IAsyncStream<int> resultStream = streamProvider.GetStream<int>(StreamingConfiguration.WorkloadStreamId, "master");
+
+                await resultStream.SubscribeAsync(FinalizeWorkload);
+
+                await workloadStream.OnNextAsync(0);
+
+                this.workloadProcess.Wait();
             }
 
             // set up data collection for metrics

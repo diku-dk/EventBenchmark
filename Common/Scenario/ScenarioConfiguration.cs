@@ -21,6 +21,8 @@ namespace Common.Scenario
         // how much time a window or burst may remain. in milliseconds
         public int windowOrBurstValue = 1000;
 
+        public long waitBetweenSubmissions = 0;
+
         // period to wait before start
         public TimeSpan dueTime = TimeSpan.FromSeconds(5);
 

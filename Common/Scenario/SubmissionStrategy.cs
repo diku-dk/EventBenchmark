@@ -16,7 +16,7 @@
         // may miss some transaction requests because the consumer wil not cope with the rate of input
         WINDOW,
         // keeps sending without stopping
-        // dont care about consumer
+        // don't care about consumer
         // basically increase significantly the risk of losing transaction requests
         CONTINUOUS
 
