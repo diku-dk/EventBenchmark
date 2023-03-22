@@ -108,7 +108,7 @@ local.properties
 .DS_Store
 
 # csv files
-.csv
+*.csv
 */*.csv
 
 # DuckDB
