@@ -4,12 +4,20 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
 using Common.Streaming;
+using System.Net;
+
+// https://learn.microsoft.com/en-us/dotnet/orleans/host/configuration-guide/typical-configurations
+// const string PRIMARY_SILO_IP_ADDRESS = "127.0.0.1";
+// IPEndPoint primarySiloEndpoint = new IPEndPoint(PRIMARY_SILO_IP_ADDRESS, 11111);
+// var primarySiloEndpoint = new IPEndpoint(PRIMARY_SILO_IP_ADDRESS, 11111);
 
 var builder = new HostBuilder()
    .UseOrleans(siloBuilder =>
     {
+        
         siloBuilder
             .UseLocalhostClustering()
+            //.UseDevelopmentClustering(primarySiloEndpoint)
             .AddMemoryGrainStorage(StreamingConfiguration.DefaultStreamStorage)
             .AddSimpleMessageStreamProvider(StreamingConfiguration.DefaultStreamProvider, options =>
             {

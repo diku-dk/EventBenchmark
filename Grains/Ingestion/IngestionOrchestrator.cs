@@ -8,7 +8,6 @@ using GrainInterfaces.Ingestion;
 using System.Linq;
 using System.Net.Http;
 using Common.Ingestion.Config;
-using Common.Ingestion.DataGeneration;
 using Common.Serdes;
 using Common.Http;
 using System.Collections.Concurrent;
@@ -94,18 +93,18 @@ namespace Grains.Ingestion
 
             Console.WriteLine("Ingestion orchestrator will start ingestion process!");
 
-            if (this.status == Status.NEW)
-            {
-                if (config.dataSourceType == DataSourceType.SYNTHETIC)
-                {
-                    data = SyntheticDataGenerator.Generate(SerdesFactory.build());
-                }
-                else
-                {
-                    data = RealDataGenerator.Generate();
-                }
-                Console.WriteLine("Ingestion orchestrator data generated!");
-            }
+            //if (this.status == Status.NEW)
+            //{
+            //    if (config.dataSourceType == DataSourceType.SYNTHETIC)
+            //    {
+            //        data = SyntheticDataGenerator.Generate(SerdesFactory.build());
+            //    }
+            //    else
+            //    {
+            //        data = RealDataGenerator.Generate();
+            //    }
+            //    Console.WriteLine("Ingestion orchestrator data generated!");
+            //}
             this.status = Status.IN_PROGRESS;
             
 

@@ -6,9 +6,9 @@ namespace Common.Ingestion.Config
     public class IngestionConfiguration
     {
 
-        public DataSourceType dataSourceType;
+        public string connectionString = "Data Source=file.db"; // "DataSource=:memory:"
 
-        // distribution of work startegy
+        // distribution of work strategy
         public IngestionDistributionStrategy distributionStrategy;
 
         // number of logical processors = Environment.ProcessorCount

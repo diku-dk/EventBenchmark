@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using Common.Scenario.Customer;
+using Common.YCSB;
 
 namespace Common.Scenario
 {
@@ -30,7 +32,7 @@ namespace Common.Scenario
         public TimeSpan period = TimeSpan.FromSeconds(60);
 
         // e.g. 10 entries, new order has 7 entries and price update 3, meaning 70% probability of new order
-        public TransactionType[] weight;
+        public WorkloadType[] weight;
 
         // usually the same as the ingestion
         // but as new microservices might be added here
@@ -39,6 +41,21 @@ namespace Common.Scenario
 
         // map kafka topic to orleans stream Guid
         public Dictionary<string, Guid> mapTopicToStreamGuid;
+
+        public Dictionary<WorkloadType, NumberGenerator> numGenPerTxType;
+
+        // customer config
+        public CustomerConfiguration customerConfig = new()
+        {
+            maxNumberKeysToBrowse = 10,
+            keyDistribution = Common.Configuration.Distribution.UNIFORM,
+            keyRange = new Range(1, 15),
+            // urls = mapTableToUrl,
+            minMaxQtyRange = new Range(1, 11),
+            maxNumberKeysToAddToCart = 10,
+            delayBetweenRequestsRange = new Range(1, 1000),
+            delayBeforeStart = 0
+        };
 
     }
 }

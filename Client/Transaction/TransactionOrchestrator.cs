@@ -33,16 +33,19 @@ namespace Transaction
 
         private readonly ScenarioConfiguration scenarioConfiguration;
 
-        private readonly Dictionary<TransactionType, long> nextIdPerTxType = new Dictionary<TransactionType, long>();
+        //private readonly Dictionary<WorkloadType, long> nextIdPerTxType = new Dictionary<WorkloadType, long>();
 
         public TransactionOrchestrator(IClusterClient clusterClient, ScenarioConfiguration scenarioConfiguration) : base()
         {
             this.orleansClient = clusterClient;
             this.streamProvider = orleansClient.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider);
-            foreach (TransactionType tx in Enum.GetValues(typeof(TransactionType)))
+
+            /*
+            foreach (WorkloadType tx in Enum.GetValues(typeof(WorkloadType)))
             {
                 nextIdPerTxType.Add(tx, 0);
             }
+            */
             this.scenarioConfiguration = scenarioConfiguration;
         }
 
@@ -70,7 +73,7 @@ namespace Transaction
                     {
                         int val = scenarioConfiguration.windowOrBurstValue;
                         do {
-                            tasks.Add(Task.Run(() => SubmitTransaction()));
+                            tasks.Add(Task.Run(SubmitTransaction));
                             val--;
                         } while (val > 0);
                     }
@@ -115,29 +118,31 @@ namespace Transaction
         private async Task SubmitTransaction()
         {
             int idx = random.Next(0, this.scenarioConfiguration.weight.Length);
-            TransactionType tx = this.scenarioConfiguration.weight[idx];
+            WorkloadType tx = this.scenarioConfiguration.weight[idx];
 
-            // get from dictionary
-            long val = nextIdPerTxType[tx];
-            val++;
-            nextIdPerTxType[tx] = val;
+            long grainID = scenarioConfiguration.numGenPerTxType[tx].NextValue();
 
             switch (tx)
             { 
-                case TransactionType.CHECKOUT:
+                case WorkloadType.CUSTOMER_SESSION: //customer
                 {
-                    ICustomerWorker customerWorker = orleansClient.GetGrain<ICustomerWorker>(val);
+                    // pick a random customer ID, so customer can check out again
+                    // make sure no active session for the customer, if so, pick another customer
+                    ICustomerWorker customerWorker = orleansClient.GetGrain<ICustomerWorker>(grainID);
                     await customerWorker.Init();
-                    var streamOutgoing = streamProvider.GetStream<int>(StreamingConfiguration.CustomerStreamId, val.ToString());
+                    var streamOutgoing = streamProvider.GetStream<int>(StreamingConfiguration.CustomerStreamId, grainID.ToString());
                     await streamOutgoing.OnNextAsync(1);
                     break;
                 }
-                // stateless workers
-                case TransactionType.PRICE_UPDATE:
+                case WorkloadType.PRICE_UPDATE: // seller
                 {
-                    // TODO model as stateless worker
+                    // TODO model as a worker
                     // register the config like customer worker, together with a function that updates a price
                     return; // Task.CompletedTask;
+                }
+                case WorkloadType.UPDATE_DELIVERY: // delivery worker
+                {
+                    return;
                 }
                 default: { throw new Exception("Unknown transaction type defined!"); }
             }

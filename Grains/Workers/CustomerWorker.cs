@@ -1,16 +1,12 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Dynamic;
-using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using Common.Configuration;
 using Common.Http;
-using Common.Ingestion.Config;
 using Common.Scenario.Customer;
 using Common.Streaming;
 using Common.YCSB;
@@ -18,9 +14,7 @@ using GrainInterfaces.Scenario;
 using GrainInterfaces.Workers;
 using Newtonsoft.Json;
 using Orleans;
-using Orleans.Concurrency;
 using Orleans.Streams;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace Grains.Workers
 {
@@ -41,15 +35,19 @@ namespace Grains.Workers
 
         private Status status;
 
+        private string productUrl;
+
+        private string cartUrl;
+
         private enum Status
         {
             NEW,
             BROWSING,
-            CHECKOUT,
+            CHECKOUT_SENT,
+            CHECKOUT_NOT_SENT,
             REACT_OUT_OF_STOCK,
             REACT_FAILED_PAYMENT,
-            REACT_ABANDONED_CART,
-            FINISHED
+            REACT_ABANDONED_CART
         }
 
         public async override Task OnActivateAsync()
@@ -87,25 +85,13 @@ namespace Grains.Workers
             this.keyGenerator = this.config.keyDistribution == Distribution.UNIFORM ?
                 new UniformLongGenerator(this.config.keyRange.Start.Value, this.config.keyRange.End.Value) :
                 new ZipfianGenerator(this.config.keyRange.Start.Value, this.config.keyRange.End.Value);
+            this.productUrl = this.config.urls["products"];
+            this.cartUrl = this.config.urls["carts"];
             return;
         }
 
         private async Task Run(int obj, StreamSequenceToken token)
         {
-
-            if (!this.config.urls.ContainsKey("products"))
-            {
-                Console.WriteLine("Customer {0} found no products URL!", this.customerId);
-                return;
-            }
-            if (!this.config.urls.ContainsKey("carts"))
-            {
-                Console.WriteLine("Customer {0} found no carts URL!", this.customerId);
-                return;
-            }
-            string productUrl = this.config.urls["products"];
-            string cartUrl = this.config.urls["carts"];
-
             Console.WriteLine("Customer {0} started!", this.customerId);
 
             if (this.config.delayBeforeStart > 0)
@@ -222,13 +208,13 @@ namespace Grains.Workers
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, cartUrl + "/" + customerId + "/checkout");
                     HttpUtils.client.Send(message);
                 });
+                this.status = Status.CHECKOUT_SENT;
             }
             else
             {
+                this.status = Status.CHECKOUT_NOT_SENT;
                 Console.WriteLine("Customer " + customerId + " decided not to send a checkout!");
             }
-
-            Console.WriteLine("Customer {0} finished!", this.customerId);
 
             return;
         }

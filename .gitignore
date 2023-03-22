@@ -105,5 +105,12 @@ local.properties
 .idea
 
 # Mac file(s)
-
 .DS_Store
+
+# csv files
+.csv
+*/*.csv
+
+# DuckDB
+*.db
+*.db.wal

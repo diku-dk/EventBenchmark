@@ -17,6 +17,9 @@
     <None Remove="Server\" />
     <None Remove="Newtonsoft.Json" />
     <None Remove="Transaction\" />
+    <None Remove="DataGeneration\" />
+    <None Remove="Ingestion\" />
+    <None Remove="DataGeneration\Real\" />
   </ItemGroup>
 
   <ItemGroup>
@@ -25,6 +28,7 @@
     <PackageReference Include="Confluent.Kafka" Version="2.0.2" />
     <PackageReference Include="RabbitMQ.Client" Version="6.4.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="DuckDB.NET.Data.Full" Version="0.7.1" />
   </ItemGroup>
 
   <ItemGroup>
@@ -39,5 +43,8 @@
     <Folder Include="Streaming\Kafka\" />
     <Folder Include="Server\" />
     <Folder Include="Transaction\" />
+    <Folder Include="DataGeneration\" />
+    <Folder Include="Ingestion\" />
+    <Folder Include="DataGeneration\Real\" />
   </ItemGroup>
 </Project>
