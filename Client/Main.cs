@@ -83,6 +83,9 @@ namespace Client
             HttpServer httpServer = new HttpServer();
             Task httpServerTask = Task.Run(() => { httpServer.Run(); });
 
+            SyntheticDataSourceConfiguration syntheticConfig = new SyntheticDataSourceConfiguration();
+            // syntheticConfig.fileDir = Environment.GetEnvironmentVariable("HOME") + "/workspace/EventBenchmark/Client/DataGeneration/Synthetic";
+
             MasterConfiguration masterConfiguration = new()
             {
                 orleansClient = client,
@@ -94,7 +97,8 @@ namespace Client
                 cleanup = false,
                 scenarioConfig = defaultScenarioConfig,
                 ingestionConfig = defaultIngestionConfig,
-                syntheticConfig = new SyntheticDataSourceConfiguration()
+                // syntheticConfig = syntheticConfig
+                olistConfig = new DataGeneration.Real.OlistDataSourceConfiguration()
             };
 
             MasterOrchestrator orchestrator = new MasterOrchestrator(masterConfiguration);

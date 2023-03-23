@@ -2,8 +2,11 @@
 using DuckDB.NET.Data;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.Metrics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Reflection.Emit;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -12,7 +15,7 @@ namespace Client.DataGeneration.Real
     /**
      * 
      */
-    public sealed class RealDataGenerator
+    public sealed class RealDataGenerator : BaseDataGenerator
     {
         private readonly OlistDataSourceConfiguration config;
 
@@ -21,15 +24,15 @@ namespace Client.DataGeneration.Real
             this.config = config;
         }
 
-        public void Generate()
+        public override void Generate()
         {
 
             // make sure all files exist first
-            foreach(var entry in config.mapTableToFileName)
+            foreach (var entry in config.mapTableToFileName)
             {
-                if(!Directory.Exists(config.filePath + "/" + entry.Value))
+                if (!File.Exists(config.fileDir + "/" + entry.Value))
                 {
-                    throw new Exception("Cannot generate table "+ entry.Key);
+                    throw new Exception("Cannot generate table \'" + entry.Key + "\'. File \'"+entry.Value+"\' cannot be found in "+ config.fileDir);
                 }
             }
 
@@ -39,14 +42,37 @@ namespace Client.DataGeneration.Real
             var sb = new StringBuilder();
             foreach (var entry in config.mapTableToFileName)
             {
-                sb.Append("CREATE TABLE ").Append(entry.Key).Append(" AS SELECT * FROM read_csv('")
-                    .Append(config.filePath).Append('/').Append(entry.Value)
+                sb.Append("CREATE OR REPLACE TABLE ").Append(entry.Key).Append("_aux").Append(" AS SELECT * FROM read_csv('")
+                    .Append(config.fileDir).Append('/').Append(entry.Value)
                     .Append("', header=true, delim=',', AUTO_DETECT=TRUE);");
 
                 command.CommandText = sb.ToString();
                 var executeNonQuery = command.ExecuteNonQuery();
                 sb.Clear();
             }
+
+            foreach (var entry in mapTableToCreateStmt)
+            {
+                command.CommandText = entry.Value;
+                command.ExecuteNonQuery();
+            }
+
+            //command.CommandText = "CREATE UNIQUE INDEX seller_id_idx ON sellers_aux(seller_id);";
+            //command.ExecuteNonQuery();
+
+            command.CommandText = "CREATE INDEX seller_id_idx ON order_items_aux(seller_id);";
+            command.ExecuteNonQuery();
+
+            command.CommandText = "CREATE UNIQUE INDEX product_id_idx ON products_aux(product_id);";
+            command.ExecuteNonQuery();
+
+            // throw the original data in the respective driver-managed tables
+
+            // sellers
+            LoadSellers(connection);
+
+            // products
+            LoadProducts(connection);
 
             // generate stock table based on products
             // a high number of stock at first to make it less complicated
@@ -56,9 +82,96 @@ namespace Client.DataGeneration.Real
 
             // create stock items based on the order items. pick number of items sold
 
+            command.CommandText = "ALTER TABLE categories_aux RENAME TO categories;";
+            command.ExecuteNonQuery();
 
+            Console.WriteLine("Olist data generation has finished.");
+        }
+
+        private void LoadProducts(DuckDBConnection connection)
+        {
+            // seller is not found in products table
+            // order items provide the relationship between seller and product
+            var command = connection.CreateCommand();
+            command.CommandText = "create table seller_products AS select s.rowid as seller_id, o.product_id, o.price from order_items_aux as o inner join sellers_aux as s on o.seller_id = s.seller_id group by s.rowid, o.product_id, o.price;";
+            command.ExecuteReader();
+
+            // get product data
+            command.CommandText = "select sp.seller_id, p.product_id, p.product_category_name from seller_products as sp inner join products_aux as p on sp.product_id = p.product_id;";
+            var queryResult = command.ExecuteReader();
+
+            while (queryResult.Read())
+            {
+
+                var productId = queryResult.GetInt64(0);
+                var sellerId = queryResult.GetInt64(1);
+                var category = queryResult.GetString(2);
+
+                var name = RandomString(24, alphanumeric);
+                var price = numeric(5, 2, false);
+                var data = RandomString(50, alphanumeric);
+
+                // issue insert statement
+                var sb = new StringBuilder(baseProductQuery);
+                sb.Append('(').Append(productId).Append(',');
+                sb.Append(sellerId).Append(',');
+                sb.Append('\'').Append(category).Append("',");
+                sb.Append('\'').Append(name).Append("',");
+                sb.Append(price).Append(',');
+                sb.Append('\'').Append(data).Append("');");
+
+                Console.WriteLine(sb.ToString());
+
+                command.CommandText = sb.ToString();
+                command.ExecuteNonQuery();
+
+            }
 
         }
 
+        private void LoadSellers(DuckDBConnection connection)
+        {
+            var command = connection.CreateCommand();
+            command.CommandText = "select rowid, * from sellers_aux;";
+            var queryResult = command.ExecuteReader();
+
+            while (queryResult.Read())
+            {
+                long sellerID = queryResult.GetInt64(0);
+                string name = RandomString(10, alphanumeric);
+                string street1 = RandomString(20, alphanumeric);
+                string street2 = RandomString(20, alphanumeric);
+
+                // get from original tuple
+                string zip = queryResult.GetString(2);
+                string city = RemoveBadCharacter( queryResult.GetString(3) );
+                string state = queryResult.GetString(4);
+
+                float tax = numeric(4, 4, false);
+                int ytd = 0;
+
+                var order_count = numeric(4, false);
+
+                // issue insert statement
+                var sb = new StringBuilder(baseSellerQuery);
+                sb.Append('(').Append(sellerID).Append(',');
+                sb.Append('\'').Append(name).Append("',");
+                sb.Append('\'').Append(street1).Append("',");
+                sb.Append('\'').Append(street2).Append("',");
+                sb.Append(tax).Append(',');
+                sb.Append(ytd).Append(',');
+                sb.Append(order_count).Append(',');
+                sb.Append('\'').Append(zip).Append("',");
+                sb.Append('\'').Append(city).Append("',");
+                sb.Append('\'').Append(state).Append("');");
+
+                Console.WriteLine(sb.ToString());
+
+                command.CommandText = sb.ToString();
+                command.ExecuteNonQuery();
+            }
+
+        }
     }
+
 }

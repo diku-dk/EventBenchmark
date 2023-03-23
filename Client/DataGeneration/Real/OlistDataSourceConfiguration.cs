@@ -16,7 +16,10 @@ namespace Client.DataGeneration.Real
         public string connectionString = "Data Source=file.db"; // "DataSource=:memory:"
 
         // only set if non local
-        public string filePath = Directory.GetCurrentDirectory();
+        public string fileDir = Environment.GetEnvironmentVariable("HOME") + "/Downloads/olist/";
+
+        // created synthetically
+        public int percentageFailedOrders = 10;
 
         public Dictionary<string, string> mapTableToFileName = new()
         {
@@ -24,8 +27,8 @@ namespace Client.DataGeneration.Real
             ["sellers"] = "olist_sellers_dataset.csv",
             ["products"] = "olist_products_dataset.csv",
             ["customers"] = "olist_customers_dataset.csv",
-            ["orders"] = "",
-            ["order_items"] = ""
+            ["orders"] = "olist_orders_dataset.csv",
+            ["order_items"] = "olist_order_items_dataset.csv"
         };
 
     }

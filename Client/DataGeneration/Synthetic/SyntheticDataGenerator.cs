@@ -18,20 +18,14 @@ namespace Client.DataGeneration
     /**
      * Based on TPC-C values
      */
-    public class SyntheticDataGenerator
+    public class SyntheticDataGenerator : BaseDataGenerator
     {
-
-        private const string numbers = "0123456789";
-        private const string alphanumeric = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-
-
-        private readonly Random random;
 
         private readonly SyntheticDataSourceConfiguration config;
 
-        public SyntheticDataGenerator(SyntheticDataSourceConfiguration config) {
+        public SyntheticDataGenerator(SyntheticDataSourceConfiguration config) : base()
+        {
             this.config = config;
-            this.random = new Random();
         }
 
         /**
@@ -39,6 +33,15 @@ namespace Client.DataGeneration
          */
         private void Prepare(DuckDBConnection connection)
         {
+
+            foreach (var entry in config.mapTableToFileName)
+            {
+                if (!File.Exists(config.fileDir + "/" + entry.Value))
+                {
+                    throw new Exception("Cannot generate table " + entry.Key + ". File cannot be found.");
+                }
+            }
+
             var command = connection.CreateCommand();
             var sb = new StringBuilder();
             foreach (var entry in config.mapTableToFileName)
@@ -53,7 +56,7 @@ namespace Client.DataGeneration
             }
 
             // add remaining tables
-            foreach (var entry in config.mapTableToCreateStmt)
+            foreach (var entry in mapTableToCreateStmt)
             {
                 command.CommandText = entry.Value;
                 command.ExecuteNonQuery();
@@ -61,7 +64,7 @@ namespace Client.DataGeneration
 
         }
 
-        public void Generate()
+        public override void Generate()
         {
 
             using var connection = new DuckDBConnection(config.connectionString);
@@ -161,10 +164,8 @@ namespace Client.DataGeneration
             }
             return res;
         }
-
-        private readonly string baseSellerQuery = "INSERT INTO sellers(seller_id, name, street1, street2, tax, ytd, order_count, seller_zip_code_prefix, seller_city, seller_state) VALUES ";
             
-        private void GenerateSeller(DuckDBConnection connection, int sellerID, int numGeo)
+        private void GenerateSeller(DuckDBConnection connection, int sellerId, int numGeo)
         {
             string name = RandomString(10, alphanumeric);
             string street1 = RandomString(20, alphanumeric);
@@ -184,7 +185,7 @@ namespace Client.DataGeneration
 
             // issue insert statement
             var sb = new StringBuilder(baseSellerQuery);
-            sb.Append('(').Append(sellerID).Append(',');
+            sb.Append('(').Append(sellerId).Append(',');
             sb.Append('\'').Append(name).Append("',");
             sb.Append('\'').Append(street1).Append("',");
             sb.Append('\'').Append(street2).Append("',");
@@ -214,9 +215,7 @@ namespace Client.DataGeneration
             return queryResult.GetString(0);
         }
 
-        private readonly string baseProductQuery = "INSERT INTO products (product_id,seller_id,product_category_name,name,price,data) VALUES ";
-
-        private void GenerateProduct(DuckDBConnection connection, int productId, int sellerID, int numCat)
+        private void GenerateProduct(DuckDBConnection connection, int productId, int sellerId, int numCat)
         {
             // get category
             var category = GetCategory(connection, numCat);
@@ -228,7 +227,7 @@ namespace Client.DataGeneration
             // issue insert statement
             var sb = new StringBuilder(baseProductQuery);
             sb.Append('(').Append(productId).Append(',');
-            sb.Append(sellerID).Append(',');
+            sb.Append(sellerId).Append(',');
             sb.Append('\'').Append(category).Append("',");
             sb.Append('\'').Append(name).Append("',");
             sb.Append(price).Append(',');
@@ -336,41 +335,6 @@ namespace Client.DataGeneration
 
         }
 
-        private string RandomString(int length, string chars)
-        {
-            return new string(Enumerable.Repeat(chars, length)
-              .Select(s => s[random.Next(s.Length)]).ToArray());
-        }
-
-        private int numeric(int m, bool signed)
-        {
-            var num = random.Next((int)Math.Pow(10, m), (int)Math.Pow(10, m + 1));
-            var isPositive = random.Next(0, 2);
-            if (signed && isPositive > 1) return -num;
-            else return num;
-        }
-
-        private float numeric(int m, int n, bool signed)
-        {
-            float the_number;
-            var str = RandomString(m, numbers);
-            if (m == n) the_number = float.Parse("0." + str);
-            else if (m > n)
-            {
-                var left = str.Substring(0, m - n);
-                var right = str.Substring(m - n);
-                the_number = float.Parse(left + "." + right);
-            }
-            else
-            {
-                var left = "0.";
-                for (int i = 0; i < n - m; i++) left += "0";
-                the_number = float.Parse(left + str);
-            }
-            var isPositive = random.Next(0, 2);
-            if (signed && isPositive > 0) return -the_number;
-            return the_number;
-        }
     }
 
 }

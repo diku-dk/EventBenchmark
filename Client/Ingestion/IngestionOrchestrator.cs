@@ -35,17 +35,13 @@ namespace Client.Ingestion
                 duckDBConnection.Open();
                 var command = duckDBConnection.CreateCommand();
 
-                // just perform tasks here, no need to create worker grain
                 foreach (var table in config.mapTableToUrl)
                 {
-
-                    // select * from table
                     command.CommandText = "select * from "+table.Key+";";
                     var queryResult = command.ExecuteReader();
 
                     Task t1 = Task.Run(() => Produce(queryResult));
 
-                    // the number of results
                     long rowCount = GetRowCount(queryResult);
 
                     Task t2 = Task.Run(() => Consume(table.Value, rowCount));

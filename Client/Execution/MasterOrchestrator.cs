@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Client.DataGeneration;
+using Client.DataGeneration.Real;
 using Client.Execution;
 using Client.Infra;
 using Client.Ingestion;
@@ -75,7 +76,8 @@ namespace Client
                         throw new Exception("Loading data is set up but no configuration was found!");
                     }
 
-
+                    var realDataGenerator = new RealDataGenerator(masterConfig.olistConfig);
+                    realDataGenerator.Generate();
 
                 }
             }
