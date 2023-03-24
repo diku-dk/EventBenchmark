@@ -10,6 +10,8 @@ using System.Text;
 using Orleans.Streams;
 using System.Net.NetworkInformation;
 using Client.Infra;
+using System.Collections.Concurrent;
+using Common.Scenario.Customer;
 
 namespace Transaction
 {
@@ -39,18 +41,21 @@ namespace Transaction
         {
             this.orleansClient = clusterClient;
             this.streamProvider = orleansClient.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider);
-
-            /*
-            foreach (WorkloadType tx in Enum.GetValues(typeof(WorkloadType)))
-            {
-                nextIdPerTxType.Add(tx, 0);
-            }
-            */
             this.scenarioConfiguration = scenarioConfiguration;
+        }
+
+        private StreamSubscriptionHandle<CustomerStatusUpdate> customerSubscription;
+
+        private async void ConfigureStream()
+        {
+            IAsyncStream<CustomerStatusUpdate> resultStream = streamProvider.GetStream<CustomerStatusUpdate>(StreamingConfiguration.CustomerStreamId, StreamingConfiguration.TransactionStreamNameSpace);
+            customerSubscription = await resultStream.SubscribeAsync(UpdateCustomerStatusAsync);
         }
 
         public async Task Run()
         {
+
+            ConfigureStream();
 
             Console.WriteLine("Transaction orchestrator execution started.");
 
@@ -108,8 +113,21 @@ namespace Transaction
             }
 
             Console.WriteLine("Scenario orchestrator main loop terminated.");
+
+            await customerSubscription.UnsubscribeAsync();
+
             return;
         }
+
+        private ConcurrentDictionary<long, CustomerStatus> customerStatusCache = new();
+
+        private Task UpdateCustomerStatusAsync(CustomerStatusUpdate update, StreamSequenceToken token = null)
+        {
+            customerStatusCache[update.customerId] = update.status;
+            return Task.CompletedTask;
+        }
+
+        private Dictionary<long, int> sellerStatusCache = new();
 
         /**
          * Synthetic. real data set may be different...
@@ -126,19 +144,43 @@ namespace Transaction
             { 
                 case WorkloadType.CUSTOMER_SESSION: //customer
                 {
-                    // pick a random customer ID, so customer can check out again
-                    // make sure no active session for the customer, if so, pick another customer
+                    // pick a random customer ID
+                    // but make sure there is no active session for the customer. if so, pick another customer
+                    if (customerStatusCache.ContainsKey(grainID)) {
+                        while (customerStatusCache[grainID] == CustomerStatus.BROWSING)
+                            grainID = scenarioConfiguration.numGenPerTxType[tx].NextValue();
+                    } else {
+                        customerStatusCache.GetOrAdd(grainID, CustomerStatus.NEW);
+                    }
+                    
                     ICustomerWorker customerWorker = orleansClient.GetGrain<ICustomerWorker>(grainID);
-                    await customerWorker.Init();
+                    if(customerStatusCache[grainID] == CustomerStatus.NEW)
+                        await customerWorker.Init();
                     var streamOutgoing = streamProvider.GetStream<int>(StreamingConfiguration.CustomerStreamId, grainID.ToString());
                     await streamOutgoing.OnNextAsync(1);
                     break;
                 }
                 case WorkloadType.PRICE_UPDATE: // seller
                 {
-                    // TODO model as a worker
-                    // register the config like customer worker, together with a function that updates a price
-                    return; // Task.CompletedTask;
+                    ISellerWorker sellerWorker = orleansClient.GetGrain<ISellerWorker>(grainID);
+                    if (!sellerStatusCache.ContainsKey(grainID))
+                    {
+                        await sellerWorker.Init();
+                    }
+                    var streamOutgoing = streamProvider.GetStream<int>(StreamingConfiguration.SellerStreamId, grainID.ToString());
+                    await streamOutgoing.OnNextAsync(0);
+                    return;
+                }
+                case WorkloadType.DELETE_PRODUCT: // seller
+                {
+                    ISellerWorker sellerWorker = orleansClient.GetGrain<ISellerWorker>(grainID);
+                    if (!sellerStatusCache.ContainsKey(grainID))
+                    {
+                        await sellerWorker.Init();
+                    }
+                    var streamOutgoing = streamProvider.GetStream<int>(StreamingConfiguration.SellerStreamId, grainID.ToString());
+                    await streamOutgoing.OnNextAsync(1);
+                    return;
                 }
                 case WorkloadType.UPDATE_DELIVERY: // delivery worker
                 {

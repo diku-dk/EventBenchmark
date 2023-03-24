@@ -1,18 +1,22 @@
 ﻿using System.Threading.Tasks;
 using Orleans;
 using Common.Scenario.Customer;
+using Common.Scenario.Seller;
 
 namespace GrainInterfaces.Scenario
 {
     public interface IMetadataService : IGrainWithIntegerKey
     {
 
-        // Task<string> RetrieveAssignedQueue(int actorId);
+        // allows decoupling scenario orchestrator from workers
 
-        // allows decoupling scneario orchestrator with specific workers
+        // customer apis
         Task<CustomerConfiguration> RetrieveCustomerConfig();
-
         void RegisterCustomerConfig(CustomerConfiguration customerConfiguration);
+
+        // seller apis
+        Task<SellerConfiguration> RetrieveSellerConfig();
+        void RegisterSellerConfig(SellerConfiguration sellerConfiguration);
 
     }
 }

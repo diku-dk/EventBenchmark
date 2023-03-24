@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using DuckDB.NET.Data;
+using System.Text;
 
 namespace Client.DataGeneration
 {
@@ -26,6 +28,103 @@ namespace Client.DataGeneration
         protected readonly string baseSellerQuery = "INSERT INTO sellers(seller_id, name, street1, street2, tax, ytd, order_count, seller_zip_code_prefix, seller_city, seller_state) VALUES ";
 
         protected readonly string baseProductQuery = "INSERT INTO products (product_id,seller_id,product_category_name,name,price,data) VALUES ";
+
+        protected readonly string baseStockQuery = "INSERT INTO stock_items (product_id,seller_id,quantity,order_count,ytd,data) VALUES ";
+
+        protected void GenerateStockItem(DuckDbCommand command, int productId, int sellerId)
+        {
+            var quantity = numeric(4, true);
+            var ytd = numeric(2, false);
+            var order_count = numeric(4, false);
+            var data = RandomString(50, alphanumeric);
+
+            // issue insert statement
+            var sb = new StringBuilder(baseStockQuery);
+            sb.Append('(').Append(productId).Append(',');
+            sb.Append(sellerId).Append(',');
+            sb.Append(quantity).Append(',');
+            sb.Append(order_count).Append(',');
+            sb.Append(ytd).Append(',');
+            sb.Append('\'').Append(data).Append("');");
+
+            command.CommandText = sb.ToString();
+            command.ExecuteNonQuery();
+        }
+
+        protected readonly string baseCustomerQuery = "INSERT INTO customers (customer_id, name, last_name, street1, street2, " +
+                    "customer_zip_code_prefix, customer_city, customer_state, " +
+                    "card_number, card_expiration, card_holder_name, card_type, " +
+                    "sucess_payment_count, failed_payment_count, delivery_count, abandoned_cart_count, data) VALUES ";
+
+        protected Array cardValues = CardType.GetValues(typeof(CardType));
+
+        protected void GenerateCustomer(DuckDbCommand command, int customerId, string[] geo)
+        {
+            var name = RandomString(16, alphanumeric);
+            var lastName = RandomString(16, alphanumeric);
+            var street1 = RandomString(20, alphanumeric);
+            var street2 = RandomString(20, alphanumeric);
+
+            var city = geo[0];
+            var state = geo[1];
+            var zip = geo[2];
+
+            /*
+            var C_PHONE = RandomString(16, alphanumeric);
+            var C_SINCE = DateTime.Now;
+            var C_CREDIT = RandomString(2, alphanumeric);
+            var C_CREDIT_LIM = numeric(12, 2, true);
+            var C_DISCOUNT = numeric(4, 4, true);
+            var C_BALANCE = numeric(12, 2, true);
+            var C_YTD_PAYMENT = numeric(12, 2, true);
+            */
+            var cardNumber = RandomString(16, numbers);
+            var cardExpiration = RandomString(4, numbers);
+            string cardHolderName = null;
+            if (random.Next(1, 11) < 8)//70% change
+            {
+                var middleName = RandomString(16, alphanumeric);
+                cardHolderName = name + " " + middleName + " " + lastName;
+            }
+            else
+            {
+                cardHolderName = RandomString(16, alphanumeric);
+            }
+            var cardType = (string)cardValues.GetValue(random.Next(1, cardValues.Length)).ToString();
+
+            var sucess_payment_count = numeric(4, false);
+            var failed_payment_count = numeric(4, false);
+            var C_DELIVERY_CNT = numeric(4, false);
+            var C_DATA = RandomString(500, alphanumeric);
+
+            var abandonedCartsNum = numeric(4, false);
+
+            var sb = new StringBuilder(baseCustomerQuery);
+            sb.Append('(').Append(customerId).Append(',');
+            sb.Append('\'').Append(name).Append("',");
+            sb.Append('\'').Append(lastName).Append("',");
+            sb.Append('\'').Append(street1).Append("',");
+            sb.Append('\'').Append(street2).Append("',");
+            sb.Append('\'').Append(zip).Append("',");
+            sb.Append('\'').Append(city).Append("',");
+            sb.Append('\'').Append(state).Append("',");
+            sb.Append('\'').Append(cardNumber).Append("',");
+            sb.Append('\'').Append(cardExpiration).Append("',");
+            sb.Append('\'').Append(cardHolderName).Append("',");
+            sb.Append('\'').Append(cardType).Append("',");
+            sb.Append(sucess_payment_count).Append(',');
+            sb.Append(failed_payment_count).Append(',');
+            sb.Append(C_DELIVERY_CNT).Append(',');
+            sb.Append(abandonedCartsNum).Append(',');
+            sb.Append('\'').Append(C_DATA).Append("');");
+
+            Console.WriteLine(sb.ToString());
+
+            command.CommandText = sb.ToString();
+            command.ExecuteNonQuery();
+
+        }
+
 
         public abstract void Generate();
 

@@ -57,8 +57,8 @@ namespace Client.DataGeneration.Real
                 command.ExecuteNonQuery();
             }
 
-            //command.CommandText = "CREATE UNIQUE INDEX seller_id_idx ON sellers_aux(seller_id);";
-            //command.ExecuteNonQuery();
+            // apparently duckdb creates the seller_id_idx automatically from the csv load
+            // "CREATE UNIQUE INDEX seller_id_idx ON sellers_aux(seller_id);"
 
             command.CommandText = "CREATE INDEX seller_id_idx ON order_items_aux(seller_id);";
             command.ExecuteNonQuery();
@@ -71,16 +71,11 @@ namespace Client.DataGeneration.Real
             // sellers
             LoadSellers(connection);
 
-            // products
+            // products and respective stock item
             LoadProducts(connection);
 
-            // generate stock table based on products
-            // a high number of stock at first to make it less complicated
-
-            // use rowid for referring to customers and link to orders table
-
-
-            // create stock items based on the order items. pick number of items sold
+            // customers
+            LoadCustomers(connection);
 
             command.CommandText = "ALTER TABLE categories_aux RENAME TO categories;";
             command.ExecuteNonQuery();
@@ -88,30 +83,52 @@ namespace Client.DataGeneration.Real
             Console.WriteLine("Olist data generation has finished.");
         }
 
+        // use rowid for referring to customers and link to orders table
+        private void LoadCustomers(DuckDBConnection connection)
+        {
+            var command = connection.CreateCommand();
+            command.CommandText = "select c.rowid as customer_id, customer_city, customer_state, customer_zip_code_prefix from customers_aux;";
+            var queryResult = command.ExecuteReader();
+            string[] geo = new string[3];
+
+            while (queryResult.Read())
+            {
+                var customerId = (int)queryResult.GetInt64(0);
+                geo[0] = RemoveBadCharacter(queryResult.GetString(1));
+                geo[1] = queryResult.GetString(2);
+                geo[2] = queryResult.GetString(2);
+
+                GenerateCustomer(command, customerId, geo);
+
+            }
+        }
+
+        // generate stock table based on products
+        
+
         private void LoadProducts(DuckDBConnection connection)
         {
             // seller is not found in products table
             // order items provide the relationship between seller and product
+
             var command = connection.CreateCommand();
             command.CommandText = "create table seller_products AS select s.rowid as seller_id, o.product_id, o.price from order_items_aux as o inner join sellers_aux as s on o.seller_id = s.seller_id group by s.rowid, o.product_id, o.price;";
             command.ExecuteReader();
 
             // get product data
-            command.CommandText = "select sp.seller_id, p.product_id, p.product_category_name from seller_products as sp inner join products_aux as p on sp.product_id = p.product_id;";
+            command.CommandText = "select p.rowid as product_id, sp.seller_id, p.product_category_name from seller_products as sp inner join products_aux as p on sp.product_id = p.product_id;";
             var queryResult = command.ExecuteReader();
 
             while (queryResult.Read())
             {
-
-                var productId = queryResult.GetInt64(0);
-                var sellerId = queryResult.GetInt64(1);
+                var productId = (int)queryResult.GetInt64(0);
+                var sellerId = (int)queryResult.GetInt64(1);
                 var category = queryResult.GetString(2);
 
                 var name = RandomString(24, alphanumeric);
                 var price = numeric(5, 2, false);
                 var data = RandomString(50, alphanumeric);
 
-                // issue insert statement
                 var sb = new StringBuilder(baseProductQuery);
                 sb.Append('(').Append(productId).Append(',');
                 sb.Append(sellerId).Append(',');
@@ -124,6 +141,8 @@ namespace Client.DataGeneration.Real
 
                 command.CommandText = sb.ToString();
                 command.ExecuteNonQuery();
+
+                GenerateStockItem(command, productId, sellerId);
 
             }
 

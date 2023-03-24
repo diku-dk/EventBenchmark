@@ -15,6 +15,7 @@
     <None Remove="Scenario\Customer\" />
     <None Remove="Serdes\" />
     <None Remove="Newtonsoft.Json" />
+    <None Remove="Scenario\Seller\" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Http\" />
@@ -23,6 +24,7 @@
     <Folder Include="Workload\YCSB\" />
     <Folder Include="Scenario\Customer\" />
     <Folder Include="Serdes\" />
+    <Folder Include="Scenario\Seller\" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />

@@ -12,6 +12,7 @@ using Common.Streaming;
 using Common.YCSB;
 using GrainInterfaces.Scenario;
 using GrainInterfaces.Workers;
+using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Orleans;
 using Orleans.Streams;
@@ -20,8 +21,7 @@ namespace Grains.Workers
 {
     public sealed class CustomerWorker : Grain, ICustomerWorker
     {
-
-        private readonly Random random = new Random();
+        private readonly Random random;
 
         private CustomerConfiguration config;
 
@@ -31,26 +31,19 @@ namespace Grains.Workers
 
         private IAsyncStream<Event> stream;
 
+        private IAsyncStream<CustomerStatusUpdate> txStream;
+
         private long customerId;
 
-        private Status status;
+        private CustomerStatus status;
 
         private string productUrl;
 
         private string cartUrl;
 
-        private enum Status
-        {
-            NEW,
-            BROWSING,
-            CHECKOUT_SENT,
-            CHECKOUT_NOT_SENT,
-            REACT_OUT_OF_STOCK,
-            REACT_FAILED_PAYMENT,
-            REACT_ABANDONED_CART
-        }
+        private readonly ILogger<CustomerWorker> _logger;
 
-        public async override Task OnActivateAsync()
+        public override async Task OnActivateAsync()
         {
             this.customerId = this.GetPrimaryKeyLong();
             this.streamProvider = this.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider);
@@ -75,11 +68,20 @@ namespace Grains.Workers
                 }
             }
             await workloadStream.SubscribeAsync<int>(Run);
+
+            this.txStream = streamProvider.GetStream<CustomerStatusUpdate>(StreamingConfiguration.CustomerStreamId, StreamingConfiguration.TransactionStreamNameSpace);
+
+        }
+
+        public CustomerWorker(ILogger<CustomerWorker> logger)
+        {
+            this._logger = logger;
+            this.random = new Random();
         }
 
         public async Task Init()
         {
-            this.status = Status.NEW;
+            this.status = CustomerStatus.NEW;
             IMetadataService metadataService = GrainFactory.GetGrain<IMetadataService>(0);
             this.config = await metadataService.RetrieveCustomerConfig();
             this.keyGenerator = this.config.keyDistribution == Distribution.UNIFORM ?
@@ -92,21 +94,21 @@ namespace Grains.Workers
 
         private async Task Run(int obj, StreamSequenceToken token)
         {
-            Console.WriteLine("Customer {0} started!", this.customerId);
+            _logger.LogInformation("Customer {0} started!", this.customerId);
 
             if (this.config.delayBeforeStart > 0)
             {
-                Console.WriteLine("Customer {0} delay before start: {1}", this.customerId, this.config.delayBeforeStart);
+                _logger.LogInformation("Customer {0} delay before start: {1}", this.customerId, this.config.delayBeforeStart);
                 await Task.Delay(this.config.delayBeforeStart);
             }
             else
             {
-                Console.WriteLine("Customer {0} NO delay before start!", this.customerId);
+                _logger.LogInformation("Customer {0} NO delay before start!", this.customerId);
             }
 
             int numberOfKeysToBrowse = random.Next(1, this.config.maxNumberKeysToBrowse + 1);
 
-            Console.WriteLine("Customer {0} has this number of keys to browse: {1}", customerId, numberOfKeysToBrowse);
+            _logger.LogInformation("Customer {0} has this number of keys to browse: {1}", customerId, numberOfKeysToBrowse);
 
             // this dct must be numberOfKeysToCheckout
             Dictionary<long, int> keyToQtyMap = new Dictionary<long, int>(numberOfKeysToBrowse);
@@ -126,7 +128,7 @@ namespace Grains.Workers
                 if (i < numberOfKeysToBrowse - 1) sb.Append(", ");
             }
 
-            Console.WriteLine("Customer {0} defined the keys to browse: {1}", this.customerId, sb.ToString());
+            _logger.LogInformation("Customer {0} defined the keys to browse: {1}", this.customerId, sb.ToString());
 
             HttpResponseMessage[] responses = new HttpResponseMessage[numberOfKeysToBrowse];
 
@@ -134,7 +136,7 @@ namespace Grains.Workers
             int numberOfKeysToCheckout =
                 random.Next(0, Math.Min(numberOfKeysToBrowse, this.config.maxNumberKeysToAddToCart));
 
-            Console.WriteLine("Customer {0} will start browsing", this.customerId);
+            _logger.LogInformation("Customer {0} will start browsing", this.customerId);
 
             // browsing
             int idx = 0;
@@ -143,7 +145,7 @@ namespace Grains.Workers
                 responses[idx] = await Task.Run(async () =>
                 {
 
-                    Console.WriteLine("Customer {0} Task {1}", this.customerId, idx+1);
+                    _logger.LogInformation("Customer {0} Task {1}", this.customerId, idx+1);
 
                     int delay = this.random.Next(this.config.delayBetweenRequestsRange.Start.Value, this.config.delayBetweenRequestsRange.End.Value + 1);
                     try
@@ -160,7 +162,7 @@ namespace Grains.Workers
                             // add to cart
                             if(response.Content.Headers.ContentLength == 0)
                             {
-                                Console.WriteLine("Response content for product {0} is empty! {1}", entry.Key);
+                                _logger.LogInformation("Response content for product {0} is empty! {1}", entry.Key);
                                 return new HttpResponseMessage(HttpStatusCode.InternalServerError);
                             }
 
@@ -172,7 +174,7 @@ namespace Grains.Workers
                             }
                             catch (HttpRequestException e)
                             {
-                                Console.WriteLine("Exception Message: {0} Url {1} Key {2}", e.Message, productUrl, entry.Key);
+                                _logger.LogInformation("Exception Message: {0} Url {1} Key {2}", e.Message, productUrl, entry.Key);
                             }
                             finally
                             {
@@ -184,11 +186,11 @@ namespace Grains.Workers
                     }
                     catch (HttpRequestException e)
                     {
-                        Console.WriteLine("HttpRequestException: {0}", e.Message);
+                        _logger.LogInformation("HttpRequestException: {0}", e.Message);
                         return new HttpResponseMessage(e.StatusCode.HasValue ? e.StatusCode.Value : HttpStatusCode.InternalServerError);
                     } catch(Exception e_)
                     {
-                        Console.WriteLine("Exception: {0}", e_.Message);
+                        _logger.LogInformation("Exception: {0}", e_.Message);
                         return new HttpResponseMessage(HttpStatusCode.InternalServerError);
                     }
 
@@ -196,25 +198,27 @@ namespace Grains.Workers
                 idx++;
             }
 
-            Console.WriteLine("Customer " + customerId + " finished browsing!");
+            _logger.LogInformation("Customer " + customerId + " finished browsing!");
 
             // define whether client should send a checkout request
             if (this.config.checkoutDistribution[random.Next(0, this.config.checkoutDistribution.Length)] == 1)
             {
-                Console.WriteLine("Customer " + customerId + " decided to send a checkout!");
+                _logger.LogInformation("Customer " + customerId + " decided to send a checkout!");
                 await Task.Run(() =>
                 {
                     // checkout must be a url!!!!
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, cartUrl + "/" + customerId + "/checkout");
                     HttpUtils.client.Send(message);
                 });
-                this.status = Status.CHECKOUT_SENT;
+                this.status = CustomerStatus.CHECKOUT_SENT;
             }
             else
             {
-                this.status = Status.CHECKOUT_NOT_SENT;
-                Console.WriteLine("Customer " + customerId + " decided not to send a checkout!");
+                this.status = CustomerStatus.CHECKOUT_NOT_SENT;
+                _logger.LogInformation("Customer " + customerId + " decided not to send a checkout!");
             }
+
+            await txStream.OnNextAsync(new CustomerStatusUpdate(this.customerId, this.status));
 
             return;
         }
@@ -227,7 +231,7 @@ namespace Grains.Workers
                 case "abandoned-cart": { await this.ReactToAbandonedCart(data.payload); break; }
                 case "payment-rejected": { await this.ReactToPaymentRejected(data.payload); break; }
                 case "out-of-stock": { await this.ReactToOutOfStock(data.payload); break; }
-                default: { Console.WriteLine("Topic: " + data.topic + " has no associated reaction in customer grain " + customerId); break; }
+                default: { _logger.LogInformation("Topic: " + data.topic + " has no associated reaction in customer grain " + customerId); break; }
             }
             return;
         }

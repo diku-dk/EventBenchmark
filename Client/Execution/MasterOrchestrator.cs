@@ -16,6 +16,7 @@ using Common.Ingestion;
 using Common.Ingestion.Config;
 using Common.Scenario;
 using Common.Scenario.Customer;
+using Common.Scenario.Seller;
 using Common.Streaming;
 using Confluent.Kafka;
 using GrainInterfaces.Ingestion;
@@ -149,13 +150,11 @@ namespace Client
 
                 if (!customerConfig.urls.ContainsKey("products"))
                 {
-                    //Console.WriteLine("Customer {0} found no products URL!", this.customerId);
-                    return;
+                    throw new Exception("No products URL found! Execution suspended.");
                 }
                 if (!customerConfig.urls.ContainsKey("carts"))
                 {
-                    //Console.WriteLine("Customer {0} found no carts URL!", this.customerId);
-                    return;
+                    throw new Exception("No carts URL found! Execution suspended.");
                 }
 
                 var endValue = customerConfig.keyRange.End.Value;
@@ -167,6 +166,11 @@ namespace Client
                 // register customer config
                 IMetadataService metadataService = masterConfig.orleansClient.GetGrain<IMetadataService>(0);
                 metadataService.RegisterCustomerConfig(customerConfig);
+
+                // register seller config
+                SellerConfiguration sellerConfig = new SellerConfiguration();
+                sellerConfig.productsUrl = customerConfig.urls["products"];
+                metadataService.RegisterSellerConfig(sellerConfig);
 
                 List<KafkaConsumer> kafkaTasks = new();
                 if (this.masterConfig.streamEnabled)
