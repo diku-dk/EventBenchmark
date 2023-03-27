@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using Common.Scenario.Customer;
+using Common.Scenario.Seller;
 using Common.YCSB;
 
 namespace Common.Scenario
@@ -42,20 +43,15 @@ namespace Common.Scenario
         // map kafka topic to orleans stream Guid
         public Dictionary<string, Guid> mapTopicToStreamGuid;
 
-        public Dictionary<WorkloadType, NumberGenerator> numGenPerTxType;
+        // provides a ID generator for each workload (e.g., customer, seller)
+        // the generator obeys a distribution
+        public Dictionary<WorkloadType, NumberGenerator> keyGeneratorPerWorkloadType;
 
         // customer config
-        public CustomerConfiguration customerConfig = new()
-        {
-            maxNumberKeysToBrowse = 10,
-            keyDistribution = Common.Configuration.Distribution.UNIFORM,
-            keyRange = new Range(1, 15),
-            // urls = mapTableToUrl,
-            minMaxQtyRange = new Range(1, 11),
-            maxNumberKeysToAddToCart = 10,
-            delayBetweenRequestsRange = new Range(1, 1000),
-            delayBeforeStart = 0
-        };
+        public CustomerConfiguration customerConfig;
+
+        // seller config
+        public SellerConfiguration sellerConfig;
 
     }
 }

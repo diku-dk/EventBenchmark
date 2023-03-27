@@ -77,6 +77,8 @@ namespace Client.DataGeneration.Real
             // customers
             LoadCustomers(connection);
 
+            // TODO orders. make calculation how many events per second, determine how long the experiments should run
+
             command.CommandText = "ALTER TABLE categories_aux RENAME TO categories;";
             command.ExecuteNonQuery();
 
@@ -105,7 +107,10 @@ namespace Client.DataGeneration.Real
 
         // generate stock table based on products
         
-
+        /**
+         * 
+         * TODO Make sure the product IDs are monotonically increasing for every seller
+         */
         private void LoadProducts(DuckDBConnection connection)
         {
             // seller is not found in products table

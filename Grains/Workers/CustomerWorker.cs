@@ -8,9 +8,9 @@ using System.Threading.Tasks;
 using Common.Configuration;
 using Common.Http;
 using Common.Scenario.Customer;
+using Common.Scenario.Entity;
 using Common.Streaming;
 using Common.YCSB;
-using GrainInterfaces.Scenario;
 using GrainInterfaces.Workers;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
@@ -25,7 +25,7 @@ namespace Grains.Workers
 
         private CustomerConfiguration config;
 
-        private NumberGenerator keyGenerator;
+        private NumberGenerator sellerIdGenerator;
 
         private IStreamProvider streamProvider;
 
@@ -79,17 +79,44 @@ namespace Grains.Workers
             this.random = new Random();
         }
 
-        public async Task Init()
+        public Task Init(CustomerConfiguration config)
         {
-            this.status = CustomerStatus.NEW;
-            IMetadataService metadataService = GrainFactory.GetGrain<IMetadataService>(0);
-            this.config = await metadataService.RetrieveCustomerConfig();
-            this.keyGenerator = this.config.keyDistribution == Distribution.UNIFORM ?
-                new UniformLongGenerator(this.config.keyRange.Start.Value, this.config.keyRange.End.Value) :
-                new ZipfianGenerator(this.config.keyRange.Start.Value, this.config.keyRange.End.Value);
+            this.config = config;
+            this.sellerIdGenerator = this.config.sellerDistribution == Distribution.UNIFORM ?
+                new UniformLongGenerator(this.config.sellerRange.Start.Value, this.config.sellerRange.End.Value) :
+                new ZipfianGenerator(this.config.sellerRange.Start.Value, this.config.sellerRange.End.Value);
             this.productUrl = this.config.urls["products"];
             this.cartUrl = this.config.urls["carts"];
-            return;
+            return Task.CompletedTask;
+        }
+
+        private async Task<Dictionary<long, int>> DefineKeysToBrowseAsync(int numberOfKeysToBrowse)
+        {
+            // this dct must be numberOfKeysToCheckout
+            Dictionary<long, int> keyToQtyMap = new Dictionary<long, int>(numberOfKeysToBrowse);
+            ISellerWorker sellerWorker;
+            StringBuilder sb = new StringBuilder();
+            long grainId;
+            long productId;
+            for (int i = 0; i < numberOfKeysToBrowse; i++)
+            {
+                grainId = this.sellerIdGenerator.NextValue();
+                sellerWorker = GrainFactory.GetGrain<ISellerWorker>(grainId);
+                // pick products from seller distribution
+                productId = await sellerWorker.GetProductId();
+                while (keyToQtyMap.ContainsKey(productId))
+                {
+                    grainId = this.sellerIdGenerator.NextValue();
+                    sellerWorker = GrainFactory.GetGrain<ISellerWorker>(grainId);
+                    productId = await sellerWorker.GetProductId();
+                }
+
+                keyToQtyMap.Add(productId, 0);
+                sb.Append(productId);
+                if (i < numberOfKeysToBrowse - 1) sb.Append(", ");
+            }
+            _logger.LogInformation("Customer {0} defined the keys to browse: {1}", this.customerId, sb.ToString());
+            return keyToQtyMap;
         }
 
         private async Task Run(int obj, StreamSequenceToken token)
@@ -110,25 +137,7 @@ namespace Grains.Workers
 
             _logger.LogInformation("Customer {0} has this number of keys to browse: {1}", customerId, numberOfKeysToBrowse);
 
-            // this dct must be numberOfKeysToCheckout
-            Dictionary<long, int> keyToQtyMap = new Dictionary<long, int>(numberOfKeysToBrowse);
-
-            StringBuilder sb = new StringBuilder();
-            long value;
-            for (int i = 0; i < numberOfKeysToBrowse; i++)
-            {
-                value = this.keyGenerator.NextValue();
-                while (keyToQtyMap.ContainsKey(value))
-                {
-                    value = this.keyGenerator.NextValue();
-                }
-
-                keyToQtyMap.Add(value, 0);
-                sb.Append(value);
-                if (i < numberOfKeysToBrowse - 1) sb.Append(", ");
-            }
-
-            _logger.LogInformation("Customer {0} defined the keys to browse: {1}", this.customerId, sb.ToString());
+            var keyToQtyMap = await DefineKeysToBrowseAsync(numberOfKeysToBrowse);
 
             HttpResponseMessage[] responses = new HttpResponseMessage[numberOfKeysToBrowse];
 
@@ -148,53 +157,55 @@ namespace Grains.Workers
                     _logger.LogInformation("Customer {0} Task {1}", this.customerId, idx+1);
 
                     int delay = this.random.Next(this.config.delayBetweenRequestsRange.Start.Value, this.config.delayBetweenRequestsRange.End.Value + 1);
+                    HttpResponseMessage response;
                     try
                     {
-                        HttpResponseMessage response = await HttpUtils.client.GetAsync(productUrl + "/" + entry.Key);
+                        response = await HttpUtils.client.GetAsync(productUrl + "/" + entry.Key);
 
+                        // artificial delay after retrieving the product
                         await Task.Delay(delay);
 
                         if (numberOfKeysToCheckout > 0)
                         {
-                            // mark this product as already added to cart
-                            keyToQtyMap[entry.Key] = random.Next(this.config.minMaxQtyRange.Start.Value, this.config.minMaxQtyRange.End.Value);
 
                             // add to cart
-                            if(response.Content.Headers.ContentLength == 0)
+                            if (response.Content.Headers.ContentLength == 0)
                             {
                                 _logger.LogInformation("Response content for product {0} is empty! {1}", entry.Key);
                                 return new HttpResponseMessage(HttpStatusCode.InternalServerError);
                             }
 
+                            // mark this product as already added to cart
+                            keyToQtyMap[entry.Key] = random.Next(this.config.minMaxQtyRange.Start.Value, this.config.minMaxQtyRange.End.Value);
+
                             var productRet = await response.Content.ReadAsStringAsync();
                             string payload = BuildCartItemPayloadFunc(productRet, keyToQtyMap[entry.Key]);
-                            try
-                            {
-                                response = await HttpUtils.client.PutAsync(cartUrl + "/" + customerId, HttpUtils.BuildPayload(payload));
-                            }
-                            catch (HttpRequestException e)
-                            {
-                                _logger.LogInformation("Exception Message: {0} Url {1} Key {2}", e.Message, productUrl, entry.Key);
-                            }
-                            finally
-                            {
-                                // signaling anyway to avoid hanging forever
-                                numberOfKeysToCheckout--;
-                            }
+
+                            response = await HttpUtils.client.PostAsync(cartUrl + "/" + customerId + "/add", HttpUtils.BuildPayload(payload));
+                            numberOfKeysToCheckout--;
+
                         }
                         return response;
                     }
-                    catch (HttpRequestException e)
+                    catch (Exception e)
                     {
-                        _logger.LogInformation("HttpRequestException: {0}", e.Message);
-                        return new HttpResponseMessage(e.StatusCode.HasValue ? e.StatusCode.Value : HttpStatusCode.InternalServerError);
-                    } catch(Exception e_)
-                    {
-                        _logger.LogInformation("Exception: {0}", e_.Message);
-                        return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+                        _logger.LogInformation("Exception Message: {0} Customer {1} Url {2} Key {3}", e.Message, customerId, productUrl, entry.Key);
+                        if(e is HttpRequestException) {
+                            HttpRequestException e_ = (HttpRequestException)e;
+                            return new HttpResponseMessage((HttpStatusCode)e_.StatusCode);
+                        }
+                        return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
                     }
 
                 });
+
+                // check for errors
+                if (!responses[idx].IsSuccessStatusCode)
+                {
+                    _logger.LogInformation("Customer " + customerId + " could not finish browsing due to errors!");
+                    return;
+                }
+
                 idx++;
             }
 
@@ -206,7 +217,6 @@ namespace Grains.Workers
                 _logger.LogInformation("Customer " + customerId + " decided to send a checkout!");
                 await Task.Run(() =>
                 {
-                    // checkout must be a url!!!!
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, cartUrl + "/" + customerId + "/checkout");
                     HttpUtils.client.Send(message);
                 });
@@ -231,6 +241,7 @@ namespace Grains.Workers
                 case "abandoned-cart": { await this.ReactToAbandonedCart(data.payload); break; }
                 case "payment-rejected": { await this.ReactToPaymentRejected(data.payload); break; }
                 case "out-of-stock": { await this.ReactToOutOfStock(data.payload); break; }
+                case "price-update": { await this.ReactToPriceUpdate(data.payload); break; }
                 default: { _logger.LogInformation("Topic: " + data.topic + " has no associated reaction in customer grain " + customerId); break; }
             }
             return;
@@ -253,13 +264,24 @@ namespace Grains.Workers
             return Task.CompletedTask;
         }
 
+        private Task ReactToPriceUpdate(string priceUpdateEvent)
+        {
+            // submit some operations.. get request (customer url) and and then a post (rating)
+            return Task.CompletedTask;
+        }
+
         // is this customer-based?
         private static string BuildCartItemPayloadFunc(string productPayload, int quantity)
         {
+            /*
             // parse into json, add quantity attribute, envelop again
             var obj = JsonConvert.DeserializeObject<ExpandoObject>(productPayload) as IDictionary<string, Object>;
             obj["quantity"] = quantity;
             return JsonConvert.SerializeObject(obj);
+            */
+            Product product = JsonConvert.DeserializeObject<Product>(productPayload);
+            // TODO build a basket item
+            return null;
         }
 
     }

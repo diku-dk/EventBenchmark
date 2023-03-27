@@ -22,8 +22,8 @@ var builder = new HostBuilder()
             .AddSimpleMessageStreamProvider(StreamingConfiguration.DefaultStreamProvider, options =>
             {
                 options.PubSubType = Orleans.Streams.StreamPubSubType.ExplicitGrainBasedOnly;
-                //options.FireAndForgetDelivery = false;
-                //options.OptimizeForImmutableData = true; // to pass by reference, saving costs
+                options.FireAndForgetDelivery = true;
+                options.OptimizeForImmutableData = true; // to pass by reference, saving costs
             })
             // .ConfigureLogging(logging => logging.ClearProviders())   //.AddSimpleConsole())
             .ConfigureLogging(logging =>

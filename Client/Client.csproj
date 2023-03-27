@@ -11,7 +11,6 @@
     <None Remove="Infra\" />
     <None Remove="Streaming\" />
     <None Remove="Confluent.Kafka" />
-    <None Remove="Streaming\RabbitMQ\" />
     <None Remove="Streaming\Kafka\" />
     <None Remove="MessagePack" />
     <None Remove="Server\" />
@@ -39,7 +38,6 @@
   <ItemGroup>
     <Folder Include="Infra\" />
     <Folder Include="Streaming\" />
-    <Folder Include="Streaming\RabbitMQ\" />
     <Folder Include="Streaming\Kafka\" />
     <Folder Include="Server\" />
     <Folder Include="Transaction\" />

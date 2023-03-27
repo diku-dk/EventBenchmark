@@ -8,11 +8,6 @@ namespace Client.DataGeneration.Real
 {
 	public class OlistDataSourceConfiguration
     {
-        // public DataSourceType dataSourceType;
-
-        // whether files are located in the path of the source code
-        // public bool local;
-
         public string connectionString = "Data Source=file.db"; // "DataSource=:memory:"
 
         // only set if non local

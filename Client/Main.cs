@@ -35,13 +35,32 @@ namespace Client
             }
         };
 
+        private static Dictionary<string, string> mapTableToUrl = new Dictionary<string, string>()
+        {
+            ["products"] = "http://127.0.0.1:8001/products",
+            ["carts"] = "http://127.0.0.1:8001/carts",
+            ["sellers"] = "http://127.0.0.1:8001/sellers"
+        };
+
         private static readonly ScenarioConfiguration defaultScenarioConfig = new()
         {
             weight = new WorkloadType[] { WorkloadType.CUSTOMER_SESSION },
-            mapTableToUrl = new Dictionary<string, string>()
+            mapTableToUrl = mapTableToUrl,
+            customerConfig = new()
             {
-                ["products"] = "http://127.0.0.1:8001/products",
-                ["carts"] = "http://127.0.0.1:8001/carts",
+                maxNumberKeysToBrowse = 10,
+                maxNumberKeysToAddToCart = 10, // both the same for simplicity
+                sellerDistribution = Common.Configuration.Distribution.UNIFORM,
+                // sellerRange = new Range(1, 15), // this is defined dynamically
+                urls = mapTableToUrl,
+                minMaxQtyRange = new Range(1, 11),
+                delayBetweenRequestsRange = new Range(1, 1000),
+                delayBeforeStart = 0
+            },
+            sellerConfig = new() {
+                keyDistribution = Common.Configuration.Distribution.UNIFORM,
+                urls = mapTableToUrl,
+                delayBetweenRequestsRange = new Range(1, 1000),
             },
             submissionType = SubmissionEnum.QUANTITY,
             windowOrBurstValue = 1,

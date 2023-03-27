@@ -1,4 +1,5 @@
-﻿using Common.Ingestion.DTO;
+﻿using Client.Infra;
+using Common.Ingestion.DTO;
 using Common.Serdes;
 using Confluent.Kafka;
 using DuckDB.NET.Data;
@@ -16,7 +17,8 @@ using System.Text.Json;
 namespace Client.DataGeneration
 {
     /**
-     * Based on TPC-C values
+     * Based on Olist data model
+     * Some  attribute values not found in olist are generated following TPC-C
      */
     public class SyntheticDataGenerator : BaseDataGenerator
     {
@@ -79,10 +81,10 @@ namespace Client.DataGeneration
 
             // location of customers and sellers -- already loaded
             // get number of geolocations
-            int numGeo = GetNumGeolocations(connection);
+            long numGeo = GetNumGeolocations(connection);
 
             // categories -- already loaded
-            int numCat = GetNumCategories(connection);
+            long numCat = GetNumCategories(connection);
 
             // products, stock, and link to respective sellers
             int remainingProducts = config.numProducts;
@@ -128,32 +130,20 @@ namespace Client.DataGeneration
 
         }
 
-        private static int GetNumCategories(DuckDBConnection connection)
+        private static long GetNumCategories(DuckDBConnection connection)
         {
-            var command = connection.CreateCommand();
-            command.CommandText = "SELECT COUNT(*) from categories;";
-            var executeNonQuery = command.ExecuteNonQuery();
-            var reader = command.ExecuteReader();
-            reader.Read();
-            return reader.GetInt32(0);
+            return DuckDbUtils.Count(connection, "categories");
         }
 
-        private static int GetNumGeolocations(DuckDBConnection connection)
+        private static long GetNumGeolocations(DuckDBConnection connection)
         {
-            var command = connection.CreateCommand();
-            command.CommandText = "SELECT COUNT(*) from geolocation;";
-            var executeNonQuery = command.ExecuteNonQuery();
-            var reader = command.ExecuteReader();
-            reader.Read();
-            return reader.GetInt32(0);
-
+            return DuckDbUtils.Count(connection, "geolocation");
         }
 
-        private string[] GetGeolocation(DuckDbCommand command, int numGeo)
+        private string[] GetGeolocation(DuckDbCommand command, long numGeo)
         {
-            int pos = random.Next(1, numGeo + 1);
+            long pos = random.Next(1, (int) numGeo + 1);
             command.CommandText = "SELECT geolocation_city, geolocation_state, geolocation_zip_code_prefix from geolocation where rowid ="+pos+";";
-            var executeNonQuery = command.ExecuteNonQuery();
             DuckDBDataReader queryResult = command.ExecuteReader();
             queryResult.Read();
             string[] res = new string[3];
@@ -201,9 +191,9 @@ namespace Client.DataGeneration
             command.ExecuteNonQuery();
         }
 
-        private string GetCategory(DuckDbCommand command, int numCat)
+        private string GetCategory(DuckDbCommand command, long numCat)
         {
-            int pos = random.Next(1, numCat + 1);
+            int pos = random.Next(1, (int) numCat + 1);
             command.CommandText = "SELECT product_category_name from categories where rowid =" + pos;
             var executeNonQuery = command.ExecuteNonQuery();
             var queryResult = command.ExecuteReader();
@@ -211,7 +201,7 @@ namespace Client.DataGeneration
             return queryResult.GetString(0);
         }
 
-        private void GenerateProduct(DuckDbCommand command, int productId, int sellerId, int numCat)
+        private void GenerateProduct(DuckDbCommand command, long productId, long sellerId, long numCat)
         {
             // get category
             var category = GetCategory(command, numCat);

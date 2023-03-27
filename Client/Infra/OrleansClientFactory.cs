@@ -21,8 +21,8 @@ namespace Client.Infra
                                 .AddSimpleMessageStreamProvider(StreamingConfiguration.DefaultStreamProvider, options =>
                                 {
                                     options.PubSubType = Orleans.Streams.StreamPubSubType.ExplicitGrainBasedOnly;
-                                    options.FireAndForgetDelivery = false;
-                                    //options.OptimizeForImmutableData = true;
+                                    options.FireAndForgetDelivery = true;
+                                    options.OptimizeForImmutableData = true;
                                 })
                                 .Build();
 

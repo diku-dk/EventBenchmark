@@ -1,5 +1,4 @@
 ﻿using Orleans;
-using GrainInterfaces.Scenario;
 using System.Threading.Tasks;
 using Common.Scenario;
 using System;
@@ -25,7 +24,7 @@ namespace Transaction
      */
     public class TransactionOrchestrator : Stoppable
     {
-        private readonly Random random = new Random();
+        private readonly Random random;
 
         // orleans client
         private readonly IClusterClient orleansClient;
@@ -33,15 +32,14 @@ namespace Transaction
         // streams
         private readonly IStreamProvider streamProvider;
 
-        private readonly ScenarioConfiguration scenarioConfiguration;
-
-        //private readonly Dictionary<WorkloadType, long> nextIdPerTxType = new Dictionary<WorkloadType, long>();
+        private readonly ScenarioConfiguration config;
 
         public TransactionOrchestrator(IClusterClient clusterClient, ScenarioConfiguration scenarioConfiguration) : base()
         {
             this.orleansClient = clusterClient;
             this.streamProvider = orleansClient.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider);
-            this.scenarioConfiguration = scenarioConfiguration;
+            this.config = scenarioConfiguration;
+            this.random = new Random();
         }
 
         private StreamSubscriptionHandle<CustomerStatusUpdate> customerSubscription;
@@ -59,15 +57,15 @@ namespace Transaction
 
             Console.WriteLine("Transaction orchestrator execution started.");
 
-            switch (scenarioConfiguration.submissionStrategy)
+            switch (config.submissionStrategy)
             {
                 case SubmissionStrategy.BURST_THEN_CONTROL:
                 {
                     List<Task> tasks = new();
-                    if (scenarioConfiguration.submissionType == SubmissionEnum.TIME_IN_MILLI)
+                    if (config.submissionType == SubmissionEnum.TIME_IN_MILLI)
                     {
                         int milli = DateTime.Now.Millisecond;
-                        int stopAt = milli + scenarioConfiguration.windowOrBurstValue;
+                        int stopAt = milli + config.windowOrBurstValue;
 
                         do {
                             tasks.Add( Task.Run(() => SubmitTransaction()) );
@@ -76,7 +74,7 @@ namespace Transaction
                     }
                     else
                     {
-                        int val = scenarioConfiguration.windowOrBurstValue;
+                        int val = config.windowOrBurstValue;
                         do {
                             tasks.Add(Task.Run(SubmitTransaction));
                             val--;
@@ -89,9 +87,9 @@ namespace Transaction
                     {
                         Task completedTask = await Task.WhenAny(tasks);
                         tasks.Remove(completedTask);
-                        if(scenarioConfiguration.waitBetweenSubmissions > 0)
+                        if(config.waitBetweenSubmissions > 0)
                         {
-                            await Task.Delay(TimeSpan.FromMilliseconds(scenarioConfiguration.waitBetweenSubmissions));
+                            await Task.Delay(TimeSpan.FromMilliseconds(config.waitBetweenSubmissions));
                         }
 
                         tasks.Add(Task.Run(() => SubmitTransaction()));
@@ -135,51 +133,53 @@ namespace Transaction
          */
         private async Task SubmitTransaction()
         {
-            int idx = random.Next(0, this.scenarioConfiguration.weight.Length);
-            WorkloadType tx = this.scenarioConfiguration.weight[idx];
+            int idx = random.Next(0, this.config.weight.Length);
+            WorkloadType tx = this.config.weight[idx];
 
-            long grainID = scenarioConfiguration.numGenPerTxType[tx].NextValue();
+            long grainID = config.keyGeneratorPerWorkloadType[tx].NextValue();
 
             switch (tx)
             { 
                 case WorkloadType.CUSTOMER_SESSION: //customer
                 {
-                    // pick a random customer ID
                     // but make sure there is no active session for the customer. if so, pick another customer
                     if (customerStatusCache.ContainsKey(grainID)) {
                         while (customerStatusCache[grainID] == CustomerStatus.BROWSING)
-                            grainID = scenarioConfiguration.numGenPerTxType[tx].NextValue();
+                            grainID = config.keyGeneratorPerWorkloadType[tx].NextValue();
                     } else {
                         customerStatusCache.GetOrAdd(grainID, CustomerStatus.NEW);
                     }
                     
                     ICustomerWorker customerWorker = orleansClient.GetGrain<ICustomerWorker>(grainID);
                     if(customerStatusCache[grainID] == CustomerStatus.NEW)
-                        await customerWorker.Init();
+                        await customerWorker.Init(config.customerConfig);
                     var streamOutgoing = streamProvider.GetStream<int>(StreamingConfiguration.CustomerStreamId, grainID.ToString());
-                    await streamOutgoing.OnNextAsync(1);
+                    customerStatusCache[grainID] = CustomerStatus.BROWSING;
+                    _ = streamOutgoing.OnNextAsync(1);   
                     break;
                 }
+                // to make sure the key distribution of sellers folow of the customers
+                // the triggering of seller workers must also be based on the customer key distribution
+                // an option is having a seller proxy that will match the product to the seller grain call...
+
+                    // Q0. what id a relistic behavior for customers?
+                    // what distribution should be followed? we have many products, categories.
+                    // instead of key distribution, seller distribution.. and then pick the products. could pick the same seller again
+                    // Q1. the operations the seller are doing must also obey the key distribution of customers?
+
+                // consumer demand model... the more items bought from a seller, more likely he will increase price
+                // we care about stressing the system, less or more conflict
+                // we could also have a skewed distribution of products for each seller
                 case WorkloadType.PRICE_UPDATE: // seller
                 {
-                    ISellerWorker sellerWorker = orleansClient.GetGrain<ISellerWorker>(grainID);
-                    if (!sellerStatusCache.ContainsKey(grainID))
-                    {
-                        await sellerWorker.Init();
-                    }
                     var streamOutgoing = streamProvider.GetStream<int>(StreamingConfiguration.SellerStreamId, grainID.ToString());
-                    await streamOutgoing.OnNextAsync(0);
+                    _ = streamOutgoing.OnNextAsync(0);
                     return;
                 }
                 case WorkloadType.DELETE_PRODUCT: // seller
                 {
-                    ISellerWorker sellerWorker = orleansClient.GetGrain<ISellerWorker>(grainID);
-                    if (!sellerStatusCache.ContainsKey(grainID))
-                    {
-                        await sellerWorker.Init();
-                    }
                     var streamOutgoing = streamProvider.GetStream<int>(StreamingConfiguration.SellerStreamId, grainID.ToString());
-                    await streamOutgoing.OnNextAsync(1);
+                    _ = streamOutgoing.OnNextAsync(1);
                     return;
                 }
                 case WorkloadType.UPDATE_DELIVERY: // delivery worker

@@ -7,9 +7,7 @@ namespace Common.Serdes
 	{
 		public static ISerdes build()
 		{
-
             return new NewtonSerdes();
-
 		}
 
         private class NewtonSerdes : ISerdes

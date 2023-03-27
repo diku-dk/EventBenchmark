@@ -19,8 +19,9 @@ using Common.Scenario.Customer;
 using Common.Scenario.Seller;
 using Common.Streaming;
 using Confluent.Kafka;
+using DuckDB.NET.Data;
 using GrainInterfaces.Ingestion;
-using GrainInterfaces.Scenario;
+using GrainInterfaces.Workers;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Orleans;
@@ -33,7 +34,7 @@ namespace Client
 	public class MasterOrchestrator
 	{
 
-        private readonly MasterConfiguration masterConfig;
+        private readonly MasterConfiguration config;
 
         // streams
         private readonly IStreamProvider streamProvider;
@@ -43,7 +44,7 @@ namespace Client
 
         public MasterOrchestrator(MasterConfiguration masterConfig)
 		{
-            this.masterConfig = masterConfig;
+            this.config = masterConfig;
             this.streamProvider = masterConfig.orleansClient.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider);
         }
 
@@ -61,34 +62,31 @@ namespace Client
          */
         public async Task Run()
         {
-
-            if (masterConfig.load)
+            if (config.load)
             {
-                if(masterConfig.syntheticConfig != null)
+                if(config.syntheticConfig != null)
                 {
-
-                    var syntheticDataGenerator = new SyntheticDataGenerator(masterConfig.syntheticConfig);
+                    var syntheticDataGenerator = new SyntheticDataGenerator(config.syntheticConfig);
                     syntheticDataGenerator.Generate();
-
                 } else {
 
-                    if(masterConfig.olistConfig == null)
+                    if(config.olistConfig == null)
                     {
                         throw new Exception("Loading data is set up but no configuration was found!");
                     }
 
-                    var realDataGenerator = new RealDataGenerator(masterConfig.olistConfig);
+                    var realDataGenerator = new RealDataGenerator(config.olistConfig);
                     realDataGenerator.Generate();
 
                 }
             }
 
-            if (masterConfig.healthCheck)
+            if (config.healthCheck)
             {
                 // for each table and associated url, perform a GET request to check if return is OK
                 // health check. is the microservice online?
                 var responses = new List<Task<HttpResponseMessage>>();
-                foreach (var tableUrl in masterConfig.ingestionConfig.mapTableToUrl)
+                foreach (var tableUrl in config.ingestionConfig.mapTableToUrl)
                 {
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, tableUrl.Value);
                     responses.Add(HttpUtils.client.SendAsync(message));
@@ -97,7 +95,7 @@ namespace Client
                 await Task.WhenAll(responses);
 
                 int idx = 0;
-                foreach (var tableUrl in masterConfig.ingestionConfig.mapTableToUrl)
+                foreach (var tableUrl in config.ingestionConfig.mapTableToUrl)
                 {
                     if (!responses[idx].Result.IsSuccessStatusCode)
                     {
@@ -109,10 +107,10 @@ namespace Client
 
             }
 
-            if (masterConfig.ingestion)
+            if (config.ingestion)
             {
 
-                var ingestionOrchestrator = new IngestionOrchestrator(masterConfig.ingestionConfig);
+                var ingestionOrchestrator = new IngestionOrchestrator(config.ingestionConfig);
 
                 ingestionOrchestrator.Run();
 
@@ -142,11 +140,11 @@ namespace Client
                 */
             }
 
-            if (masterConfig.transaction)
+            if (config.transaction)
             {
 
-                masterConfig.scenarioConfig.customerConfig.urls = masterConfig.ingestionConfig.mapTableToUrl;
-                CustomerConfiguration customerConfig = masterConfig.scenarioConfig.customerConfig;
+                config.scenarioConfig.customerConfig.urls = config.scenarioConfig.mapTableToUrl;
+                CustomerConfiguration customerConfig = config.scenarioConfig.customerConfig;
 
                 if (!customerConfig.urls.ContainsKey("products"))
                 {
@@ -157,57 +155,63 @@ namespace Client
                     throw new Exception("No carts URL found! Execution suspended.");
                 }
 
-                var endValue = customerConfig.keyRange.End.Value;
+                // get number of products
+                using var connection = new DuckDBConnection(config.connectionString);
+                connection.Open();
+                var endValue = DuckDbUtils.Count(connection, "products");
                 if (endValue < customerConfig.maxNumberKeysToBrowse || endValue < customerConfig.maxNumberKeysToAddToCart)
                 {
-                    throw new Exception("That may lead to customer grain looping forever!");
+                    throw new Exception("Number of available products < possible number of keys to checkout. That may lead to customer grain looping forever!");
                 }
 
-                // register customer config
-                IMetadataService metadataService = masterConfig.orleansClient.GetGrain<IMetadataService>(0);
-                metadataService.RegisterCustomerConfig(customerConfig);
+                // update customer config
+                long numSellers = DuckDbUtils.Count(connection, "sellers");
+                config.scenarioConfig.customerConfig.sellerRange = new Range(1, (int) numSellers);
 
-                // register seller config
-                SellerConfiguration sellerConfig = new SellerConfiguration();
-                sellerConfig.productsUrl = customerConfig.urls["products"];
-                metadataService.RegisterSellerConfig(sellerConfig);
+                // make sure to activate all sellers so all can respond to customers when required
+                ISellerWorker sellerWorker = null;
+                for (int i = 0; i < numSellers; i++)
+                {
+                    sellerWorker = config.orleansClient.GetGrain<ISellerWorker>(numSellers);
+                    await sellerWorker.Init(config.scenarioConfig.sellerConfig);
+                }
 
-                List<KafkaConsumer> kafkaTasks = new();
-                if (this.masterConfig.streamEnabled)
+                List<KafkaConsumer> kafkaWorkers = new();
+                if (this.config.streamEnabled)
                 {
                     // setup kafka consumer. setup forwarding events to proper grains (e.g., customers)
                     // https://github.com/YijianLiu1210/BDS-Programming-Assignment/blob/main/OrleansWorld/Client/Stream/StreamClient.cs
 
                     Console.WriteLine("Streaming will be set up.");
 
-                    foreach (var entry in masterConfig.scenarioConfig.mapTopicToStreamGuid)
+                    foreach (var entry in config.scenarioConfig.mapTopicToStreamGuid)
                     {
                         KafkaConsumer kafkaConsumer = new KafkaConsumer(
                             BuildKafkaConsumer(entry.Key, StreamingConfiguration.KafkaService),
-                            masterConfig.orleansClient.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider),
+                            config.orleansClient.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider),
                             entry.Value,
                             entry.Key);
 
                         _ = Task.Run(() => kafkaConsumer.Run());
-                        kafkaTasks.Add(kafkaConsumer);
+                        kafkaWorkers.Add(kafkaConsumer);
                     }
 
                     Console.WriteLine("Streaming set up finished.");
                 }
 
                 // setup transaction orchestrator
-                TransactionOrchestrator transactionOrchestrator = new TransactionOrchestrator(masterConfig.orleansClient, masterConfig.scenarioConfig);
+                TransactionOrchestrator transactionOrchestrator = new TransactionOrchestrator(config.orleansClient, config.scenarioConfig);
 
                 _ = Task.Run(() => transactionOrchestrator.Run());
 
-                Thread.Sleep(masterConfig.scenarioConfig.period);
+                Thread.Sleep(config.scenarioConfig.period);
 
                 transactionOrchestrator.Stop();
 
                 // stop kafka consumers if necessary
-                if (this.masterConfig.streamEnabled)
+                if (this.config.streamEnabled)
                 {
-                    foreach (var task in kafkaTasks)
+                    foreach (var task in kafkaWorkers)
                     {
                         task.Stop();
                     }

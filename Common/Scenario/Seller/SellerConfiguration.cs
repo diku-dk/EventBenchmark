@@ -7,9 +7,9 @@ namespace Common.Scenario.Seller
 
 	public sealed class SellerConfiguration
 	{
-        //public int numMaxProdToUpdate = 3;
-
-        // public Distribution keyDistribution;
+        // to serve customer workers
+        // the seller should know the dist of its own products
+        public Distribution keyDistribution;
 
         // 0 = keys 1 = category
         public int[] typeUpdateDistribution = new int[] { 0, 1 };
@@ -17,10 +17,14 @@ namespace Common.Scenario.Seller
         // the perc of increase
         public Range adjustRange = new Range(1, 21);
 
-        // product
-        public string productsUrl;
+        public bool updateInBatch = true;
+
+        // seller main page (the one after login), seller products page
+        public Dictionary<string, string> urls;
 
         public int delayBeforeStart = 0;
+
+        public Range delayBetweenRequestsRange;
 
     }
 }

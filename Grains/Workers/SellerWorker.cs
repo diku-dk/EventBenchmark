@@ -1,11 +1,21 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Dynamic;
 using System.IO;
+using System.Linq;
+using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using Common.Configuration;
+using Common.Http;
+using Common.Scenario.Entity;
 using Common.Scenario.Seller;
 using Common.Streaming;
-using GrainInterfaces.Scenario;
+using Common.YCSB;
 using GrainInterfaces.Workers;
+using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using Orleans;
 using Orleans.Streams;
 
@@ -13,6 +23,8 @@ namespace Grains.Workers
 {
 	public class SellerWorker : Grain, ISellerWorker
     {
+        private readonly Random random;
+
         private SellerConfiguration config;
 
         private IStreamProvider streamProvider;
@@ -21,10 +33,44 @@ namespace Grains.Workers
 
         private long sellerId;
 
-        public async Task Init()
+        private NumberGenerator productIdGenerator;
+
+        // has to make sure that generated product IDs are sequential for every seller
+        private Range keyRange;
+
+        private readonly ILogger<SellerWorker> _logger;
+
+        // to support: (i) customer product retrieval and (ii) the delete operation, since it uses a search string
+        private List<Product> cachedProducts;
+
+        public SellerWorker(ILogger<SellerWorker> logger)
         {
-            IMetadataService metadataService = GrainFactory.GetGrain<IMetadataService>(0);
-            this.config = await metadataService.RetrieveSellerConfig();
+            this._logger = logger;
+            this.random = new Random();
+        }
+
+        private sealed class ProductComparer : IComparer<Product>
+        {
+            public int Compare(Product x, Product y)
+            {
+                if (x.Id < y.Id) return 0; return 1;
+            }
+        }
+
+        private static readonly ProductComparer comparer = new ProductComparer();
+
+        public async Task Init(SellerConfiguration sellerConfig)
+        {
+            this.config = sellerConfig;
+            this.cachedProducts = await GetOwnProducts();
+
+            this.cachedProducts.Sort(comparer);
+            long lastId = cachedProducts[cachedProducts.Count-1].Id;
+
+            this.productIdGenerator = this.config.keyDistribution == Distribution.UNIFORM ?
+                 new UniformLongGenerator(cachedProducts[0].Id, lastId) :
+                 new ZipfianGenerator(cachedProducts[0].Id, lastId);
+            
         }
 
         public override async Task OnActivateAsync()
@@ -42,7 +88,7 @@ namespace Grains.Workers
             }
             await stream.SubscribeAsync<Event>(ReactToLowStock);
 
-            var workloadStream = streamProvider.GetStream<int>(StreamingConfiguration.CustomerStreamId, this.sellerId.ToString());
+            var workloadStream = streamProvider.GetStream<int>(StreamingConfiguration.SellerStreamId, this.sellerId.ToString());
             var subscriptionHandles_ = await workloadStream.GetAllSubscriptionHandles();
             if (subscriptionHandles_.Count > 0)
             {
@@ -56,20 +102,111 @@ namespace Grains.Workers
 
         private async Task Run(int operation, StreamSequenceToken token)
         {
-            if(operation == 0)
+            if (this.config.delayBeforeStart > 0)
+            {
+                _logger.LogInformation("Seller {0} delay before start: {1}", this.sellerId, this.config.delayBeforeStart);
+                await Task.Delay(this.config.delayBeforeStart);
+            }
+            else
+            {
+                _logger.LogInformation("Seller {0} NO delay before start!", this.sellerId);
+            }
+
+            if (operation < 1)
+            {
                 UpdatePrice();
+                return;
+            }
             DeleteProduct();
         }
 
         // driver will call
-        public void DeleteProduct()
+        private void DeleteProduct()
         {
+            // lookup by string. but how to do it if this worker does not know it's products?
+            // then can lookup when start
+        }
 
+        private async Task<List<Product>> GetOwnProducts()
+        {
+            HttpResponseMessage response = await Task.Run(async () =>
+            {
+                // [query string](https://en.wikipedia.org/wiki/Query_string)
+                return await HttpUtils.client.GetAsync(config.urls["products"] + "?seller_id=" + this.sellerId);
+            });
+            // deserialize response
+            string productsStr = await response.Content.ReadAsStringAsync();
+            return JsonConvert.DeserializeObject<List<Product>>(productsStr);
         }
 
         // driver will call
-        public void UpdatePrice()
+        private async void UpdatePrice()
         {
+            // to simulate how a seller would interact with the platform
+            _logger.LogInformation("Seller {0} has started UpdatePrice", this.sellerId);
+
+            // 1 - simulate seller browsing own main page (that will bring the product list)
+            List<Product> products = await GetOwnProducts();
+
+            int delay = this.random.Next(this.config.delayBetweenRequestsRange.Start.Value, this.config.delayBetweenRequestsRange.End.Value + 1);
+            await Task.Delay(delay);
+            
+            // 2 - from the products retrieved, select one or more and submit the updates
+            // could attach a session id to the updates, so it is possible to track the transaction session afterwards
+            int numberProductsToAdjustPrice = random.Next(1, products.Count+1);
+
+            // select from distribution and put in a map
+            var productsToUpdate = GetProductsToUpdate(products, numberProductsToAdjustPrice);
+
+            // define perc to raise
+            int percToAdjust = random.Next(config.adjustRange.Start.Value, config.adjustRange.End.Value);
+
+            // 3 -
+            foreach (var product in productsToUpdate)
+            {
+                var currPrice = product.Price;
+                product.Price = currPrice + ( (currPrice * percToAdjust) / 100 );
+            }
+
+            // submit updates
+            if (config.updateInBatch)
+            {
+                string productsUpdated = JsonConvert.SerializeObject(products.ToList());
+                await Task.Run(() =>
+                {
+                    HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Put, config.urls["products"]);
+                    request.Content = HttpUtils.BuildPayload(productsUpdated);
+                    return HttpUtils.client.Send(request);
+                });
+            } else {
+                foreach (var product in productsToUpdate)
+                {
+                    string prodUpdated = JsonConvert.SerializeObject(product);
+                    await Task.Run(() =>
+                    {
+                        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Put, config.urls["products"] + "/" + product.Id);
+                        request.Content = HttpUtils.BuildPayload(prodUpdated);
+                        return HttpUtils.client.Send(request);
+                        // return await HttpUtils.client.Send(config.urls["products"] + "/" + product.Id, HttpUtils.BuildPayload(prodUpdated));
+                    });
+                }
+            }
+
+            _logger.LogInformation("Seller {0} has finished price update.");
+
+        }
+
+        private ISet<Product> GetProductsToUpdate(List<Product> products, int numberProducts)
+        {
+            ISet<Product> set = new HashSet<Product>();
+
+            var map = products.GroupBy(p => p.Id).ToDictionary(group => group.Key, group => group.First());
+
+            while(set.Count < numberProducts)
+            {
+                set.Add(map[this.productIdGenerator.NextValue()]);
+            }
+            return set;
 
         }
 
@@ -83,6 +220,11 @@ namespace Grains.Workers
             // maybe it is reasonable to always increase stock to a minimum level
             // let's do it first
             return Task.CompletedTask;
+        }
+
+        public Task<long> GetProductId()
+        {
+            return Task.FromResult(this.productIdGenerator.NextValue());
         }
     }
 }

@@ -11,6 +11,8 @@ namespace Client.Execution
 	{
         public IClusterClient orleansClient;
 
+        public string connectionString = "Data Source=file.db"; // "DataSource=:memory:"
+
         // step
         public bool healthCheck = true;
 

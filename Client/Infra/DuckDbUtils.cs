@@ -1,10 +1,11 @@
 ﻿using System;
 using System.Data.Common;
+using DuckDB.NET.Data;
 
 namespace Client.Infra
 {
-	public sealed class DuckDbUtils
-	{
+    public sealed class DuckDbUtils
+    {
         public static void PrintQueryResults(DbDataReader queryResult)
         {
             for (var index = 0; index < queryResult.FieldCount; index++)
@@ -31,6 +32,14 @@ namespace Client.Infra
             }
         }
 
+        public static long Count(DuckDBConnection connection, string table)
+        {
+            var command = connection.CreateCommand();
+            command.CommandText = "SELECT COUNT(*) from "+ table+";";
+            var reader = command.ExecuteReader();
+            reader.Read();
+            return reader.GetInt64(0);
+        }
     }
 }
 
