@@ -1,6 +1,6 @@
 ﻿using System.Threading;
 
-namespace Client.Infra
+namespace Common.Infra
 {
     public class Stoppable : IStoppable, System.IDisposable
     {

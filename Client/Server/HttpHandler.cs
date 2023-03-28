@@ -4,25 +4,15 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using Client.Infra;
+using Common.Infra;
 using Newtonsoft.Json;
 
 namespace Client.Server
 {
-	public class HttpServer : Stoppable
+	public class HttpHandler : IHttpClientRequestHandler
 	{
-        public readonly HttpListener listener;
 
-        public readonly bool blocking;
-
-        public readonly string url = "http://127.0.0.1:8001/";
-
-        public HttpServer(bool blocking = true) : base()
-        {
-            this.blocking = true;
-            this.listener = new HttpListener();
-        }
-
-        private static void HandleClientConnection(HttpListenerContext ctx)
+        public void Handle(HttpListenerContext ctx)
         {
             HttpListenerRequest req = ctx.Request;
             HttpListenerResponse resp = ctx.Response;
@@ -54,41 +44,6 @@ namespace Client.Server
             output.Close();
 
             resp.Close();
-        }
-
-        private async Task HandleIncomingConnections()
-        {
-            if (blocking)
-            {
-                while (this.IsRunning())
-                {
-                    HttpListenerContext ctx = await listener.GetContextAsync();
-                    HandleClientConnection(ctx);
-                }
-            }
-            else
-            {
-                while (this.IsRunning())
-                {
-                    HttpListenerContext ctx = await listener.GetContextAsync();
-
-                    _ = Task.Run(() =>
-                    {
-                        HandleClientConnection(ctx);
-                    });
-
-                }
-            }
-        }
-
-        public void Run()
-        {
-            listener.Prefixes.Add(url);
-            listener.Start();
-            Console.WriteLine("Listening to connections in {0}", url);
-            Task task = HandleIncomingConnections();
-            task.GetAwaiter().GetResult();
-            listener.Close();
         }
 
     }

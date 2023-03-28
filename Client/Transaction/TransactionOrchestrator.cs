@@ -11,6 +11,7 @@ using System.Net.NetworkInformation;
 using Client.Infra;
 using System.Collections.Concurrent;
 using Common.Scenario.Customer;
+using Common.Infra;
 
 namespace Transaction
 {
@@ -184,6 +185,8 @@ namespace Transaction
                 }
                 case WorkloadType.UPDATE_DELIVERY: // delivery worker
                 {
+                    var streamOutgoing = streamProvider.GetStream<int>(StreamingConfiguration.DeliveryStreamId, null);
+                    _ = streamOutgoing.OnNextAsync(1);
                     return;
                 }
                 default: { throw new Exception("Unknown transaction type defined!"); }

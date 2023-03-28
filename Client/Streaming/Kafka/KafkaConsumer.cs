@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Client.Infra;
+using Common.Infra;
 using Common.Streaming;
 using Confluent.Kafka;
 using Microsoft.Extensions.Logging;

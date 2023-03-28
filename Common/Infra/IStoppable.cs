@@ -1,4 +1,4 @@
-﻿namespace Client
+﻿namespace Common.Infra
 {
     public interface IStoppable
     {

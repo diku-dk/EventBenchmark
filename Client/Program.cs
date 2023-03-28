@@ -2,6 +2,7 @@
 using Client.Execution;
 using Client.Infra;
 using Client.Server;
+using Common.Http;
 using Common.Ingestion;
 using Common.Ingestion.Config;
 using Common.Scenario;
@@ -110,7 +111,7 @@ namespace Client
             Console.WriteLine("Orleans client initialized!");
 
             Console.WriteLine("Initializing Mock Http server...");
-            HttpServer httpServer = new HttpServer();
+            HttpServer httpServer = new HttpServer(new HttpHandler());
             Task httpServerTask = Task.Run(() => { httpServer.Run(); });
 
             SyntheticDataSourceConfiguration syntheticConfig = new SyntheticDataSourceConfiguration();
