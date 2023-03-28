@@ -1,4 +1,6 @@
-﻿using System.Threading.Tasks;
+﻿using System.Collections.Generic;
+using System.Threading.Tasks;
+using Common.Scenario.Entity;
 using Common.Scenario.Seller;
 using Orleans;
 using Orleans.Concurrency;
@@ -7,11 +9,12 @@ namespace GrainInterfaces.Workers
 {
 	public interface ISellerWorker : IGrainWithIntegerKey
 	{
-        public Task Init(SellerConfiguration sellerConfig);
+        public Task Init(SellerConfiguration sellerConfig, List<Product> products);
 
-        // get a product ID respecting the key distribution of the seller
+        // retrieve seller products
         [AlwaysInterleave]
         public Task<long> GetProductId();
+        // public Task<List<Product>> GetProducts();
 
-	}
+    }
 }

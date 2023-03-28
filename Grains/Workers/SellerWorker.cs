@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Dynamic;
 using System.IO;
 using System.Linq;
@@ -41,36 +42,40 @@ namespace Grains.Workers
         private readonly ILogger<SellerWorker> _logger;
 
         // to support: (i) customer product retrieval and (ii) the delete operation, since it uses a search string
-        private List<Product> cachedProducts;
+        private List<Product> products;
+
+        private readonly ISet<long> deletedProducts;
 
         public SellerWorker(ILogger<SellerWorker> logger)
         {
             this._logger = logger;
             this.random = new Random();
+            this.deletedProducts = new HashSet<long>();
         }
 
         private sealed class ProductComparer : IComparer<Product>
         {
             public int Compare(Product x, Product y)
             {
-                if (x.Id < y.Id) return 0; return 1;
+                if (x.product_id < y.product_id) return 0; return 1;
             }
         }
 
-        private static readonly ProductComparer comparer = new ProductComparer();
+        private static readonly ProductComparer productComparer = new ProductComparer();
 
-        public async Task Init(SellerConfiguration sellerConfig)
+        public Task Init(SellerConfiguration sellerConfig, List<Product> products)
         {
             this.config = sellerConfig;
-            this.cachedProducts = await GetOwnProducts();
+            this.products = products;
 
-            this.cachedProducts.Sort(comparer);
-            long lastId = cachedProducts[cachedProducts.Count-1].Id;
+            this.products.Sort(productComparer);
+            long lastId = this.products[this.products.Count-1].product_id;
 
             this.productIdGenerator = this.config.keyDistribution == Distribution.UNIFORM ?
-                 new UniformLongGenerator(cachedProducts[0].Id, lastId) :
-                 new ZipfianGenerator(cachedProducts[0].Id, lastId);
-            
+                 new UniformLongGenerator(this.products[0].product_id, lastId) :
+                 new ZipfianGenerator(this.products[0].product_id, lastId);
+
+            return Task.CompletedTask;
         }
 
         public override async Task OnActivateAsync()
@@ -123,8 +128,18 @@ namespace Grains.Workers
         // driver will call
         private void DeleteProduct()
         {
-            // lookup by string. but how to do it if this worker does not know it's products?
-            // then can lookup when start
+            if(deletedProducts.Count == products.Count) {
+                _logger.LogWarning("All products already deleted for seller {0}", sellerId);
+                return;
+            }
+            // potentially could lookup by string.
+            long selectedProduct = this.productIdGenerator.NextValue();
+
+            while (deletedProducts.Contains(selectedProduct)) {
+                selectedProduct = this.productIdGenerator.NextValue();
+            }
+            deletedProducts.Add(selectedProduct);
+            return;
         }
 
         private async Task<List<Product>> GetOwnProducts()
@@ -164,8 +179,8 @@ namespace Grains.Workers
             // 3 -
             foreach (var product in productsToUpdate)
             {
-                var currPrice = product.Price;
-                product.Price = currPrice + ( (currPrice * percToAdjust) / 100 );
+                var currPrice = product.price;
+                product.price = currPrice + ( (currPrice * percToAdjust) / 100 );
             }
 
             // submit updates
@@ -184,7 +199,7 @@ namespace Grains.Workers
                     string prodUpdated = JsonConvert.SerializeObject(product);
                     await Task.Run(() =>
                     {
-                        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Put, config.urls["products"] + "/" + product.Id);
+                        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Put, config.urls["products"] + "/" + product.product_id);
                         request.Content = HttpUtils.BuildPayload(prodUpdated);
                         return HttpUtils.client.Send(request);
                         // return await HttpUtils.client.Send(config.urls["products"] + "/" + product.Id, HttpUtils.BuildPayload(prodUpdated));
@@ -196,11 +211,26 @@ namespace Grains.Workers
 
         }
 
+        private sealed class ProductEqualityComparer : IEqualityComparer<Product>
+        {
+            public bool Equals(Product x, Product y)
+            {
+                return (x.product_id == y.product_id);
+            }
+
+            public int GetHashCode([DisallowNull] Product obj)
+            {
+                return obj.product_id.GetHashCode();
+            }
+        }
+
+        private static readonly ProductEqualityComparer productEqualityComparer = new ProductEqualityComparer();
+
         private ISet<Product> GetProductsToUpdate(List<Product> products, int numberProducts)
         {
-            ISet<Product> set = new HashSet<Product>();
+            ISet<Product> set = new HashSet<Product>(productEqualityComparer);
 
-            var map = products.GroupBy(p => p.Id).ToDictionary(group => group.Key, group => group.First());
+            var map = products.GroupBy(p => p.product_id).ToDictionary(group => group.Key, group => group.First());
 
             while(set.Count < numberProducts)
             {
@@ -224,8 +254,20 @@ namespace Grains.Workers
 
         public Task<long> GetProductId()
         {
-            return Task.FromResult(this.productIdGenerator.NextValue());
+            long selectedProduct = this.productIdGenerator.NextValue();
+            // can loop forever if all products are deleted
+            /*
+            while ( deletedProducts.Contains( selectedProduct )) {
+                selectedProduct = this.productIdGenerator.NextValue();
+            }
+            */
+            return Task.FromResult(selectedProduct);
         }
+
+        //public Task<List<Product>> GetProducts()
+        //{
+        //    return Task.FromResult(this.products);
+        //}
     }
 }
 

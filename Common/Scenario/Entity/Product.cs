@@ -3,17 +3,18 @@ namespace Common.Scenario.Entity
 {
 	public class Product
 	{
-        public long Id { get; set; }
 
-        public long SellerId { get; set; }
+        public long product_id { get; set; }
 
-        public string Name { get; set; }
+        public long seller_id { get; set; }
 
-        public string Category { get; set; }
+        public string name { get; set; }
 
-        public string Data { get; set; }
+        public string product_category_name { get; set; }
 
-        public decimal Price { get; set; }
+        public string data { get; set; }
+
+        public decimal price { get; set; }
     }
 }
 

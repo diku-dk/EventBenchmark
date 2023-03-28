@@ -14,6 +14,10 @@ namespace Common.Scenario.Customer
 
         public Range sellerRange;
 
+        // expectation: same across all sellers
+        // without this each seller can have a custom distribution...
+        // public Distribution productDistribution;
+
         // probability of a customer to checkout the cart
         public int[] checkoutDistribution = new int[] { 1 };
 

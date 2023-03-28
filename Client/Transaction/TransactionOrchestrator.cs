@@ -65,7 +65,7 @@ namespace Transaction
                     if (config.submissionType == SubmissionEnum.TIME_IN_MILLI)
                     {
                         int milli = DateTime.Now.Millisecond;
-                        int stopAt = milli + config.windowOrBurstValue;
+                        int stopAt = milli + config.submissionValue;
 
                         do {
                             tasks.Add( Task.Run(() => SubmitTransaction()) );
@@ -74,7 +74,7 @@ namespace Transaction
                     }
                     else
                     {
-                        int val = config.windowOrBurstValue;
+                        int val = config.submissionValue;
                         do {
                             tasks.Add(Task.Run(SubmitTransaction));
                             val--;
@@ -162,10 +162,10 @@ namespace Transaction
                 // the triggering of seller workers must also be based on the customer key distribution
                 // an option is having a seller proxy that will match the product to the seller grain call...
 
-                    // Q0. what id a relistic behavior for customers?
-                    // what distribution should be followed? we have many products, categories.
-                    // instead of key distribution, seller distribution.. and then pick the products. could pick the same seller again
-                    // Q1. the operations the seller are doing must also obey the key distribution of customers?
+                // Q0. what id a relistic behavior for customers?
+                // what distribution should be followed? we have many products, categories.
+                // instead of key distribution, seller distribution.. and then pick the products. could pick the same seller again
+                // Q1. the operations the seller are doing must also obey the key distribution of customers?
 
                 // consumer demand model... the more items bought from a seller, more likely he will increase price
                 // we care about stressing the system, less or more conflict

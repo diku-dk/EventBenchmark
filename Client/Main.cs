@@ -5,8 +5,10 @@ using Client.Server;
 using Common.Ingestion;
 using Common.Ingestion.Config;
 using Common.Scenario;
+using Common.Scenario.Entity;
 using Common.Streaming;
 using DuckDB.NET.Data;
+using Newtonsoft.Json;
 using Orleans;
 using Orleans.Hosting;
 using Orleans.Runtime.Messaging;
@@ -60,20 +62,21 @@ namespace Client
             sellerConfig = new() {
                 keyDistribution = Common.Configuration.Distribution.UNIFORM,
                 urls = mapTableToUrl,
-                delayBetweenRequestsRange = new Range(1, 1000),
+                delayBetweenRequestsRange = new Range(1, 1000)
             },
             submissionType = SubmissionEnum.QUANTITY,
-            windowOrBurstValue = 1,
+            submissionValue = 1,
             period = TimeSpan.FromSeconds(600), // 10 min
             waitBetweenSubmissions = 60000 // 60 seconds
         };
 
-        public static void Main_(string[] args)
+        public static void Main(string[] args)
         {
 
             SyntheticDataGenerator syntheticDataGenerator = new SyntheticDataGenerator(new SyntheticDataSourceConfiguration());
             syntheticDataGenerator.Generate();
 
+            /*
             using (var duckDBConnection = new DuckDBConnection("DataSource=file.db"))
             {
                 duckDBConnection.Open();
@@ -83,15 +86,23 @@ namespace Client
                 var reader = command.ExecuteReader();
                 DuckDbUtils.PrintQueryResults(reader);
             }
-            
-        }
+            */
 
+            Console.WriteLine("start testing conversion type");
+
+            using (var duckDBConnection = new DuckDBConnection("DataSource=file.db"))
+            {
+                List<Product> products = DuckDbUtils.SelectAll<Product>(duckDBConnection, "products");
+                foreach(var product in products)
+                    Console.WriteLine(JsonConvert.SerializeObject(product));
+            }
+        }
 
         /**
          * Main method based on 
          * http://sergeybykov.github.io/orleans/1.5/Documentation/Deployment-and-Operations/Docker-Deployment.html
          */
-        public static async Task Main(string[] args)
+        public static async Task Main_(string[] args)
         {
             Console.WriteLine("Initializing Orleans client...");
             var client = await OrleansClientFactory.Connect();

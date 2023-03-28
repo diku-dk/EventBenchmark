@@ -11,7 +11,7 @@ namespace Client.DataGeneration
 
         public string connectionString = "Data Source=file.db"; // "DataSource=:memory:"
 
-        public int numCustomers = 300;
+        public int numCustomers = 10;
 
         public int numProducts = 100;
 

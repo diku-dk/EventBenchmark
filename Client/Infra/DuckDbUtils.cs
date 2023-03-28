@@ -1,5 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Data.Common;
+using System.Linq;
+using Dapper;
 using DuckDB.NET.Data;
 
 namespace Client.Infra
@@ -40,6 +43,17 @@ namespace Client.Infra
             reader.Read();
             return reader.GetInt64(0);
         }
+
+        public static List<T> SelectAll<T>(DuckDBConnection connection, string table)
+        {
+            return connection.Query<T>("SELECT * from " + table).ToList();
+        }
+
+        public static List<T> SelectAllWithPredicate<T>(DuckDBConnection connection, string table, string predicate)
+        {
+            return connection.Query<T>("SELECT * from " + table+" WHERE "+predicate).ToList();
+        }
+
     }
 }
 

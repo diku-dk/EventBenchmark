@@ -7,20 +7,21 @@
 
 EventBenchmark is a simulation framework for event-driven microservice applications.
 By taking advantage of the [Orleans framework](https://learn.microsoft.com/en-us/dotnet/orleans), EventBenchmark is designed to transparently take advantage of distributed resources, scale, and recover from failures.
-At the same time, the framework intends to provide a smooth learning curve, being easy to adapt to different workload characteristics.
+At the same time, the framework intends to provide a smooth learning curve, being easy to adapt to different workload scenarios.
 
 ## Target Application
 In particular, EventBenchmark is able to model the workload of an [online marketplace platform](https://en.wikipedia.org/wiki/Online_marketplace). Experiencing a growing popularity, such platforms offer an e-commerce infrastructure so multiple retailers can offer their products or services to individual consumers.
 Further details about the target application can be found in [to be announced].
 
 ## Why Event Benchmark?
-Given the nature of modern applications that take advantage of asynchronous events as an abstraction for decoupling distributed components, it is pressing that a simulation framework is able to reflect the interactive behavior of these modules.
+Given the nature of modern applications that take advantage of asynchronous events as an abstraction for decoupling distributed components, it is pressing that a simulation framework be able to reflect the interactive behavior of these autonomous components.
 In this direction, EventBenchmark packages interactive actors that are able to proactively react to events emitted by the application being experimented, thus allowing for a simulation that is more close to reality than traditional benchmark drivers.
-EventBenchmark relies on [Apache Kafka](https://github.com/apache/kafka) to consume the events published by the target application.
+EventBenchmark relies on [Apache Kafka](https://github.com/apache/kafka) to consume the events published by the target application and internally makes use of [Orleans Streams](https://learn.microsoft.com/en-us/dotnet/orleans/streaming/) to decouple defined actors.
 
 ## Data Set
 EventBenchmark relies upon [Brazilian E-Commerce Public Dataset by Olist](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) to define the data model and workload for simulation.
 EventBenchmark also benefits from [DuckDB](https://duckdb.org/why_duckdb) to quickly load and query generated data for use during the simulated workloads.
+[Dapper](https://github.com/DapperLib/Dapper) is used to map rows to objects.
 
 ## Execution
 EventBenchmark requires input configuration in case the user is willing to define a custom workload.

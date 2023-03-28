@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Dynamic;
 using System.Net;
@@ -90,6 +91,9 @@ namespace Grains.Workers
             return Task.CompletedTask;
         }
 
+        // shared among workers in the same silo to save costs
+        // private static readonly ConcurrentDictionary<long, List<Product>> cachedProductsPerSeller = new();
+
         private async Task<Dictionary<long, int>> DefineKeysToBrowseAsync(int numberOfKeysToBrowse)
         {
             // this dct must be numberOfKeysToCheckout
@@ -103,6 +107,7 @@ namespace Grains.Workers
                 grainId = this.sellerIdGenerator.NextValue();
                 sellerWorker = GrainFactory.GetGrain<ISellerWorker>(grainId);
                 // pick products from seller distribution
+                // if (cachedProductsPerSeller.ContainsKey(grainId)) {}
                 productId = await sellerWorker.GetProductId();
                 while (keyToQtyMap.ContainsKey(productId))
                 {
@@ -167,7 +172,6 @@ namespace Grains.Workers
 
                         if (numberOfKeysToCheckout > 0)
                         {
-
                             // add to cart
                             if (response.Content.Headers.ContentLength == 0)
                             {
@@ -242,10 +246,13 @@ namespace Grains.Workers
                 case "payment-rejected": { await this.ReactToPaymentRejected(data.payload); break; }
                 case "out-of-stock": { await this.ReactToOutOfStock(data.payload); break; }
                 case "price-update": { await this.ReactToPriceUpdate(data.payload); break; }
+                case "product-unavailable": { await this.ReactToProductUnavailable(data.payload); break; }
                 default: { _logger.LogInformation("Topic: " + data.topic + " has no associated reaction in customer grain " + customerId); break; }
             }
             return;
         }
+
+        // AFTER CHECKOUT
 
         private Task ReactToAbandonedCart(string abandonedCartEvent)
         {
@@ -264,13 +271,20 @@ namespace Grains.Workers
             return Task.CompletedTask;
         }
 
+        // ON CHECKOUT
+
         private Task ReactToPriceUpdate(string priceUpdateEvent)
         {
-            // submit some operations.. get request (customer url) and and then a post (rating)
+            // submit some operations.. get request (customer url) and then a post (rating)
             return Task.CompletedTask;
         }
 
-        // is this customer-based?
+        private Task ReactToProductUnavailable(string priceUpdateEvent)
+        {
+            // 
+            return Task.CompletedTask;
+        }
+
         private static string BuildCartItemPayloadFunc(string productPayload, int quantity)
         {
             /*
@@ -280,8 +294,15 @@ namespace Grains.Workers
             return JsonConvert.SerializeObject(obj);
             */
             Product product = JsonConvert.DeserializeObject<Product>(productPayload);
-            // TODO build a basket item
-            return null;
+            // build a basket item
+            BasketItem basketItem = new()
+            {
+                ProductId = product.product_id,
+                ProductName = product.name,
+                UnitPrice = product.price,
+                Quantity = quantity
+            };
+            return JsonConvert.SerializeObject(basketItem);
         }
 
     }

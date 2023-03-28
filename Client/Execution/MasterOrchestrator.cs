@@ -16,6 +16,7 @@ using Common.Ingestion;
 using Common.Ingestion.Config;
 using Common.Scenario;
 using Common.Scenario.Customer;
+using Common.Scenario.Entity;
 using Common.Scenario.Seller;
 using Common.Streaming;
 using Confluent.Kafka;
@@ -172,8 +173,9 @@ namespace Client
                 ISellerWorker sellerWorker = null;
                 for (int i = 0; i < numSellers; i++)
                 {
+                    List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
                     sellerWorker = config.orleansClient.GetGrain<ISellerWorker>(numSellers);
-                    await sellerWorker.Init(config.scenarioConfig.sellerConfig);
+                    await sellerWorker.Init(config.scenarioConfig.sellerConfig, products);
                 }
 
                 List<KafkaConsumer> kafkaWorkers = new();

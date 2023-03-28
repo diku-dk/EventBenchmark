@@ -3,7 +3,7 @@ namespace Common.Scenario.Entity
 {
     public class BasketItem
     {
-        public string ProductId { get; set; }
+        public long ProductId { get; set; }
         public string ProductName { get; set; }
         public decimal UnitPrice { get; set; }
         public decimal OldUnitPrice { get; set; }

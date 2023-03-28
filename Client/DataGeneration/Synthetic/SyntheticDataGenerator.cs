@@ -219,6 +219,8 @@ namespace Client.DataGeneration
             sb.Append(price).Append(',');
             sb.Append('\'').Append(data).Append("');");
 
+            Console.WriteLine(sb.ToString());
+
             command.CommandText = sb.ToString();
             command.ExecuteNonQuery();
         }

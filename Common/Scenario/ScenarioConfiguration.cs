@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using Common.Scenario.Customer;
 using Common.Scenario.Seller;
+using Common.Streaming;
 using Common.YCSB;
 
 namespace Common.Scenario
@@ -22,7 +23,7 @@ namespace Common.Scenario
         public SubmissionEnum submissionType = SubmissionEnum.TIME_IN_MILLI;
 
         // how much time a window or burst may remain. in milliseconds
-        public int windowOrBurstValue = 5000;
+        public int submissionValue = 5000;
 
         public long waitBetweenSubmissions = 0;
 
@@ -41,7 +42,17 @@ namespace Common.Scenario
         public Dictionary<string, string> mapTableToUrl;
 
         // map kafka topic to orleans stream Guid
-        public Dictionary<string, Guid> mapTopicToStreamGuid;
+        public Dictionary<string, Guid> mapTopicToStreamGuid = new()
+        {
+            // seller
+            ["low-stock-warning"] = StreamingConfiguration.SellerReactStreamId,
+            // customer
+            ["abandoned-cart"] = StreamingConfiguration.CustomerReactStreamId,
+            ["payment-rejected"] = StreamingConfiguration.CustomerReactStreamId,
+            ["out-of-stock"] = StreamingConfiguration.CustomerReactStreamId,
+            ["price-update"] = StreamingConfiguration.CustomerReactStreamId,
+            ["product-unavailable"] = StreamingConfiguration.CustomerReactStreamId,
+        };
 
         // provides a ID generator for each workload (e.g., customer, seller)
         // the generator obeys a distribution
