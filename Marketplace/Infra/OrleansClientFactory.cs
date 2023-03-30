@@ -15,13 +15,12 @@ namespace Client.Infra
             IClusterClient client = new ClientBuilder()
                                 .UseLocalhostClustering()
                                 .Configure<GatewayOptions>(
-                                    options =>                         // Default is 1 min.
+                                    options =>
                                     options.GatewayListRefreshPeriod = TimeSpan.FromMinutes(10))
-                                //.ConfigureLogging(logging => logging.AddConsole())
                                 .AddSimpleMessageStreamProvider(StreamingConfiguration.DefaultStreamProvider, options =>
                                 {
                                     options.PubSubType = Orleans.Streams.StreamPubSubType.ExplicitGrainBasedOnly;
-                                    options.FireAndForgetDelivery = true;
+                                    options.FireAndForgetDelivery = false;
                                     options.OptimizeForImmutableData = true;
                                 })
                                 .Build();

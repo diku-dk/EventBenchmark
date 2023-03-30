@@ -1,5 +1,4 @@
 ﻿using System;
-using Newtonsoft.Json;
 using System.IO;
 using System.Net;
 using System.Text;
@@ -8,6 +7,9 @@ using Common.Infra;
 
 namespace Common.Http
 {
+    /**
+     * Other solution: https://github.com/beetlex-io/FastHttpApi
+     */
     public class HttpServer : Stoppable
     {
         public readonly HttpListener listener;

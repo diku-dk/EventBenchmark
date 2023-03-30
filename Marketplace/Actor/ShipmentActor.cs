@@ -1,4 +1,6 @@
 ﻿using System;
+using Marketplace.Entity;
+using System.Threading.Tasks;
 
 namespace Marketplace.Actor
 {
@@ -7,6 +9,16 @@ namespace Marketplace.Actor
 		public ShipmentActor()
 		{
 		}
-	}
+
+        private Task ProcessShipment(Order order)
+        {
+            throw new NotImplementedException();
+        }
+
+        private Task UpdateDeliveryStatus()
+        {
+            return null;
+        }
+    }
 }
 

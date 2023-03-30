@@ -11,10 +11,8 @@ namespace GrainInterfaces.Workers
 	{
         public Task Init(SellerConfiguration sellerConfig, List<Product> products);
 
-        // retrieve seller products
         [AlwaysInterleave]
         public Task<long> GetProductId();
-        // public Task<List<Product>> GetProducts();
 
     }
 }

@@ -14,9 +14,11 @@
   <ItemGroup>
     <None Remove="Infra\" />
     <None Remove="Actor\" />
+    <None Remove="Entity\" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Infra\" />
     <Folder Include="Actor\" />
+    <Folder Include="Entity\" />
   </ItemGroup>
 </Project>

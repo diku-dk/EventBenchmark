@@ -106,6 +106,7 @@ local.properties
 
 # Mac file(s)
 .DS_Store
+*/.DS_Store
 
 # csv files
 *.csv

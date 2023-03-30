@@ -108,6 +108,8 @@ namespace Grains.Workers
                 sellerWorker = GrainFactory.GetGrain<ISellerWorker>(grainId);
                 // pick products from seller distribution
                 // if (cachedProductsPerSeller.ContainsKey(grainId)) {}
+
+                // we dont measure the performance of the benchmark, only the system. as long as we can submit enough workload we are fine
                 productId = await sellerWorker.GetProductId();
                 while (keyToQtyMap.ContainsKey(productId))
                 {
