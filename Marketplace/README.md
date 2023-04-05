@@ -63,14 +63,14 @@ Seller is stateful actor partioned seller entity identifier.
 ### Payment
 Payment is a stateful actor partitioned by order identifier.
 
-It receives a payment requets and coordinate with an external service. It is necessary to store data to ensure idempotency (in case of failures, has this external request been made?).
+It receives a payment request and coordinate with an external service. It is necessary to store data to ensure idempotency (in case of failures, has this external request been made?).
 Many payments may occur concurrently.
 Payment should be non-reentrant but idempotent.
 
 Add external request to the driver. the payment sucess rate is controlled by the driver.
 
 ### Shipment
-Shipment is a stateful actors also partitioned by order identifier.
+Shipment is a stateful actor also partitioned by order identifier.
 For now, we create a delivery order for each shipment and we complete the checkout process right away.
 
 ## Actor APIs
@@ -128,9 +128,31 @@ Stock
 
 ## Transactional Workflows
 
-- checkout: cart, order <-> stock, payment, shipment
-- update price: product, cart, customer (if there are customer cart active)
-- delete product: product, stock | cart
+To match the virtual actor model prescribed by Orleans to an event-driven microservice benchmark, some adaptations
+become necessary
+
+- checkout: cart, order <-> stock, payment, customer | shipment
+
+in snapper:
+-- checkout_1: cart, order <-> stock (you only need isolation for this, conflict is for stock)
+we do not abuse the abort transaction. abort is abused by devs, simple way to finish the tx.
+but performance is impacted, cascade the abort.
+db does not know the buiness logic. better to design txss that are determined to be committed.
+a design pattern, everything deterministically comitted.
+if checkout_1 fails, checkout_2 is not initiated.
+atomicity is achieved at most once. we need exactly-once guarantee. if succeed, we do not retry.
+-- checkout_2: payment <-> stock, order | customer | shipment (are independent)
+snapper does not guarantee exactly-once. the app must resubmit until commited.
+basically cannot abort checkout 2 without retrying all the time until committed
+a limitation of the system, app has to make sure it is correct
+another approach is adding trigger to snapper. an actor (instead of client) submits a transaction.
+
+- update price: seller, product1 | product2 .. | productN
+
+- delete product: seller, product | stock
+
+Checkout
+Starts with a client call to Actor API Checkout()
 
 if does not need a reply, better to use strem abstraction. fits better. eg. checkout
 if need a reply, better fit for rpc (also need timeout...). eg order and stock
@@ -147,5 +169,9 @@ This becomes prohibitive in scenarios where it is necessary to chain actor calls
 
 The escape from this challenge, workflows are enabled via Orleans Streams.
 
-Checkout
-Starts with a client call to Actor API Checkout()
+to benchmark orleans-based impl
+we use eventual consistency and implement everything
+
+to benchmark 
+snapper-based impl does not support pubsub abstarction
+cannot ensure serializability in this case

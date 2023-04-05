@@ -12,6 +12,7 @@ using Client.Infra;
 using System.Collections.Concurrent;
 using Common.Scenario.Customer;
 using Common.Infra;
+using Common.Scenario.Entity;
 
 namespace Transaction
 {
@@ -152,14 +153,16 @@ namespace Transaction
                     }
                     
                     ICustomerWorker customerWorker = orleansClient.GetGrain<ICustomerWorker>(grainID);
-                    if(customerStatusCache[grainID] == CustomerStatus.NEW)
+                    if (customerStatusCache[grainID] == CustomerStatus.NEW)
+                    {
                         await customerWorker.Init(config.customerConfig);
+                    }
                     var streamOutgoing = streamProvider.GetStream<int>(StreamingConfiguration.CustomerStreamId, grainID.ToString());
                     customerStatusCache[grainID] = CustomerStatus.BROWSING;
                     _ = streamOutgoing.OnNextAsync(1);   
                     break;
                 }
-                // to make sure the key distribution of sellers folow of the customers
+                // to make sure the key distribution of sellers follow of the customers
                 // the triggering of seller workers must also be based on the customer key distribution
                 // an option is having a seller proxy that will match the product to the seller grain call...
 

@@ -18,10 +18,10 @@ namespace Client.DataGeneration
         {
             ["sellers"] = "CREATE OR REPLACE TABLE sellers (seller_id INTEGER, name VARCHAR, street1 VARCHAR, street2 VARCHAR, seller_zip_code_prefix VARCHAR, seller_city VARCHAR, seller_state VARCHAR, tax REAL, ytd INTEGER, order_count INTEGER);",
             ["products"] = "CREATE OR REPLACE TABLE products (product_id INTEGER, seller_id INTEGER, name VARCHAR, product_category_name VARCHAR, price REAL, data VARCHAR);",
-            ["stock_items"] = "CREATE OR REPLACE TABLE stock_items (product_id INTEGER, seller_id INTEGER, quantity INTEGER, order_count INTEGER, ytd INTEGER, data VARCHAR);",
+            ["stock_items"] = "CREATE OR REPLACE TABLE stock_items (product_id INTEGER, seller_id INTEGER, qty_available INTEGER, qty_reserved INTEGER, order_count INTEGER, ytd INTEGER, data VARCHAR);",
             ["customers"] = "CREATE OR REPLACE TABLE customers (customer_id INTEGER, name VARCHAR, last_name VARCHAR, street1 VARCHAR, street2 VARCHAR, " +
                             "customer_zip_code_prefix VARCHAR, customer_city VARCHAR, customer_state VARCHAR, " +
-                            "card_number VARCHAR, card_expiration VARCHAR, card_holder_name VARCHAR, card_type VARCHAR, " +
+                            "card_number VARCHAR, card_security_number VARCHAR, card_expiration VARCHAR, card_holder_name VARCHAR, card_type VARCHAR, " +
                             "sucess_payment_count INTEGER, failed_payment_count INTEGER, delivery_count INTEGER, abandoned_cart_count INTEGER, data VARCHAR);"
         };
 
@@ -29,13 +29,13 @@ namespace Client.DataGeneration
 
         protected readonly string baseProductQuery = "INSERT INTO products (product_id,seller_id,product_category_name,name,price,data) VALUES ";
 
-        protected readonly string baseStockQuery = "INSERT INTO stock_items (product_id,seller_id,quantity,order_count,ytd,data) VALUES ";
+        protected readonly string baseStockQuery = "INSERT INTO stock_items (product_id,seller_id,qty_available,qty_reserved,order_count,ytd,data) VALUES ";
 
         protected void GenerateStockItem(DuckDbCommand command, int productId, int sellerId)
         {
             var quantity = numeric(4, true);
             var ytd = numeric(2, false);
-            var order_count = numeric(4, false);
+            var order_count = numeric(2, false);
             var data = RandomString(50, alphanumeric);
 
             // issue insert statement
@@ -43,6 +43,7 @@ namespace Client.DataGeneration
             sb.Append('(').Append(productId).Append(',');
             sb.Append(sellerId).Append(',');
             sb.Append(quantity).Append(',');
+            sb.Append(0).Append(',');
             sb.Append(order_count).Append(',');
             sb.Append(ytd).Append(',');
             sb.Append('\'').Append(data).Append("');");
@@ -51,16 +52,16 @@ namespace Client.DataGeneration
             command.ExecuteNonQuery();
         }
 
-        protected readonly string baseCustomerQuery = "INSERT INTO customers (customer_id, name, last_name, street1, street2, " +
+        protected readonly string baseCustomerQuery = "INSERT INTO customers (customer_id, first_name, last_name, street1, street2, " +
                     "customer_zip_code_prefix, customer_city, customer_state, " +
-                    "card_number, card_expiration, card_holder_name, card_type, " +
+                    "card_number, card_security_number, card_expiration, card_holder_name, card_type, " +
                     "sucess_payment_count, failed_payment_count, delivery_count, abandoned_cart_count, data) VALUES ";
 
-        protected Array cardValues = CardType.GetValues(typeof(CardType));
+        protected Array cardValues = CardBrand.GetValues(typeof(CardBrand));
 
         protected void GenerateCustomer(DuckDbCommand command, int customerId, string[] geo)
         {
-            var name = RandomString(16, alphanumeric);
+            var firstName = RandomString(16, alphanumeric);
             var lastName = RandomString(16, alphanumeric);
             var street1 = RandomString(20, alphanumeric);
             var street2 = RandomString(20, alphanumeric);
@@ -79,12 +80,13 @@ namespace Client.DataGeneration
             var C_YTD_PAYMENT = numeric(12, 2, true);
             */
             var cardNumber = RandomString(16, numbers);
+            var cardSecurityNumber = RandomString(3, numbers);
             var cardExpiration = RandomString(4, numbers);
             string cardHolderName = null;
             if (random.Next(1, 11) < 8)//70% change
             {
                 var middleName = RandomString(16, alphanumeric);
-                cardHolderName = name + " " + middleName + " " + lastName;
+                cardHolderName = firstName + " " + middleName + " " + lastName;
             }
             else
             {
@@ -101,7 +103,7 @@ namespace Client.DataGeneration
 
             var sb = new StringBuilder(baseCustomerQuery);
             sb.Append('(').Append(customerId).Append(',');
-            sb.Append('\'').Append(name).Append("',");
+            sb.Append('\'').Append(firstName).Append("',");
             sb.Append('\'').Append(lastName).Append("',");
             sb.Append('\'').Append(street1).Append("',");
             sb.Append('\'').Append(street2).Append("',");
@@ -109,6 +111,7 @@ namespace Client.DataGeneration
             sb.Append('\'').Append(city).Append("',");
             sb.Append('\'').Append(state).Append("',");
             sb.Append('\'').Append(cardNumber).Append("',");
+            sb.Append('\'').Append(cardSecurityNumber).Append("',");
             sb.Append('\'').Append(cardExpiration).Append("',");
             sb.Append('\'').Append(cardHolderName).Append("',");
             sb.Append('\'').Append(cardType).Append("',");

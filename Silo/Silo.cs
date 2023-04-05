@@ -33,6 +33,7 @@ var builder = new HostBuilder()
                 //logging.AddConsole();
             }) // https://learn.microsoft.com/en-us/aspnet/core/fundamentals/logging/?tabs=aspnetcore2x&view=aspnetcore-7.0
                // .UseDashboard(options => { })    // localhost:8080
+               // .ConfigureServices(services => { services.Add })
         ;
     });
 

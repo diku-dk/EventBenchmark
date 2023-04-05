@@ -36,9 +36,6 @@ namespace Grains.Workers
 
         private NumberGenerator productIdGenerator;
 
-        // has to make sure that generated product IDs are sequential for every seller
-        private Range keyRange;
-
         private readonly ILogger<SellerWorker> _logger;
 
         // to support: (i) customer product retrieval and (ii) the delete operation, since it uses a search string
@@ -126,20 +123,35 @@ namespace Grains.Workers
         }
 
         // driver will call
-        private void DeleteProduct()
+        // potentially could lookup by string
+        private async void DeleteProduct()
         {
-            if(deletedProducts.Count == products.Count) {
-                _logger.LogWarning("All products already deleted for seller {0}", sellerId);
+            if(this.deletedProducts.Count == products.Count)
+            {
+                _logger.LogWarning("All products already deleted by seller {0}", this.sellerId);
                 return;
             }
-            // potentially could lookup by string.
+            
             long selectedProduct = this.productIdGenerator.NextValue();
 
-            while (deletedProducts.Contains(selectedProduct)) {
+            while (deletedProducts.Contains(selectedProduct))
+            {
                 selectedProduct = this.productIdGenerator.NextValue();
             }
-            deletedProducts.Add(selectedProduct);
-            return;
+
+            await Task.Run(async () =>
+            {
+                try
+                {
+                    var response = await HttpUtils.client.DeleteAsync(config.urls["products"] + "/" + selectedProduct);
+                    response.EnsureSuccessStatusCode();
+                    this.deletedProducts.Add(selectedProduct);
+                    _logger.LogInformation("Product {0} deleted by seller {0}", selectedProduct, this.sellerId);
+                }
+                catch (Exception) {
+                    _logger.LogError("Product {0} could not be deleted by seller {0}", selectedProduct, this.sellerId);
+                }
+            });
         }
 
         private async Task<List<Product>> GetOwnProducts()
@@ -150,6 +162,7 @@ namespace Grains.Workers
                 return await HttpUtils.client.GetAsync(config.urls["products"] + "?seller_id=" + this.sellerId);
             });
             // deserialize response
+            response.EnsureSuccessStatusCode();
             string productsStr = await response.Content.ReadAsStringAsync();
             return JsonConvert.DeserializeObject<List<Product>>(productsStr);
         }
@@ -176,7 +189,7 @@ namespace Grains.Workers
             // define perc to raise
             int percToAdjust = random.Next(config.adjustRange.Start.Value, config.adjustRange.End.Value);
 
-            // 3 -
+            // 3 - update product objects
             foreach (var product in productsToUpdate)
             {
                 var currPrice = product.price;
@@ -184,31 +197,22 @@ namespace Grains.Workers
             }
 
             // submit updates
-            if (config.updateInBatch)
+            string productsUpdated = JsonConvert.SerializeObject(products.ToList());
+            var task = await Task.Run(async () =>
             {
-                string productsUpdated = JsonConvert.SerializeObject(products.ToList());
-                await Task.Run(() =>
-                {
-                    HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Put, config.urls["products"]);
-                    request.Content = HttpUtils.BuildPayload(productsUpdated);
-                    return HttpUtils.client.Send(request);
-                });
-            } else {
-                foreach (var product in productsToUpdate)
-                {
-                    string prodUpdated = JsonConvert.SerializeObject(product);
-                    await Task.Run(() =>
-                    {
-                        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Put, config.urls["products"] + "/" + product.product_id);
-                        request.Content = HttpUtils.BuildPayload(prodUpdated);
-                        return HttpUtils.client.Send(request);
-                        // return await HttpUtils.client.Send(config.urls["products"] + "/" + product.Id, HttpUtils.BuildPayload(prodUpdated));
-                    });
-                }
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Put, config.urls["products"]);
+                request.Content = HttpUtils.BuildPayload(productsUpdated);
+                var response = await HttpUtils.client.SendAsync(request);
+                
+                return response;
+            });
+
+            if (task.IsSuccessStatusCode)
+            {
+                _logger.LogInformation("Seller {0} has finished price update.", this.sellerId);
+                return;
             }
-
-            _logger.LogInformation("Seller {0} has finished price update.");
-
+            _logger.LogError("Seller {0} failed to update prices.", this.sellerId);
         }
 
         private sealed class ProductEqualityComparer : IEqualityComparer<Product>
@@ -255,19 +259,9 @@ namespace Grains.Workers
         public Task<long> GetProductId()
         {
             long selectedProduct = this.productIdGenerator.NextValue();
-            // can loop forever if all products are deleted
-            /*
-            while ( deletedProducts.Contains( selectedProduct )) {
-                selectedProduct = this.productIdGenerator.NextValue();
-            }
-            */
             return Task.FromResult(selectedProduct);
         }
 
-        //public Task<List<Product>> GetProducts()
-        //{
-        //    return Task.FromResult(this.products);
-        //}
     }
 }
 

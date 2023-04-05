@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Dynamic;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -20,6 +21,11 @@ using Orleans.Streams;
 
 namespace Grains.Workers
 {
+
+    /**
+     * Nice example of tasks in a customer session:
+     * https://github.com/GoogleCloudPlatform/microservices-demo/blob/main/src/loadgenerator/locustfile.py
+     */
     public sealed class CustomerWorker : Grain, ICustomerWorker
     {
         private readonly Random random;
@@ -41,6 +47,8 @@ namespace Grains.Workers
         private string productUrl;
 
         private string cartUrl;
+
+        private Customer customer;
 
         private readonly ILogger<CustomerWorker> _logger;
 
@@ -80,7 +88,7 @@ namespace Grains.Workers
             this.random = new Random();
         }
 
-        public Task Init(CustomerConfiguration config)
+        public async Task Init(CustomerConfiguration config)
         {
             this.config = config;
             this.sellerIdGenerator = this.config.sellerDistribution == Distribution.UNIFORM ?
@@ -88,16 +96,36 @@ namespace Grains.Workers
                 new ZipfianGenerator(this.config.sellerRange.Start.Value, this.config.sellerRange.End.Value);
             this.productUrl = this.config.urls["products"];
             this.cartUrl = this.config.urls["carts"];
-            return Task.CompletedTask;
+            this.customer = await GetCustomer(this.config.urls["customers"], customerId);
         }
 
-        // shared among workers in the same silo to save costs
-        // private static readonly ConcurrentDictionary<long, List<Product>> cachedProductsPerSeller = new();
-
-        private async Task<Dictionary<long, int>> DefineKeysToBrowseAsync(int numberOfKeysToBrowse)
+        private static async Task<Customer> GetCustomer(string customerUrl, long customerId)
         {
-            // this dct must be numberOfKeysToCheckout
-            Dictionary<long, int> keyToQtyMap = new Dictionary<long, int>(numberOfKeysToBrowse);
+            HttpResponseMessage resp = await Task.Run(async () =>
+            {
+                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, customerUrl + "/" + customerId);
+                return await HttpUtils.client.SendAsync(message);
+            });
+            var str = await resp.Content.ReadAsStringAsync();
+            return JsonConvert.DeserializeObject<Customer>(str);
+        }
+
+        /**
+         * From the list of browsed keys, picks randomly the keys to checkout
+         */
+        private ISet<long> DefineKeysToCheckout(List<long> browsedKeys, int numberOfKeysToCheckout)
+        {
+            ISet<long> set = new HashSet<long>(numberOfKeysToCheckout);
+            while (set.Count < numberOfKeysToCheckout)
+            {
+                set.Add(browsedKeys[random.Next(0, browsedKeys.Count)]);
+            }
+            return set;
+        }
+
+        private async Task<ISet<long>> DefineKeysToBrowseAsync(int numberOfKeysToBrowse)
+        {
+            ISet<long> keyMap = new HashSet<long>(numberOfKeysToBrowse);
             ISellerWorker sellerWorker;
             StringBuilder sb = new StringBuilder();
             long grainId;
@@ -106,24 +134,22 @@ namespace Grains.Workers
             {
                 grainId = this.sellerIdGenerator.NextValue();
                 sellerWorker = GrainFactory.GetGrain<ISellerWorker>(grainId);
-                // pick products from seller distribution
-                // if (cachedProductsPerSeller.ContainsKey(grainId)) {}
 
                 // we dont measure the performance of the benchmark, only the system. as long as we can submit enough workload we are fine
                 productId = await sellerWorker.GetProductId();
-                while (keyToQtyMap.ContainsKey(productId))
+                while (keyMap.Contains(productId))
                 {
                     grainId = this.sellerIdGenerator.NextValue();
                     sellerWorker = GrainFactory.GetGrain<ISellerWorker>(grainId);
                     productId = await sellerWorker.GetProductId();
                 }
 
-                keyToQtyMap.Add(productId, 0);
+                keyMap.Add(productId);
                 sb.Append(productId);
                 if (i < numberOfKeysToBrowse - 1) sb.Append(", ");
             }
             _logger.LogInformation("Customer {0} defined the keys to browse: {1}", this.customerId, sb.ToString());
-            return keyToQtyMap;
+            return keyMap;
         }
 
         private async Task Run(int obj, StreamSequenceToken token)
@@ -144,99 +170,146 @@ namespace Grains.Workers
 
             _logger.LogInformation("Customer {0} has this number of keys to browse: {1}", customerId, numberOfKeysToBrowse);
 
-            var keyToQtyMap = await DefineKeysToBrowseAsync(numberOfKeysToBrowse);
-
-            HttpResponseMessage[] responses = new HttpResponseMessage[numberOfKeysToBrowse];
-
-            // should we also model this behavior?
-            int numberOfKeysToCheckout =
-                random.Next(0, Math.Min(numberOfKeysToBrowse, this.config.maxNumberKeysToAddToCart));
+            var keyMap = await DefineKeysToBrowseAsync(numberOfKeysToBrowse);
 
             _logger.LogInformation("Customer {0} will start browsing", this.customerId);
 
             // browsing
-            int idx = 0;
-            foreach (KeyValuePair<long, int> entry in keyToQtyMap)
+            Browse(keyMap);
+
+            _logger.LogInformation("Customer " + customerId + " finished browsing!");
+
+            // TODO should we also model this behavior?
+            int numberOfKeysToCheckout =
+                random.Next(1, Math.Min(numberOfKeysToBrowse, this.config.maxNumberKeysToAddToCart) + 1);
+
+            // adding to cart
+            AddToCart(DefineKeysToCheckout(keyMap.ToList(), numberOfKeysToCheckout));
+
+            // get cart
+            GetCart();
+
+            // checkout
+            Checkout();
+
+            return;
+        }
+
+        private async void GetCart()
+        {
+            await Task.Run(() =>
             {
-                responses[idx] = await Task.Run(async () =>
+                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, cartUrl + "/" + customerId);
+                return HttpUtils.client.Send(message);
+            });
+        }
+
+        private async void Checkout()
+        {
+            // define whether client should send a checkout request
+            if (this.config.checkoutDistribution[random.Next(0, this.config.checkoutDistribution.Length)] == 0)
+            {
+                this.status = CustomerStatus.CHECKOUT_NOT_SENT;
+                _logger.LogInformation("Customer " + customerId + " decided not to send a checkout!");
+                return;
+            }
+
+            _logger.LogInformation("Customer " + customerId + " decided to send a checkout!");
+
+            // inform checkout intent. optional feature
+
+            HttpResponseMessage resp = await Task.Run(async () =>
+            {
+                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, cartUrl + "/" + customerId + "/checkout");
+                message.Content = BuildCheckoutPayload(this.customerId, this.customer);
+                return await HttpUtils.client.SendAsync(message);
+            });
+
+            if (resp != null && resp.IsSuccessStatusCode)
+            {
+                this.status = CustomerStatus.CHECKOUT_SENT;
+                await txStream.OnNextAsync(new CustomerStatusUpdate(this.customerId, this.status));
+                _logger.LogInformation("Customer " + customerId + " sent the checkout sucessfully");
+            }
+            else
+            {
+                this.status = CustomerStatus.CHECKOUT_FAILED;
+                _logger.LogInformation("Customer " + customerId + " checkout failed");
+            }
+
+        }
+
+        private async void AddToCart(ISet<long> keyMap)
+        {
+            HttpResponseMessage response;
+            foreach (var productId in keyMap)
+            {
+                _logger.LogInformation("Customer {0} adding product {1} to cart", this.customerId, productId);
+                int delay = this.random.Next(this.config.delayBetweenRequestsRange.Start.Value, this.config.delayBetweenRequestsRange.End.Value + 1);
+                await Task.Run(async () =>
                 {
-
-                    _logger.LogInformation("Customer {0} Task {1}", this.customerId, idx+1);
-
-                    int delay = this.random.Next(this.config.delayBetweenRequestsRange.Start.Value, this.config.delayBetweenRequestsRange.End.Value + 1);
-                    HttpResponseMessage response;
                     try
                     {
-                        response = await HttpUtils.client.GetAsync(productUrl + "/" + entry.Key);
+                        response = await HttpUtils.client.GetAsync(productUrl + "/" + productId);
 
-                        // artificial delay after retrieving the product
-                        await Task.Delay(delay);
-
-                        if (numberOfKeysToCheckout > 0)
+                        // add to cart
+                        if (response.Content.Headers.ContentLength == 0)
                         {
-                            // add to cart
-                            if (response.Content.Headers.ContentLength == 0)
-                            {
-                                _logger.LogInformation("Response content for product {0} is empty! {1}", entry.Key);
-                                return new HttpResponseMessage(HttpStatusCode.InternalServerError);
-                            }
-
-                            // mark this product as already added to cart
-                            keyToQtyMap[entry.Key] = random.Next(this.config.minMaxQtyRange.Start.Value, this.config.minMaxQtyRange.End.Value);
-
-                            var productRet = await response.Content.ReadAsStringAsync();
-                            string payload = BuildCartItemPayloadFunc(productRet, keyToQtyMap[entry.Key]);
-
-                            response = await HttpUtils.client.PostAsync(cartUrl + "/" + customerId + "/add", HttpUtils.BuildPayload(payload));
-                            numberOfKeysToCheckout--;
-
+                            _logger.LogInformation("Response content for product {0} is empty! {1}", productId);
+                            return new HttpResponseMessage(HttpStatusCode.InternalServerError);
                         }
+
+                        var qty = random.Next(this.config.minMaxQtyRange.Start.Value, this.config.minMaxQtyRange.End.Value);
+
+                        var productRet = await response.Content.ReadAsStringAsync();
+                        var payload = BuildCartItem(productRet, qty);
+
+                        response = await HttpUtils.client.PostAsync(cartUrl + "/" + customerId + "/add", payload);
+
                         return response;
                     }
                     catch (Exception e)
                     {
-                        _logger.LogInformation("Exception Message: {0} Customer {1} Url {2} Key {3}", e.Message, customerId, productUrl, entry.Key);
-                        if(e is HttpRequestException) {
+                        _logger.LogInformation("Exception Message: {0} Customer {1} Url {2} Key {3}", e.Message, customerId, productUrl, productId);
+                        if (e is HttpRequestException)
+                        {
                             HttpRequestException e_ = (HttpRequestException)e;
                             return new HttpResponseMessage((HttpStatusCode)e_.StatusCode);
                         }
                         return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
                     }
+                    finally
+                    {
+                        // artificial delay after adding the product
+                        await Task.Delay(delay);
+                    }
 
                 });
-
-                // check for errors
-                if (!responses[idx].IsSuccessStatusCode)
-                {
-                    _logger.LogInformation("Customer " + customerId + " could not finish browsing due to errors!");
-                    return;
-                }
-
-                idx++;
             }
+        }
 
-            _logger.LogInformation("Customer " + customerId + " finished browsing!");
-
-            // define whether client should send a checkout request
-            if (this.config.checkoutDistribution[random.Next(0, this.config.checkoutDistribution.Length)] == 1)
+        private async void Browse(ISet<long> keyMap)
+        {
+            int delay;
+            foreach (var productId in keyMap)
             {
-                _logger.LogInformation("Customer " + customerId + " decided to send a checkout!");
-                await Task.Run(() =>
+                _logger.LogInformation("Customer {0} browsing product {1}", this.customerId, productId);
+                delay = this.random.Next(this.config.delayBetweenRequestsRange.Start.Value, this.config.delayBetweenRequestsRange.End.Value + 1);
+                await Task.Run(async () =>
                 {
-                    HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, cartUrl + "/" + customerId + "/checkout");
-                    HttpUtils.client.Send(message);
+                    try
+                    {
+                        await HttpUtils.client.GetAsync(productUrl + "/" + productId); 
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.LogInformation("Exception Message: {0} Customer {1} Url {2} Key {3}", e.Message, customerId, productUrl, productId);
+                    }
+
                 });
-                this.status = CustomerStatus.CHECKOUT_SENT;
+                // artificial delay after retrieving the product
+                await Task.Delay(delay);
             }
-            else
-            {
-                this.status = CustomerStatus.CHECKOUT_NOT_SENT;
-                _logger.LogInformation("Customer " + customerId + " decided not to send a checkout!");
-            }
-
-            await txStream.OnNextAsync(new CustomerStatusUpdate(this.customerId, this.status));
-
-            return;
         }
 
         private async Task ProcessEventAsync(Event data, StreamSequenceToken token)
@@ -287,24 +360,44 @@ namespace Grains.Workers
             return Task.CompletedTask;
         }
 
-        private static string BuildCartItemPayloadFunc(string productPayload, int quantity)
+        private static StringContent BuildCartItem(string productPayload, int quantity)
         {
-            /*
-            // parse into json, add quantity attribute, envelop again
-            var obj = JsonConvert.DeserializeObject<ExpandoObject>(productPayload) as IDictionary<string, Object>;
-            obj["quantity"] = quantity;
-            return JsonConvert.SerializeObject(obj);
-            */
             Product product = JsonConvert.DeserializeObject<Product>(productPayload);
             // build a basket item
             BasketItem basketItem = new()
             {
                 ProductId = product.product_id,
-                ProductName = product.name,
+                SellerId = product.seller_id,
+                // ProductName = product.name,
                 UnitPrice = product.price,
                 Quantity = quantity
             };
-            return JsonConvert.SerializeObject(basketItem);
+            var payload = JsonConvert.SerializeObject(basketItem);
+            return HttpUtils.BuildPayload(payload);
+        }
+
+        private static StringContent BuildCheckoutPayload(long customerId, Customer customer)
+        {
+
+            // TODO define payment type from distribution
+            // TODO define voucher from distribution
+
+            // build
+            CustomerCheckout basketCheckout = new()
+            {
+                CustomerId = customerId,
+                City = customer.customer_city,
+                Street = customer.street1,
+                State = customer.customer_state,
+                ZipCode = customer.customer_zip_code_prefix,
+                CardNumber = customer.card_number,
+                CardHolderName = customer.card_holder_name,
+                CardExpiration = customer.card_expiration,
+                CardSecurityNumber = customer.card_security_number,
+                CardBrand = customer.card_type
+            };
+            var payload = JsonConvert.SerializeObject(basketCheckout);
+            return HttpUtils.BuildPayload(payload);
         }
 
     }

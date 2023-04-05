@@ -17,8 +17,6 @@ namespace Common.Scenario.Seller
         // the perc of increase
         public Range adjustRange = new Range(1, 21);
 
-        public bool updateInBatch = true;
-
         // seller main page (the one after login), seller products page
         public Dictionary<string, string> urls;
 

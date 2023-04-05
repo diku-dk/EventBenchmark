@@ -1,7 +1,7 @@
 ﻿using System;
 namespace Client.DataGeneration
 {
-	public enum CardType
+	public enum CardBrand
 	{
 		MASTER_CARD,
 		VISA,

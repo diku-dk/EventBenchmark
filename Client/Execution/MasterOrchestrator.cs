@@ -170,13 +170,16 @@ namespace Client
                 config.scenarioConfig.customerConfig.sellerRange = new Range(1, (int) numSellers);
 
                 // make sure to activate all sellers so all can respond to customers when required
+                // another solution is making them read from the microservice itself...
                 ISellerWorker sellerWorker = null;
+                List<Task> tasks = new();
                 for (int i = 0; i < numSellers; i++)
                 {
                     List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
                     sellerWorker = config.orleansClient.GetGrain<ISellerWorker>(numSellers);
-                    await sellerWorker.Init(config.scenarioConfig.sellerConfig, products);
+                    tasks.Add( sellerWorker.Init(config.scenarioConfig.sellerConfig, products) );
                 }
+                await Task.WhenAll(tasks);
 
                 List<KafkaConsumer> kafkaWorkers = new();
                 if (this.config.streamEnabled)
