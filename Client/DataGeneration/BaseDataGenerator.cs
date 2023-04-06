@@ -19,7 +19,7 @@ namespace Client.DataGeneration
             ["sellers"] = "CREATE OR REPLACE TABLE sellers (seller_id INTEGER, name VARCHAR, street1 VARCHAR, street2 VARCHAR, seller_zip_code_prefix VARCHAR, seller_city VARCHAR, seller_state VARCHAR, tax REAL, ytd INTEGER, order_count INTEGER);",
             ["products"] = "CREATE OR REPLACE TABLE products (product_id INTEGER, seller_id INTEGER, name VARCHAR, product_category_name VARCHAR, price REAL, data VARCHAR);",
             ["stock_items"] = "CREATE OR REPLACE TABLE stock_items (product_id INTEGER, seller_id INTEGER, qty_available INTEGER, qty_reserved INTEGER, order_count INTEGER, ytd INTEGER, data VARCHAR);",
-            ["customers"] = "CREATE OR REPLACE TABLE customers (customer_id INTEGER, name VARCHAR, last_name VARCHAR, street1 VARCHAR, street2 VARCHAR, " +
+            ["customers"] = "CREATE OR REPLACE TABLE customers (customer_id INTEGER, name VARCHAR, last_name VARCHAR, street VARCHAR, complement VARCHAR, " +
                             "customer_zip_code_prefix VARCHAR, customer_city VARCHAR, customer_state VARCHAR, " +
                             "card_number VARCHAR, card_security_number VARCHAR, card_expiration VARCHAR, card_holder_name VARCHAR, card_type VARCHAR, " +
                             "sucess_payment_count INTEGER, failed_payment_count INTEGER, delivery_count INTEGER, abandoned_cart_count INTEGER, data VARCHAR);"
@@ -63,8 +63,8 @@ namespace Client.DataGeneration
         {
             var firstName = RandomString(16, alphanumeric);
             var lastName = RandomString(16, alphanumeric);
-            var street1 = RandomString(20, alphanumeric);
-            var street2 = RandomString(20, alphanumeric);
+            var street = RandomString(20, alphanumeric);
+            var complement = RandomString(20, alphanumeric);
 
             var city = geo[0];
             var state = geo[1];
@@ -105,8 +105,8 @@ namespace Client.DataGeneration
             sb.Append('(').Append(customerId).Append(',');
             sb.Append('\'').Append(firstName).Append("',");
             sb.Append('\'').Append(lastName).Append("',");
-            sb.Append('\'').Append(street1).Append("',");
-            sb.Append('\'').Append(street2).Append("',");
+            sb.Append('\'').Append(street).Append("',");
+            sb.Append('\'').Append(complement).Append("',");
             sb.Append('\'').Append(zip).Append("',");
             sb.Append('\'').Append(city).Append("',");
             sb.Append('\'').Append(state).Append("',");

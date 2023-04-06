@@ -6,11 +6,12 @@ using Orleans.Runtime;
 using System.Linq;
 using System.Collections.Generic;
 using Common.Scenario.Entity;
+using Marketplace.Infra;
 
 namespace Marketplace.Actor
 {
 
-    public interface IPaymentActor : IGrainWithIntegerKey
+    public interface IPaymentActor : IGrainWithIntegerKey, SnapperActor
     {
         public Task ProcessPayment(Invoice invoice);
     }
@@ -23,6 +24,7 @@ namespace Marketplace.Actor
         private readonly Random random;
 
         // DB
+        // key order_id
         private Dictionary<long, List<OrderPayment>> payments;
         private Dictionary<long, OrderPaymentCard> cardPayments;
 
@@ -44,16 +46,27 @@ namespace Marketplace.Actor
             this.nCustomerPartitions = stats.Where(w => w.GrainType.Contains("CustomerActor")).Count();
         }
 
-        public async Task ProcessPayment(Invoice invoice)
+        /**
+         * simulate an external request by adding a random delay
+         * customer checkout is necessary here to contact external service provider
+         */
+        public async Task<bool> ContactESP(CustomerCheckout customer, decimal value)
         {
             bool approved = true;
-            // simulate an external request by adding a delay
+            
             await Task.Delay(this.random.Next(100, 1001));
 
             // TODO pick from a distribution
             if (this.random.Next(1, 11) > 7)
                 approved = false;
 
+            return approved;
+        }
+
+        public async Task ProcessPayment(Invoice invoice)
+        {
+
+            bool approved = await ContactESP(invoice.customer, invoice.order.total);
             List<Task> tasks = new();
 
             if (approved)
@@ -86,9 +99,10 @@ namespace Marketplace.Actor
             IShipmentActor shipmentActor = GrainFactory.GetGrain<IShipmentActor>(invoice.orderActorId);
             if (approved)
             {
-
-                tasks.Add(orderActor.UpdateOrderStatus(invoice.order.order_id, OrderStatus.PROCESSING));
-                tasks.Add(custActor.IncrementSuccessfulPayments());
+                // ?? what is the status processing? should come before or after payment? before is INVOICED, so can only come after. but shipment sets to shipped...
+                // I think processing is when the seller must approve or not the order, but here all orders are approved by default. so we dont use processing
+                // tasks.Add(orderActor.UpdateOrderStatus(invoice.order.order_id, OrderStatus.PROCESSING));
+                tasks.Add(custActor.IncrementSuccessfulPayments(invoice.customer.CustomerId));
                 tasks.Add(shipmentActor.ProcessShipment(invoice));
 
                 List<OrderPayment> paymentLines = new();
@@ -129,6 +143,7 @@ namespace Marketplace.Actor
                         card_number = invoice.customer.CardNumber,
                         card_holder_name = invoice.customer.CardHolderName,
                         card_expiration = invoice.customer.CardExpiration,
+                        // I guess firms don't save this data in this table to avoid leaks...
                         // card_security_number = invoice.customer.CardSecurityNumber,
                         card_brand = invoice.customer.CardBrand
                     };
@@ -140,11 +155,11 @@ namespace Marketplace.Actor
             }
             else
             {
-                tasks.Add( orderActor.UpdateOrderStatus(invoice.order.order_id, OrderStatus.CANCELED) );
-                tasks.Add( custActor.IncrementFailedPayments() );
-                tasks.Add( shipmentActor.DumbCall() );
+                tasks.Add( orderActor.UpdateOrderStatus(invoice.order.order_id, OrderStatus.PAYMENT_FAILED) );
+                // tasks.Add(orderActor.noOp());
+                tasks.Add( custActor.IncrementFailedPayments(invoice.customer.CustomerId) );
+                tasks.Add( shipmentActor.noOp() );
             }
-
 
             await Task.WhenAll(tasks);
 

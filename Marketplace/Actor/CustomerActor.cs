@@ -3,15 +3,18 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Common.Scenario.Entity;
 using Marketplace.Entity;
+using Marketplace.Infra;
 using Orleans;
 
 namespace Marketplace.Actor
 {
-    public interface ICustomerActor : IGrainWithIntegerKey
-	{
+    public interface ICustomerActor : IGrainWithIntegerKey, SnapperActor
+    {
 		public Task<Customer> GetCustomer(long customerId);
-        public Task IncrementSuccessfulPayments();
-        public Task IncrementFailedPayments();
+        public Task IncrementSuccessfulPayments(long customerId);
+        public Task IncrementFailedPayments(long customerId);
+
+        public Task IncrementDeliveryCount(long customerId);
 
         // API
         public Task AddCustomer(Customer customer);
@@ -19,6 +22,7 @@ namespace Marketplace.Actor
 
     public class CustomerActor : Grain, ICustomerActor
 	{
+
         private Dictionary<long, Customer> customers;
 
         public CustomerActor()
@@ -28,22 +32,30 @@ namespace Marketplace.Actor
 
         public Task AddCustomer(Customer customer)
         {
-            throw new NotImplementedException();
+            return Task.FromResult(this.customers.TryAdd(customer.customer_id, customer));
         }
 
         public Task<Customer> GetCustomer(long customerId)
         {
-            throw new NotImplementedException();
+            return Task.FromResult(this.customers[customerId]);
         }
 
-        public Task IncrementFailedPayments()
+        public Task IncrementDeliveryCount(long customerId)
         {
-            throw new NotImplementedException();
+            this.customers[customerId].delivery_count++;
+            return Task.CompletedTask;
         }
 
-        public Task IncrementSuccessfulPayments()
+        public Task IncrementFailedPayments(long customerId)
         {
-            throw new NotImplementedException();
+            this.customers[customerId].failed_payment_count++;
+            return Task.CompletedTask;
+        }
+
+        public Task IncrementSuccessfulPayments(long customerId)
+        {
+            this.customers[customerId].failed_payment_count++;
+            return Task.CompletedTask;
         }
     }
 }

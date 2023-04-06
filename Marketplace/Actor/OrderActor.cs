@@ -7,6 +7,8 @@ using System.Collections.Generic;
 using Orleans.Runtime;
 using System.Linq;
 using System.Text;
+using Marketplace.Infra;
+using Newtonsoft.Json;
 
 namespace Marketplace.Actor
 {
@@ -18,7 +20,7 @@ namespace Marketplace.Actor
      * Since product is a user-facing microservice, most
      * customer requests target the product microservice.
      */
-    public interface IOrderActor : IGrainWithIntegerKey
+    public interface IOrderActor : IGrainWithIntegerKey, SnapperActor
     {
         public Task<Invoice> Checkout_1(Checkout checkout);
         public Task UpdateOrderStatus(long orderId, OrderStatus status);
@@ -35,10 +37,14 @@ namespace Marketplace.Actor
         private Dictionary<long, Order> orders;
         private Dictionary<long, List<OrderItem>> items;
 
+        private SortedList<long, string> failedOrdersLog;
+
         public OrderActor()
 		{
+            this.nextOrderId = 1;
             this.orders = new();
             this.items = new();
+            this.failedOrdersLog = new();
         }
 
         public override async Task OnActivateAsync()
@@ -54,12 +60,10 @@ namespace Marketplace.Actor
         }
 
         /**
-          * TODO discuss
+          * The details about placing an order in olist:
+          * https://dev.olist.com/docs/orders-notifications-details 
           * This transaction may not progress to payment
-          * due to problems in stock or unavailability of products.
-          * Perhaps needs some adjustment in Snapper? or cut this checkout in two separated transactions?
-          * -- other options: (i) remove product delete transaction (ii) abort checkouts with delete products (no feedback from customer)
-          */
+         */
         public async Task<Invoice> Checkout_1(Checkout checkout)
         {
             List<Task<ItemStatus>> statusResp = new(checkout.items.Count);
@@ -109,15 +113,36 @@ namespace Marketplace.Actor
 
             if (abort)
             {
+                // Should we store this order? what about the order items?
+                // I dont think we should store orders that have not being created
+                // If later a customer or seller cancels it, we can keep them in the
+                // database. Here we can just return with a failure status.
+                string res = JsonConvert.SerializeObject(checkout);
+                failedOrdersLog.Add(DateTime.Now.Millisecond, res);
                 return null;
+                // TODO touching all other actors here
+                // assuming most succeed, overhead is not too high
             }
 
             // calculate total
-            // TODO apply vouchers
             decimal total = 0;
             foreach (var item in checkout.items.Values)
             {
-                total += item.UnitPrice * item.Quantity;
+                total += (item.UnitPrice * item.Quantity);
+            }
+
+            // apply vouchers, but only until total >= 0
+            int v_idx = 0;
+            decimal[] vouchers = checkout.customerCheckout.Vouchers;
+            while (total > 0 && v_idx < vouchers.Length)
+            {
+                if(total - vouchers[v_idx] >= 0)
+                {
+                    total -= vouchers[v_idx];
+                } else
+                {
+                    total = 0;
+                }
             }
 
             // generate a global unique order ID
@@ -127,11 +152,12 @@ namespace Marketplace.Actor
             Order newOrder = new()
             {
                 order_id = nextOrderId,
-                customer_id = checkout.customer.CustomerId,
-                order_status = OrderStatus.INVOICED.ToString(),
+                customer_id = checkout.customerCheckout.CustomerId,
                 order_purchase_timestamp = checkout.createdAt.ToLongDateString(),
-                // olist seems to have seller acting in the approval process
+                // olist have seller acting in the approval process
                 // here we approve automatically
+                // besides, invoice is request for payment so makes sense to use this status now
+                order_status = OrderStatus.INVOICED.ToString(),
                 order_approved_at = System.DateTime.Now.ToLongDateString(),
                 total = total
             };
@@ -158,7 +184,7 @@ namespace Marketplace.Actor
             Invoice resp = new()
             {
                 orderActorId = this.orderActorId,
-                customer = checkout.customer,
+                customer = checkout.customerCheckout,
                 order = newOrder,
                 items = orderItems
             };
@@ -180,8 +206,6 @@ namespace Marketplace.Actor
             this.orders[orderId].order_status = status.ToString();
             return Task.CompletedTask;
         }
-
-        private static readonly Invoice defaultResponse = new();
 
     }
 }

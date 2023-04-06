@@ -387,7 +387,7 @@ namespace Grains.Workers
             {
                 CustomerId = customerId,
                 City = customer.customer_city,
-                Street = customer.street1,
+                Street = customer.street,
                 State = customer.customer_state,
                 ZipCode = customer.customer_zip_code_prefix,
                 CardNumber = customer.card_number,

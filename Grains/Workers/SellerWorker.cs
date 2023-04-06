@@ -200,7 +200,8 @@ namespace Grains.Workers
             string productsUpdated = JsonConvert.SerializeObject(products.ToList());
             var task = await Task.Run(async () =>
             {
-                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Put, config.urls["products"]);
+                // https://dev.olist.com/docs/editing-a-product
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Patch, config.urls["products"]);
                 request.Content = HttpUtils.BuildPayload(productsUpdated);
                 var response = await HttpUtils.client.SendAsync(request);
                 

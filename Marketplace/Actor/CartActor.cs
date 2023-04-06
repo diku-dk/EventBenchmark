@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Common.Scenario.Entity;
 using Marketplace.Entity;
+using Marketplace.Infra;
 using Microsoft.Extensions.Logging;
 using Orleans;
 using Orleans.Runtime;
@@ -14,8 +15,8 @@ namespace Marketplace.Actor
      * The benchmark driver ensures a customer does not start a new cart 
      * while the current cart checkout has not been completed
      */
-	public interface ICartActor : IGrainWithIntegerKey
-	{
+	public interface ICartActor : IGrainWithIntegerKey, SnapperActor
+    {
 		public Task AddProduct(BasketItem item);
 
         public Task<Invoice> Checkout(CustomerCheckout basketCheckout);

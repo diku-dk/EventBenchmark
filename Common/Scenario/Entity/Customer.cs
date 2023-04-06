@@ -10,9 +10,9 @@ namespace Common.Scenario.Entity
 
         public string last_name { get; set; }
 
-        public string street1 { get; set; }
+        public string street { get; set; }
 
-        public string street2 { get; set; }
+        public string complement { get; set; }
 
         public string customer_zip_code_prefix { get; set; }
 
@@ -30,13 +30,13 @@ namespace Common.Scenario.Entity
 
         public string card_type { get; set; }
 
-        public string sucess_payment_count { get; set; }
+        public int sucess_payment_count { get; set; }
 
-        public string failed_payment_count { get; set; }
+        public int failed_payment_count { get; set; }
 
-        public string delivery_count { get; set; }
+        public int delivery_count { get; set; }
 
-        public string abandoned_cart_count { get; set; }
+        public int abandoned_cart_count { get; set; }
 
         public string data { get; set; }
 

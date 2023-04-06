@@ -138,10 +138,13 @@ in snapper:
 we do not abuse the abort transaction. abort is abused by devs, simple way to finish the tx.
 but performance is impacted, cascade the abort.
 db does not know the buiness logic. better to design txss that are determined to be committed.
-a design pattern, everything deterministically comitted.
+a design pattern, everything deterministically committed.
 if checkout_1 fails, checkout_2 is not initiated.
 atomicity is achieved at most once. we need exactly-once guarantee. if succeed, we do not retry.
--- checkout_2: payment <-> stock, order | customer | shipment (are independent)
+
+resubmitted all the time until successful
+submitted by order grain, continuously submit new transactions
+-- checkout_2: payment <-> stock, customer | shipment (are independent), order
 snapper does not guarantee exactly-once. the app must resubmit until commited.
 basically cannot abort checkout 2 without retrying all the time until committed
 a limitation of the system, app has to make sure it is correct
@@ -150,6 +153,8 @@ another approach is adding trigger to snapper. an actor (instead of client) subm
 - update price: seller, product1 | product2 .. | productN
 
 - delete product: seller, product | stock
+
+- update package (delivery status): shipment, order | customer
 
 Checkout
 Starts with a client call to Actor API Checkout()
@@ -173,5 +178,5 @@ to benchmark orleans-based impl
 we use eventual consistency and implement everything
 
 to benchmark 
-snapper-based impl does not support pubsub abstarction
+snapper-based impl does not support pubsub abstraction
 cannot ensure serializability in this case

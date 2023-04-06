@@ -11,13 +11,13 @@ namespace Marketplace.Entity
 	public class Checkout
 	{
 		public readonly DateTime createdAt;
-		public readonly CustomerCheckout customer;
+		public readonly CustomerCheckout customerCheckout;
 		public readonly Dictionary<long, BasketItem> items;
 
-        public Checkout(DateTime createdAt, CustomerCheckout customer, Dictionary<long, BasketItem> items)
+        public Checkout(DateTime createdAt, CustomerCheckout customerCheckout, Dictionary<long, BasketItem> items)
 		{
 			this.createdAt = createdAt;
-			this.customer = customer;
+			this.customerCheckout = customerCheckout;
 			this.items = items;
 		}
 

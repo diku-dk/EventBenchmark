@@ -8,16 +8,28 @@ using Orleans.Runtime;
 using Microsoft.Extensions.Logging;
 using Orleans.Concurrency;
 using System.Linq;
+using Marketplace.Infra;
 
 namespace Marketplace.Actor
 {
 
-    public interface ISellerActor : IGrainWithIntegerKey
+    /**
+     * Based on the olist API: https://dev.olist.com/docs/updating-price-and-stock
+     */
+    public interface ISellerActor : IGrainWithIntegerKey, SnapperActor
     {
         [AlwaysInterleave]
         public Task DeleteProduct(long productId);
 
         public Task UpdatePrices(List<Product> products);
+
+        public Task IncreaseStock(long productId, int quantity);
+
+        // TODO discuss
+        public Task UpdateOpenPackage();
+
+        // API
+        public Task AddSeller(Seller seller);
     }
 
     public class SellerActor : Grain, ISellerActor
@@ -25,11 +37,14 @@ namespace Marketplace.Actor
         private long sellerId;
         private int nProductPartitions;
         private ILogger<SellerActor> _logger;
+        private Dictionary<long, Seller> sellers;
+        private Dictionary<long, string> log;
 
         public SellerActor(ILogger<SellerActor> _logger)
         {
-            
             this._logger = _logger;
+            this.sellers = new();
+            this.log = new();
         }
 
         public override async Task OnActivateAsync()
@@ -73,15 +88,34 @@ namespace Marketplace.Actor
 
             await Task.WhenAll(tasks);
 
-            // not handling errors in snapper-base code
-            /*
-            if(tasks.Where(t => !t.IsCompletedSuccessfully).Count() > 0)
+        }
+
+        public Task AddSeller(Seller seller)
+        {
+            return Task.FromResult(this.sellers.TryAdd(seller.seller_id, seller));
+        }
+
+        /**
+         * Seller "glues" together product and stock
+         */
+        public async Task IncreaseStock(long productId, int quantity)
+        {
+            int prodPart = (int)(productId % nProductPartitions);
+            Product product = await GrainFactory.GetGrain<IProductActor>(prodPart).GetProduct(productId);
+            if (product.active)
             {
-
+               var res = await GrainFactory.GetGrain<IStockActor>(prodPart).IncreaseStock(productId, quantity);
+               // if(res.Item1 == ItemStatus.OUT_OF_STOCK && res.Item2 == ItemStatus.IN_STOCK)
+            } else
+            {
+                await GrainFactory.GetGrain<IStockActor>(prodPart).noOp();
             }
-            */
+            return;
+        }
 
-
+        public Task UpdateOpenPackage()
+        {
+            throw new NotImplementedException();
         }
     }
 }
