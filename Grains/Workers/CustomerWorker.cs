@@ -195,11 +195,20 @@ namespace Grains.Workers
             return;
         }
 
+        // diretiva que vai ouvir do orleans
+        // method
+
+        /**
+         * Simulating the customer browsing the cart before checkout
+         */
         private async void GetCart()
         {
             await Task.Run(() =>
             {
                 HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, cartUrl + "/" + customerId);
+
+                // faria um push to stream do orleans streams
+
                 return HttpUtils.client.Send(message);
             });
         }
@@ -366,7 +375,7 @@ namespace Grains.Workers
             // build a basket item
             BasketItem basketItem = new()
             {
-                ProductId = product.product_id,
+                ProductId = product.id,
                 SellerId = product.seller_id,
                 // ProductName = product.name,
                 UnitPrice = product.price,
@@ -386,10 +395,10 @@ namespace Grains.Workers
             CustomerCheckout basketCheckout = new()
             {
                 CustomerId = customerId,
-                City = customer.customer_city,
-                Street = customer.street,
-                State = customer.customer_state,
-                ZipCode = customer.customer_zip_code_prefix,
+                City = customer.city,
+                Street = customer.address,
+                State = customer.state,
+                ZipCode = customer.zip_code_prefix,
                 CardNumber = customer.card_number,
                 CardHolderName = customer.card_holder_name,
                 CardExpiration = customer.card_expiration,

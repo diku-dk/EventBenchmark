@@ -5,11 +5,11 @@ using System.Net;
 using System.Reflection.Emit;
 using System.Runtime.InteropServices;
 
-namespace Marketplace.Entity
+namespace Common.Entity
 {
     /**
      * Package status list: https://dev.olist.com/docs/fulfillment
-     * Fulfillment is a complex process to embrace in a benchmark
+     * Fulfillment is a complex (and unfit) process to embrace in a benchmark
      * In this sense, we only use two of the statuses. Our adaptations are as follows:
      * Whenever packages are created, they are in shipped status.
      * Later on, the delivery transaction updates (some of) them to delivered.

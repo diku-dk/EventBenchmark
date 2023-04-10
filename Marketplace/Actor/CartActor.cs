@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Common.Scenario.Entity;
-using Marketplace.Entity;
+using Marketplace.Message;
 using Marketplace.Infra;
 using Microsoft.Extensions.Logging;
 using Orleans;
@@ -112,7 +112,7 @@ namespace Marketplace.Actor
             // send products to shipment, get shipment quotation
             // any shipment actor carries the quotation logic.
             // shipment partitioned by order, order is not created yet at this point
-            Dictionary<long, decimal> quotationMap = await GrainFactory.GetGrain<IShipmentActor>(0).GetQuotation(this.customer.customer_zip_code_prefix);
+            Dictionary<long, decimal> quotationMap = await GrainFactory.GetGrain<IShipmentActor>(0).GetQuotation(this.customer.zip_code_prefix);
             // while wait, get customer info so it can be shown in the UI
             return;
         }

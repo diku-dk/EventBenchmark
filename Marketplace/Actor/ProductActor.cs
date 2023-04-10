@@ -6,8 +6,9 @@ using Orleans.Runtime;
 using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
 using System.Linq;
-using Marketplace.Entity;
+using Common.Entity;
 using Marketplace.Infra;
+using Marketplace.Message;
 
 namespace Marketplace.Actor
 {
@@ -93,7 +94,7 @@ namespace Marketplace.Actor
 
         public Task<bool> AddProduct(Product product)
         {
-            return Task.FromResult(products.TryAdd(product.product_id, product));
+            return Task.FromResult(products.TryAdd(product.id, product));
         }
     }
 }

@@ -2,13 +2,14 @@
 using Common.Scenario.Entity;
 using Orleans;
 using System.Threading.Tasks;
-using Marketplace.Entity;
+using Common.Entity;
 using System.Collections.Generic;
 using Orleans.Runtime;
 using System.Linq;
 using System.Text;
 using Marketplace.Infra;
 using Newtonsoft.Json;
+using Marketplace.Message;
 
 namespace Marketplace.Actor
 {
@@ -37,14 +38,15 @@ namespace Marketplace.Actor
         private Dictionary<long, Order> orders;
         private Dictionary<long, List<OrderItem>> items;
 
-        private SortedList<long, string> failedOrdersLog;
+        // https://dev.olist.com/docs/retrieving-order-informations
+        private SortedList<long, List<OrderHistory>> orderHistory;
 
         public OrderActor()
 		{
             this.nextOrderId = 1;
             this.orders = new();
             this.items = new();
-            this.failedOrdersLog = new();
+            this.orderHistory = new();
         }
 
         public override async Task OnActivateAsync()
@@ -118,18 +120,20 @@ namespace Marketplace.Actor
                 // If later a customer or seller cancels it, we can keep them in the
                 // database. Here we can just return with a failure status.
                 string res = JsonConvert.SerializeObject(checkout);
-                failedOrdersLog.Add(DateTime.Now.Millisecond, res);
+                // orderHistory.Add(DateTime.Now.Millisecond, res);
                 return null;
                 // TODO touching all other actors here
                 // assuming most succeed, overhead is not too high
             }
 
-            // calculate total
+            // TODO calculate total freight_value
             decimal total = 0;
             foreach (var item in checkout.items.Values)
             {
                 total += (item.UnitPrice * item.Quantity);
             }
+
+            decimal total_items = total;
 
             // apply vouchers, but only until total >= 0
             int v_idx = 0;
@@ -151,15 +155,17 @@ namespace Marketplace.Actor
             // long orderId = long.Parse(orderIdStr);
             Order newOrder = new()
             {
-                order_id = nextOrderId,
+                id = nextOrderId,
                 customer_id = checkout.customerCheckout.CustomerId,
-                order_purchase_timestamp = checkout.createdAt.ToLongDateString(),
+                purchase_timestamp = checkout.createdAt.ToLongDateString(),
                 // olist have seller acting in the approval process
                 // here we approve automatically
-                // besides, invoice is request for payment so makes sense to use this status now
-                order_status = OrderStatus.INVOICED.ToString(),
-                order_approved_at = System.DateTime.Now.ToLongDateString(),
-                total = total
+                // besides, invoice is a request for payment, so it makes sense to use this status now
+                status = OrderStatus.INVOICED.ToString(),
+                approved_at = System.DateTime.Now.ToLongDateString(),
+                total_amount = total,
+                total_items = total_items
+                // FIXME complete the other totals
             };
             orders.Add(nextOrderId, newOrder);
 
@@ -203,7 +209,7 @@ namespace Marketplace.Actor
                     .Append(" cannot be found to update to status ").Append(status.ToString()).ToString();
                 throw new Exception(str);
             }
-            this.orders[orderId].order_status = status.ToString();
+            this.orders[orderId].status = status.ToString();
             return Task.CompletedTask;
         }
 

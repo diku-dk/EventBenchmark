@@ -104,11 +104,13 @@ namespace Client.DataGeneration
 
                 // create seller
                 string[] geo = GetGeolocation(command, numGeo);
-                GenerateSeller(command, currSellerId, geo);
+                GenerateSeller(command, currSellerId, geo[0], geo[1], geo[2]);
 
                 for(int i = 1; i < numProductsForSeller; i++)
                 {
-                    GenerateProduct(command, currProductId, currSellerId, numCat);
+                    // get category
+                    var category = GetCategory(command, numCat);
+                    GenerateProduct(command, currProductId, currSellerId, category);
                     GenerateStockItem(command, currProductId, currSellerId);
                     currProductId++;
                 }
@@ -156,40 +158,6 @@ namespace Client.DataGeneration
             }
             return res;
         }
-            
-        private void GenerateSeller(DuckDbCommand command, int sellerId, string[] geo)
-        {
-            string name = RandomString(10, alphanumeric);
-            string street1 = RandomString(20, alphanumeric);
-            string street2 = RandomString(20, alphanumeric);
-
-            string city = geo[0];
-            string state = geo[1];
-            string zip = geo[2];
-
-            float tax = numeric(4, 4, false);
-            int ytd = 0;
-
-            var order_count = numeric(4, false);
-
-            // issue insert statement
-            var sb = new StringBuilder(baseSellerQuery);
-            sb.Append('(').Append(sellerId).Append(',');
-            sb.Append('\'').Append(name).Append("',");
-            sb.Append('\'').Append(street1).Append("',");
-            sb.Append('\'').Append(street2).Append("',");
-            sb.Append(tax).Append(',');
-            sb.Append(ytd).Append(',');
-            sb.Append(order_count).Append(',');
-            sb.Append('\'').Append(zip).Append("',");
-            sb.Append('\'').Append(city).Append("',");
-            sb.Append('\'').Append(state).Append("');");
-
-            Console.WriteLine(sb.ToString());
-
-            command.CommandText = sb.ToString();
-            command.ExecuteNonQuery();
-        }
 
         private string GetCategory(DuckDbCommand command, long numCat)
         {
@@ -199,30 +167,6 @@ namespace Client.DataGeneration
             var queryResult = command.ExecuteReader();
             queryResult.Read();
             return queryResult.GetString(0);
-        }
-
-        private void GenerateProduct(DuckDbCommand command, long productId, long sellerId, long numCat)
-        {
-            // get category
-            var category = GetCategory(command, numCat);
-
-            var name = RandomString(24, alphanumeric);
-            var price = numeric(5, 2, false);
-            var data = RandomString(50, alphanumeric);
-
-            // issue insert statement
-            var sb = new StringBuilder(baseProductQuery);
-            sb.Append('(').Append(productId).Append(',');
-            sb.Append(sellerId).Append(',');
-            sb.Append('\'').Append(category).Append("',");
-            sb.Append('\'').Append(name).Append("',");
-            sb.Append(price).Append(',');
-            sb.Append('\'').Append(data).Append("');");
-
-            Console.WriteLine(sb.ToString());
-
-            command.CommandText = sb.ToString();
-            command.ExecuteNonQuery();
         }
       
     }

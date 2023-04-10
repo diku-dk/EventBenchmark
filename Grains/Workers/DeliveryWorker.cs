@@ -15,6 +15,13 @@ using System.Text.RegularExpressions;
 
 namespace Grains.Workers
 {
+    /*
+     * This worker models the behavior of an external provider
+     * interacting with the system. 
+     * TODO exact behavior and distribution of sellers
+     * Some deliveries
+     * 
+     */
 	public class DeliveryWorker : Grain, IDeliveryWorker
 	{
         private string shipmentUrl;
@@ -23,11 +30,9 @@ namespace Grains.Workers
 
         private IAsyncStream<int> stream;
 
-        private readonly ILogger<CustomerWorker> _logger;
+        private readonly ILogger<DeliveryWorker> _logger;
 
-        // updating the delivery status of orders
-
-        public DeliveryWorker(ILogger<CustomerWorker> logger)
+        public DeliveryWorker(ILogger<DeliveryWorker> logger)
         {
             this._logger = logger;
         }
@@ -40,7 +45,7 @@ namespace Grains.Workers
 
         public override async Task OnActivateAsync()
         {
-            var workloadStream = streamProvider.GetStream<int>(StreamingConfiguration.DeliveryStreamId, null);
+            var workloadStream = streamProvider.GetStream<long>(StreamingConfiguration.DeliveryStreamId, null);
             var subscriptionHandles_ = await workloadStream.GetAllSubscriptionHandles();
             if (subscriptionHandles_.Count > 0)
             {
@@ -49,22 +54,23 @@ namespace Grains.Workers
                     await subscriptionHandle.ResumeAsync(Run);
                 }
             }
-            await workloadStream.SubscribeAsync<int>(Run);
+            await workloadStream.SubscribeAsync<long>(Run);
         }
 
-        public async Task Run(int op, StreamSequenceToken token)
+        // updating the delivery status of orders
+        public async Task Run(long sellerId, StreamSequenceToken token)
         {
-            // get open orders
-            // per open order
-            // get number of deliveries
-            // get random num and close them (some may still be open)
-            // actually this must be performed by the microservice logic itself
-            // take a look at tpc-c
+            // get shipped packages
             await Task.Run(() =>
             {
-                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, shipmentUrl + "/update");
+                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, shipmentUrl + "?seller_id=" + sellerId + "&status=shipped");
                 HttpUtils.client.Send(message);
             });
+
+            // TODO deserialize list of packages
+            //      pick some (following a distribution?) to update
+            //      send put
+
             return;
         }
 

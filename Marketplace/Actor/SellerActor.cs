@@ -1,6 +1,6 @@
 ﻿using System;
 using Common.Scenario.Entity;
-using Marketplace.Entity;
+using Common.Entity;
 using Orleans;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -25,8 +25,17 @@ namespace Marketplace.Actor
 
         public Task IncreaseStock(long productId, int quantity);
 
+        // TODO discuss. should be a rare transaction.
+        // online query? https://dev.olist.com/docs/get-financial-report
+        // public Task RetrieveFinancialReport(int reference_year, int reference_month);
+        // public Task RetrieveInFluxOrders...
+
         // TODO discuss
-        public Task UpdateOpenPackage();
+        public Task UpdatePackage(long shipmentId, int packageId, PackageStatus newStatus);
+
+        // TODO discuss. online query. not rare.
+        // get open deliveries, in-progress orders, current reserved items, items being browsed and in carts, orders not delivered ordered by date
+        // public Task GetOverview();
 
         // API
         public Task AddSeller(Seller seller);
@@ -36,9 +45,11 @@ namespace Marketplace.Actor
     {
         private long sellerId;
         private int nProductPartitions;
+        private int nShipmentPartitions;
         private ILogger<SellerActor> _logger;
+
         private Dictionary<long, Seller> sellers;
-        private Dictionary<long, string> log;
+        private Dictionary<long, SortedList<long, string>> log;
 
         public SellerActor(ILogger<SellerActor> _logger)
         {
@@ -55,8 +66,9 @@ namespace Marketplace.Actor
             // https://github.com/dotnet/orleans/issues/8262
             // GetGrain<IManagementGrain>(0).GetHosts();
             // w=>w.GrainType.Contains("PerSiloGrain")
-            var stats = await mgmt.GetDetailedGrainStatistics(new[] { "ProductActor" });
-            this.nProductPartitions = stats.Length;
+            var stats = await mgmt.GetDetailedGrainStatistics();
+            this.nProductPartitions = stats.Where(w => w.GrainType.Contains("ProductActor")).Count();
+            this.nShipmentPartitions = stats.Where(w => w.GrainType.Contains("ShipmentActor")).Count();
         }
 
         /**
@@ -82,8 +94,8 @@ namespace Marketplace.Actor
             int prodPart;
             foreach (var item in products)
             {
-                prodPart = (int)(item.product_id % nProductPartitions);
-                tasks.Add(GrainFactory.GetGrain<IProductActor>(prodPart).UpdateProductPrice(item.product_id, item.price));
+                prodPart = (int)(item.id % nProductPartitions);
+                tasks.Add(GrainFactory.GetGrain<IProductActor>(prodPart).UpdateProductPrice(item.id, item.price));
             }
 
             await Task.WhenAll(tasks);
@@ -92,15 +104,16 @@ namespace Marketplace.Actor
 
         public Task AddSeller(Seller seller)
         {
-            return Task.FromResult(this.sellers.TryAdd(seller.seller_id, seller));
+            return Task.FromResult(this.sellers.TryAdd(seller.id, seller));
         }
 
         /**
          * Seller "glues" together product and stock
+         * TODO should this be the goto approach?
          */
         public async Task IncreaseStock(long productId, int quantity)
         {
-            int prodPart = (int)(productId % nProductPartitions);
+            var prodPart = (productId % nProductPartitions);
             Product product = await GrainFactory.GetGrain<IProductActor>(prodPart).GetProduct(productId);
             if (product.active)
             {
@@ -110,11 +123,24 @@ namespace Marketplace.Actor
             {
                 await GrainFactory.GetGrain<IStockActor>(prodPart).noOp();
             }
+            // TODO log result for the seller
             return;
         }
 
-        public Task UpdateOpenPackage()
+        /**
+         * do we really need the seller to call the shipment?
+         * one reason is that it is directly addressable by the http proxy
+         * besides, it is worthy to store update in seller history
+         */
+        public Task UpdatePackage(long shipmentId, int packageId, PackageStatus newStatus)
         {
+            // order id!!!
+            var shipPart = (shipmentId % nShipmentPartitions);
+            GrainFactory.GetGrain<IShipmentActor>(shipPart).UpdatePackageDelivery(shipmentId, packageId, newStatus);
+
+
+            // TODO log seller action
+
             throw new NotImplementedException();
         }
     }

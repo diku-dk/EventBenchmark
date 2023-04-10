@@ -1,5 +1,7 @@
 ﻿using System;
-namespace Marketplace.Entity
+using Common.Entity;
+
+namespace Marketplace.Message
 {
 	public class ProductCheck
 	{

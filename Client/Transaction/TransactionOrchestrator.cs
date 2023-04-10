@@ -188,6 +188,7 @@ namespace Transaction
                 }
                 case WorkloadType.UPDATE_DELIVERY: // delivery worker
                 {
+                        // FIXME seller
                     var streamOutgoing = streamProvider.GetStream<int>(StreamingConfiguration.DeliveryStreamId, null);
                     _ = streamOutgoing.OnNextAsync(1);
                     return;

@@ -1,25 +1,29 @@
 ﻿using System;
 namespace Common.Scenario.Entity
 {
+    /**
+     * 
+     */
 	public class Customer
     {
+        // olist data set
+        public long id { get; set; }
 
-        public long customer_id { get; set; }
+        // added
+        public string name { get; set; }
 
-        public string first_name { get; set; }
-
-        public string last_name { get; set; }
-
-        public string street { get; set; }
+        public string address { get; set; }
 
         public string complement { get; set; }
 
-        public string customer_zip_code_prefix { get; set; }
+        // olist data set
+        public string zip_code_prefix { get; set; }
 
-        public string customer_city { get; set; }
+        public string city { get; set; }
 
-        public string customer_state { get; set; }
+        public string state { get; set; }
 
+        // card
         public string card_number { get; set; }
 
         public string card_security_number { get; set; }
@@ -30,7 +34,8 @@ namespace Common.Scenario.Entity
 
         public string card_type { get; set; }
 
-        public int sucess_payment_count { get; set; }
+        // statistics
+        public int success_payment_count { get; set; }
 
         public int failed_payment_count { get; set; }
 
@@ -38,6 +43,7 @@ namespace Common.Scenario.Entity
 
         public int abandoned_cart_count { get; set; }
 
+        // additional
         public string data { get; set; }
 
     }

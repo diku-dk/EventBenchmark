@@ -11,7 +11,7 @@ namespace Common.Scenario.Entity
         // coupon, credit card
         public string payment_type { get; set; }
 
-
+        // number of times the credit card is charged (usually once a month)
         public int payment_installments { get; set; }
 
         // respective to this line (ie. coupon)

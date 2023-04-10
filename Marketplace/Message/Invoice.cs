@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using Common.Scenario.Entity;
 
-namespace Marketplace.Entity
+namespace Marketplace.Message
 {
     /*
      * "An invoice acts as a request for payment for the delivery of goods or services."

@@ -2,22 +2,25 @@
 namespace Common.Scenario.Entity
 {
     /**
-     * Product requirements:
-     * https://dev.olist.com/docs/creating-a-product
-     * package mesasures and photo, tags, attributes are not considered
-     * Only one category is chosen as found in olist public data set
+     * Product is based on info found in:
+     * (i) https://dev.olist.com/docs/creating-a-product
+     * (ii) Olist data set, order_items file
+     * It is worthy to note that the attributes gtin, stock, package mesasures, photo, and tags are not considered
+     * Besides, only one category is chosen as found in olist public data set
      */
     public class Product
 	{
-        public long product_id { get; set; }
+        // PK
+        public long id { get; set; }
 
+        // FK
         public long seller_id { get; set; }
 
         public string name { get; set; }
 
         public string sku { get; set; }
 
-        public string product_category_name { get; set; }
+        public string category_name { get; set; }
 
         public string description { get; set; }
 

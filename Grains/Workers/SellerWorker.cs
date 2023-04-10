@@ -54,7 +54,7 @@ namespace Grains.Workers
         {
             public int Compare(Product x, Product y)
             {
-                if (x.product_id < y.product_id) return 0; return 1;
+                if (x.id < y.id) return 0; return 1;
             }
         }
 
@@ -66,11 +66,11 @@ namespace Grains.Workers
             this.products = products;
 
             this.products.Sort(productComparer);
-            long lastId = this.products[this.products.Count-1].product_id;
+            long lastId = this.products[this.products.Count-1].id;
 
             this.productIdGenerator = this.config.keyDistribution == Distribution.UNIFORM ?
-                 new UniformLongGenerator(this.products[0].product_id, lastId) :
-                 new ZipfianGenerator(this.products[0].product_id, lastId);
+                 new UniformLongGenerator(this.products[0].id, lastId) :
+                 new ZipfianGenerator(this.products[0].id, lastId);
 
             return Task.CompletedTask;
         }
@@ -220,12 +220,12 @@ namespace Grains.Workers
         {
             public bool Equals(Product x, Product y)
             {
-                return (x.product_id == y.product_id);
+                return (x.id == y.id);
             }
 
             public int GetHashCode([DisallowNull] Product obj)
             {
-                return obj.product_id.GetHashCode();
+                return obj.id.GetHashCode();
             }
         }
 
@@ -235,7 +235,7 @@ namespace Grains.Workers
         {
             ISet<Product> set = new HashSet<Product>(productEqualityComparer);
 
-            var map = products.GroupBy(p => p.product_id).ToDictionary(group => group.Key, group => group.First());
+            var map = products.GroupBy(p => p.id).ToDictionary(group => group.Key, group => group.First());
 
             while(set.Count < numberProducts)
             {

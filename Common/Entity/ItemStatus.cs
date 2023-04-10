@@ -1,5 +1,5 @@
 ﻿using System;
-namespace Marketplace.Entity
+namespace Common.Entity
 {
 	public enum ItemStatus
 	{

@@ -54,11 +54,14 @@ Order is a stateful actor partitioned by the order identifier.
 Another possibility would be partitioning by customer identifier, but that would lead to skewed distribution of work and data, since some customers are more active than others.
 Having a partition scheme by order identifier allows a more seamless distribution of work across actors.
 
-### Customer and Seller
+### Customer
 Customer is stateful actor partioned customer entity identifier.
-Seller is stateful actor partioned seller entity identifier.
 
--- Customer and Seller are data actors, meaning they hold all customer and seller data, respectively.
+### Seller
+Seller is stateful actor uniquely addressed by its respective seller entity identifier.
+In other words, not partioned actor.
+As sellers actively participate in transactions, and given that there is a statistical distribution in place for
+"activating" developers
 
 ### Payment
 Payment is a stateful actor partitioned by order identifier.
@@ -180,3 +183,7 @@ we use eventual consistency and implement everything
 to benchmark 
 snapper-based impl does not support pubsub abstraction
 cannot ensure serializability in this case
+
+### Future Directions
+Operator, basic building block of Kubernetes
+Orleans as an operator

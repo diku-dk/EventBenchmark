@@ -1,5 +1,5 @@
 ﻿using System;
-namespace Marketplace.Entity
+namespace Common.Entity
 {
 	public class Shipment
 	{
@@ -8,13 +8,14 @@ namespace Marketplace.Entity
         public long order_id;
         public long customer_id;
 
-		// materialized aggregate values from packages
+		// materialized values from packages
 		public int package_count;
 		public decimal total_freight_value;
 
 		// date all deliveries were requested
         public string request_date;
 
+        // 
         public string status;
 
         // customer delivery address. the same for all packages/sellers
@@ -26,11 +27,11 @@ namespace Marketplace.Entity
 
         public string complement { get; set; }
 
-        public string customer_zip_code_prefix { get; set; }
+        public string zip_code_prefix { get; set; }
 
-        public string customer_city { get; set; }
+        public string city { get; set; }
 
-        public string customer_state { get; set; }
+        public string state { get; set; }
     }
 }
 

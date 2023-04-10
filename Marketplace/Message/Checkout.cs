@@ -2,7 +2,7 @@
 using Common.Scenario.Entity;
 using System.Collections.Generic;
 
-namespace Marketplace.Entity
+namespace Marketplace.Message
 {
 	/**
 	 * Assemble all data necessary for processing a checkout
