@@ -15,6 +15,11 @@ namespace Marketplace.Actor
 
     /**
      * Based on the olist API: https://dev.olist.com/docs/updating-price-and-stock
+     * We don't model seller order history (https://dev.olist.com/docs/orders-grouping-by-shipping_limite_date)
+     * because this history covers the entire shipment process, which is ommitted in our benchmark
+     * Instead, we store seller logs. For each seller, a list of log entries reflecting important
+     * actions are kept, so a seller can potentially review all the operations that have
+     * been performed against the application
      */
     public interface ISellerActor : IGrainWithIntegerKey, SnapperActor
     {
@@ -30,11 +35,10 @@ namespace Marketplace.Actor
         // public Task RetrieveFinancialReport(int reference_year, int reference_month);
         // public Task RetrieveInFluxOrders...
 
-        // TODO discuss
-        public Task UpdatePackage(long shipmentId, int packageId, PackageStatus newStatus);
+        public Task UpdatePackageDelivery(long shipmentId, int packageId);
 
         // TODO discuss. online query. not rare.
-        // get open deliveries, in-progress orders, current reserved items, items being browsed and in carts, orders not delivered ordered by date
+        // get open deliveries, in-progress orders, items below threshold, current reserved items, items being browsed and in carts, orders not delivered ordered by date
         // public Task GetOverview();
 
         // API
@@ -128,20 +132,21 @@ namespace Marketplace.Actor
         }
 
         /**
-         * do we really need the seller to call the shipment?
+         * Do we really need the seller to call the shipment?
          * one reason is that it is directly addressable by the http proxy
+         * seller is a user-facing service
+         * so the http proxy is unaware about partitioning schemes
          * besides, it is worthy to store update in seller history
          */
-        public Task UpdatePackage(long shipmentId, int packageId, PackageStatus newStatus)
+        public async Task UpdatePackageDelivery(long shipmentId, int packageId)
         {
             // order id!!!
             var shipPart = (shipmentId % nShipmentPartitions);
-            GrainFactory.GetGrain<IShipmentActor>(shipPart).UpdatePackageDelivery(shipmentId, packageId, newStatus);
+            await GrainFactory.GetGrain<IShipmentActor>(shipPart).UpdatePackageDelivery(shipmentId, packageId);
 
 
-            // TODO log seller action
+            // TODO log action, so seller can be aware about the delivery of one of its packages
 
-            throw new NotImplementedException();
         }
     }
 }

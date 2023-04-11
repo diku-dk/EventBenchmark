@@ -12,9 +12,6 @@ namespace Marketplace.Message
 	 */
     public class Invoice
 	{
-
-		public long orderActorId;
-
 		public CustomerCheckout customer;
 
 		public Order order;

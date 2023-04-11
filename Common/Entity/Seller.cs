@@ -39,6 +39,8 @@ namespace Common.Scenario.Entity
 
         public int order_count { get; set; }
 
+        public int delivery_count { get; set; }
+
     }
 }
 

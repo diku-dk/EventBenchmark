@@ -15,7 +15,7 @@ namespace Common.Entity
 		// date all deliveries were requested
         public string request_date;
 
-        // 
+        // shipment status
         public string status;
 
         // customer delivery address. the same for all packages/sellers

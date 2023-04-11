@@ -30,7 +30,7 @@ namespace Common.Scenario.Entity
         // we assume it is the seller informing the system
         // about the unavailability of items
         // in or case we are handling the stock directly, so
-        // this status is also not used
+        // this status is also not used (for now)
         UNAVAILABLE,
         // our concept of invoiced differs from what is prescribed
         // by olist use case. an invoice for our benchmark

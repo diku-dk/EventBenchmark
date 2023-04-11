@@ -3,7 +3,7 @@ namespace Common.Scenario.Entity
 {
     /*
      * Order is based on two sources:
-     * (i) Olist data set
+     * (i) Olist data set (kaggle)
      * (ii) Olist developer API: https://dev.olist.com/docs/retrieving-order-informations
      * The total attribute is also added to sum the value of all products in the order.
      */
@@ -19,7 +19,10 @@ namespace Common.Scenario.Entity
 
         public string purchase_timestamp { get; set; }
 
-        public string approved_at { get; set; }
+        // public string approved_at { get; set; }
+
+        // added
+        public string payment_date { get; set; }
 
         public string delivered_carrier_date { get; set; }
 

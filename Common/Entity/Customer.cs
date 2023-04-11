@@ -16,6 +16,8 @@ namespace Common.Scenario.Entity
 
         public string complement { get; set; }
 
+        public string birth_date { get; set; }
+
         // olist data set
         public string zip_code_prefix { get; set; }
 

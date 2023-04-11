@@ -22,6 +22,7 @@ namespace Marketplace.Actor
         private long paymentActorId;
         private long nStockPartitions;
         private long nCustomerPartitions;
+        private long nOrderPartitions;
         private readonly Random random;
 
         // DB
@@ -32,7 +33,9 @@ namespace Marketplace.Actor
         public PaymentActor()
 		{
             this.random = new Random();
-		}
+            this.payments = new();
+            this.cardPayments = new();
+        }
 
         public override async Task OnActivateAsync()
         {
@@ -41,6 +44,7 @@ namespace Marketplace.Actor
             var stats = await mgmt.GetDetailedGrainStatistics();
             this.nStockPartitions = stats.Where(w => w.GrainType.Contains("StockActor")).Count();
             this.nCustomerPartitions = stats.Where(w => w.GrainType.Contains("CustomerActor")).Count();
+            this.nOrderPartitions = stats.Where(w => w.GrainType.Contains("Orderctor")).Count();
         }
 
         /**
@@ -88,11 +92,11 @@ namespace Marketplace.Actor
             tasks.Clear();
 
             // call order, customer, and shipment
-            IOrderActor orderActor = GrainFactory.GetGrain<IOrderActor>(invoice.orderActorId);
+            IOrderActor orderActor = GrainFactory.GetGrain<IOrderActor>(invoice.order.id % nOrderPartitions);
             var custPartition = (invoice.order.customer_id % nCustomerPartitions);
             ICustomerActor custActor = GrainFactory.GetGrain<ICustomerActor>(custPartition);
             // shipment actor is the same actor id of order
-            IShipmentActor shipmentActor = GrainFactory.GetGrain<IShipmentActor>(invoice.orderActorId);
+            IShipmentActor shipmentActor = GrainFactory.GetGrain<IShipmentActor>(invoice.order.id % nOrderPartitions);
             if (approved)
             {
                 // ?? what is the status processing? should come before or after payment? before is INVOICED, so can only come after. but shipment sets to shipped...
@@ -170,7 +174,7 @@ namespace Marketplace.Actor
                 // an event approach would avoid the redundancy of contacting several actors to notify about the same fact
                 tasks.Add( orderActor.UpdateOrderStatus(invoice.order.id, OrderStatus.PAYMENT_FAILED) );
                 // notify again because the shipment would have called it in case of successful payment
-                tasks.Add(orderActor.noOp());
+                tasks.Add( orderActor.noOp() );
                 tasks.Add( custActor.NotifyPayment(invoice.customer.CustomerId, false) );
                 tasks.Add( shipmentActor.noOp() );
             }

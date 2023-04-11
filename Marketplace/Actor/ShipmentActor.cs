@@ -10,6 +10,7 @@ using System.Collections;
 using Orleans.Runtime;
 using Marketplace.Message;
 using System.Net.NetworkInformation;
+using System.Text;
 
 namespace Marketplace.Actor
 {
@@ -46,6 +47,7 @@ namespace Marketplace.Actor
         // other table of shipment
         private Dictionary<long, List<Package>> packages;
         private long nCustPartitions;
+        private long nOrderPartitions;
         private long shipmentActorId;
 
         public ShipmentActor()
@@ -57,12 +59,9 @@ namespace Marketplace.Actor
         {
             this.shipmentActorId = this.GetPrimaryKeyLong();
             var mgmt = GrainFactory.GetGrain<IManagementGrain>(0);
-            // https://github.com/dotnet/orleans/pull/1772
-            // https://github.com/dotnet/orleans/issues/8262
-            // GetGrain<IManagementGrain>(0).GetHosts();
-            // 
-            var stats = await mgmt.GetDetailedGrainStatistics(); // new[] { "ProductActor" });
+            var stats = await mgmt.GetDetailedGrainStatistics();
             this.nCustPartitions = stats.Where(w => w.GrainType.Contains("CustomerActor")).Count();
+            this.nOrderPartitions = stats.Where(w => w.GrainType.Contains("Orderctor")).Count();
         }
 
         public Task<Dictionary<long, decimal>> GetQuotation(string customerZipCode)
@@ -149,7 +148,7 @@ namespace Marketplace.Actor
              * Based on olist (https://dev.olist.com/docs/orders), the status of the order is
              * shipped when "at least one order item has been shipped"
              */
-            IOrderActor orderActor = GrainFactory.GetGrain<IOrderActor>(invoice.orderActorId);
+            IOrderActor orderActor = GrainFactory.GetGrain<IOrderActor>(invoice.order.id % nOrderPartitions);
             await orderActor.UpdateOrderStatus(invoice.order.id, OrderStatus.SHIPPED);
 
         }
@@ -163,47 +162,69 @@ namespace Marketplace.Actor
             var sellerOpenPackages = packages.Values.SelectMany(p => p)
                 .Where(p => p.status == PackageStatus.shipped.ToString() && p.seller_id == seller_id).ToList();
 
-            return Task.FromResult(sellerOpenPackages);                   
+            return Task.FromResult(sellerOpenPackages);          
                             
         }
 
         /**
-         * Order status is "delivered" if at least one order item has been delivered
-         * Based on https://dev.olist.com/docs/orders
+         * To discuss: The external service (sender) can send duplicate message?
+         * 
          */
         public async Task UpdatePackageDelivery(long shipment_id, int package_id)
         {
             // aggregate operation
             var countDelivered = packages[shipment_id].Where(p => p.status == PackageStatus.delivered.ToString()).Count();
 
-            Package toUpdate = packages[shipment_id].Where(p => p.package_id == package_id).First();
+            Package toUpdate = packages[shipment_id].Where(p => p.package_id == package_id).ElementAt(0);
 
+            if(toUpdate == null)
+            {
+                string str = new StringBuilder().Append("Package ").Append(package_id)
+                    .Append(" Shipment ").Append(shipment_id)
+                    .Append(" could not be found ").ToString();
+                throw new Exception(str);
+            }
+
+            int sum = 0;
+            
             // update status
-            toUpdate.status = PackageStatus.delivered.ToString();
-
-            // go to order if the first from shipment is delivered
-            // go to customer in any case
-            // TODO define a better way to find the respective order actor. the order id must map to the actor
-            // shipments[shipment_id].in
-            IOrderActor orderActor = null; // = GrainFactory.GetGrain<IOrderActor>(invoice.orderActorId);
+            if(toUpdate.status == PackageStatus.shipped.ToString())
+            {
+                toUpdate.status = PackageStatus.delivered.ToString();
+                sum = 1;
+            }
+           
+            IOrderActor orderActor = GrainFactory.GetGrain<IOrderActor>(shipments[shipment_id].order_id % nOrderPartitions);
             var custActor = shipments[shipment_id].customer_id % nCustPartitions;
+
+            List<Task> tasks = new(2);
+            tasks.Add(GrainFactory.GetGrain<ICustomerActor>(custActor).NotifyDelivery(shipments[shipment_id].customer_id));
+
+            // since shipment is responsible for tracking individual packages
+            // it is less complex (and less redundant) to make the shipment update the order status
             if (countDelivered == 0)
             {
-                // await orderActor.UpdateOrderStatus(invoice.order.order_id, OrderStatus.SHIPPED);
-                await GrainFactory.GetGrain<ICustomerActor>(custActor).NotifyDelivery(shipments[shipment_id].customer_id);
-            } else
-            {
-                await orderActor.noOp();
-                await GrainFactory.GetGrain<ICustomerActor>(custActor).NotifyDelivery(shipments[shipment_id].customer_id);
-
-                if (shipments[shipment_id].package_count == countDelivered + 1)
+                if (shipments[shipment_id].package_count == 1)
                 {
-                    // TODO create shipment status enum? look into olist api first
-                    //shipments[shipment_id].status = 
+                    shipments[shipment_id].status = ShipmentStatus.concluded.ToString();
+                }
+                else
+                {
+                    shipments[shipment_id].status = ShipmentStatus.delivery_in_progress.ToString();
+                }
+
+                // in any case, send message to order
+                tasks.Add(orderActor.UpdateOrderStatus(shipments[shipment_id].order_id, OrderStatus.DELIVERED));
+            } else {
+                // the need to send this message, one drawback of determinism 
+                tasks.Add(orderActor.noOp());
+                if (shipments[shipment_id].package_count == countDelivered + sum)
+                {
+                    shipments[shipment_id].status = ShipmentStatus.concluded.ToString();
                 }
             }
 
-            return;
+            await Task.WhenAll(tasks);
         }
 
     }

@@ -132,7 +132,7 @@ Stock
 ## Transactional Workflows
 
 To match the virtual actor model prescribed by Orleans to an event-driven microservice benchmark, some adaptations
-become necessary
+are necessary
 
 - checkout: cart, order <-> stock, payment, customer | shipment
 
@@ -157,7 +157,7 @@ another approach is adding trigger to snapper. an actor (instead of client) subm
 
 - delete product: seller, product | stock
 
-- update package (delivery status): shipment, order | customer
+- update package (delivery status): seller, shipment, order | customer
 
 Checkout
 Starts with a client call to Actor API Checkout()
@@ -187,3 +187,7 @@ cannot ensure serializability in this case
 ### Future Directions
 Operator, basic building block of Kubernetes
 Orleans as an operator
+
+### Interesting Links
+
+https://theburningmonk.com/2014/12/a-look-at-microsoft-orleans-through-erlang-tinted-glasses/
