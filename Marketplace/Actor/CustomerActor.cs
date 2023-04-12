@@ -22,7 +22,7 @@ namespace Marketplace.Actor
 	{
 
         private Dictionary<long, Customer> customers;
-        private Dictionary<long, string> notifications; // or customer log
+        // private Dictionary<long, string> notifications; // or customer log
         // type, json (differs depending on the type). Types: invoiced?, payment, shipment, delivery
         // for package delivery: shipment_id, package_id, 
 

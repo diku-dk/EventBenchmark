@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Orleans.Hosting;
 using Orleans.Configuration;
 
-namespace Client.Infra
+namespace Marketplace.Infra
 {
 	public sealed class OrleansClientFactory
 	{

@@ -11,7 +11,6 @@ namespace Common.Scenario.Entity
     {
         public long ProductId { get; set; }
         public long SellerId { get; set; }
-        // public string ProductName { get; set; }
         public decimal UnitPrice { get; set; }
         public decimal OldUnitPrice { get; set; }
         public decimal FreightValue { get; set; }

@@ -16,12 +16,16 @@ namespace Client.DataGeneration
 
         protected readonly Random random = new Random();
 
+        protected static DateTime minDate = new DateTime(1940, 1, 1);
+        protected static DateTime maxDate = new DateTime(2008, 12, 31);
+        protected readonly long baseTicks = maxDate.Ticks - minDate.Ticks;
+
         protected readonly Dictionary<string, string> mapTableToCreateStmt = new()
         {
-            ["sellers"] = "CREATE OR REPLACE TABLE sellers (id INTEGER, name VARCHAR, company_name VARCHAR, email VARCHAR, phone VARCHAR, mobile_phone VARCHAR, cpf VARCHAR, cnpj VARCHAR, address VARCHAR, complement VARCHAR, zip_code_prefix VARCHAR, city VARCHAR, state VARCHAR, order_count INTEGER);",
+            ["sellers"] = "CREATE OR REPLACE TABLE sellers (id INTEGER, name VARCHAR, company_name VARCHAR, email VARCHAR, phone VARCHAR, mobile_phone VARCHAR, cpf VARCHAR, cnpj VARCHAR, address VARCHAR, complement VARCHAR, city VARCHAR, state VARCHAR, zip_code_prefix VARCHAR, order_count INTEGER);",
             ["products"] = "CREATE OR REPLACE TABLE products (id INTEGER, seller_id INTEGER, name VARCHAR, sku VARCHAR, category_name VARCHAR, description VARCHAR, price REAL, updated_at VARCHAR, active BOOLEAN, status VARCHAR);",
             ["stock_items"] = "CREATE OR REPLACE TABLE stock_items (product_id INTEGER, seller_id INTEGER, qty_available INTEGER, qty_reserved INTEGER, order_count INTEGER, ytd INTEGER, data VARCHAR);",
-            ["customers"] = "CREATE OR REPLACE TABLE customers (id INTEGER, name VARCHAR, address VARCHAR, complement VARCHAR, " +
+            ["customers"] = "CREATE OR REPLACE TABLE customers (id INTEGER, first_name VARCHAR, last_name VARCHAR, address VARCHAR, complement VARCHAR, birth_date VARCHAR, " +
                             "zip_code_prefix VARCHAR, city VARCHAR, state VARCHAR, " +
                             "card_number VARCHAR, card_security_number VARCHAR, card_expiration VARCHAR, card_holder_name VARCHAR, card_type VARCHAR, " +
                             "success_payment_count INTEGER, failed_payment_count INTEGER, delivery_count INTEGER, abandoned_cart_count INTEGER, data VARCHAR);"
@@ -33,7 +37,7 @@ namespace Client.DataGeneration
 
         protected readonly string baseStockQuery = "INSERT INTO stock_items (product_id, seller_id, qty_available, qty_reserved, order_count, ytd, data) VALUES ";
 
-        protected readonly string baseCustomerQuery = "INSERT INTO customers (customer_id, first_name, last_name, address, complement, " +
+        protected readonly string baseCustomerQuery = "INSERT INTO customers (id, first_name, last_name, address, complement, birth_date, " +
                     "zip_code_prefix, city, state, " +
                     "card_number, card_security_number, card_expiration, card_holder_name, card_type, " +
                     "success_payment_count, failed_payment_count, delivery_count, abandoned_cart_count, data) VALUES ";
@@ -59,7 +63,7 @@ namespace Client.DataGeneration
             command.ExecuteNonQuery();
         }
 
-        protected Array cardValues = CardBrand.GetValues(typeof(CardBrand));
+        protected Array cardValues = Enum.GetValues(typeof(CardBrand));
 
         protected void GenerateCustomer(DuckDbCommand command, int customerId, string[] geo)
         {
@@ -67,6 +71,7 @@ namespace Client.DataGeneration
             var lastName = RandomString(16, alpha);
             var address = RandomString(20, alphanumeric);
             var complement = RandomString(20, alphanumeric);
+            var birth_date = GenerateBirthdate();
 
             var city = geo[0];
             var state = geo[1];
@@ -85,7 +90,7 @@ namespace Client.DataGeneration
             {
                 cardHolderName = RandomString(16, alpha);
             }
-            var cardType = (string)cardValues.GetValue(random.Next(1, cardValues.Length)).ToString();
+            var cardType = cardValues.GetValue(random.Next(1, cardValues.Length)).ToString();
 
             var success_payment_count = numeric(2, false);
             var failed_payment_count = numeric(2, false);
@@ -100,6 +105,7 @@ namespace Client.DataGeneration
             sb.Append('\'').Append(lastName).Append("',");
             sb.Append('\'').Append(address).Append("',");
             sb.Append('\'').Append(complement).Append("',");
+            sb.Append('\'').Append(birth_date).Append("',");
             sb.Append('\'').Append(zip).Append("',");
             sb.Append('\'').Append(city).Append("',");
             sb.Append('\'').Append(state).Append("',");
@@ -135,7 +141,7 @@ namespace Client.DataGeneration
             string address = RandomString(20, alphanumeric);
             string complement = RandomString(20, alphanumeric);
 
-            var order_count = numeric(4, false);
+            var order_count = numeric(1, false);
 
             // issue insert statement
             var sb = new StringBuilder(baseSellerQuery);
@@ -143,7 +149,6 @@ namespace Client.DataGeneration
             sb.Append('\'').Append(name).Append("',");
             sb.Append('\'').Append(company_name).Append("',");
             sb.Append('\'').Append(email).Append("',");
-            sb.Append('\'').Append(name).Append("',");
             sb.Append('\'').Append(phone).Append("',");
             sb.Append('\'').Append(mobile_phone).Append("',");
             sb.Append('\'').Append(cpf).Append("',");
@@ -301,10 +306,20 @@ namespace Client.DataGeneration
          */
         private string GenerateCnpj()
         {
-            String part1 = this.random.Next(10000000, 99999999).ToString();
+            string part1 = this.random.Next(10000000, 99999999).ToString();
             var part2 = this.random.Next(100000, 999999).ToString().ToCharArray();
             part2[3] = '1';
             return part1 + part2;
+        }
+
+        /**
+         * Inspiration from: https://stackoverflow.com/questions/44370877/generate-a-random-birthday-given-an-age
+         */
+        private string GenerateBirthdate()
+        {
+            var toAdd = (long)(random.NextDouble() * baseTicks);
+            var newDate = new DateTime(minDate.Ticks + toAdd);
+            return newDate.ToLongTimeString();
         }
 
     }

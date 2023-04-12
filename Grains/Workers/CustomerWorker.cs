@@ -1,7 +1,5 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Dynamic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -386,20 +384,26 @@ namespace Grains.Workers
             return HttpUtils.BuildPayload(payload);
         }
 
-        private static StringContent BuildCheckoutPayload(long customerId, Customer customer)
+        private StringContent BuildCheckoutPayload(long customerId, Customer customer)
         {
 
             // TODO define payment type from distribution
+            // TODO define installments from distribution
             // TODO define voucher from distribution
 
             // build
             CustomerCheckout basketCheckout = new()
             {
                 CustomerId = customerId,
+                FirstName = customer.first_name,
+                LastName = customer.last_name,
                 City = customer.city,
                 Street = customer.address,
+                Complement = customer.complement,
                 State = customer.state,
                 ZipCode = customer.zip_code_prefix,
+                PaymentType = PaymentType.CREDIT_CARD.ToString(),
+                Installments = random.Next(1,11),
                 CardNumber = customer.card_number,
                 CardHolderName = customer.card_holder_name,
                 CardExpiration = customer.card_expiration,

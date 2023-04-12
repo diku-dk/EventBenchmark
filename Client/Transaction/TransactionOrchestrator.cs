@@ -5,14 +5,10 @@ using System;
 using System.Collections.Generic;
 using GrainInterfaces.Workers;
 using Common.Streaming;
-using System.Text;
 using Orleans.Streams;
-using System.Net.NetworkInformation;
-using Client.Infra;
 using System.Collections.Concurrent;
 using Common.Scenario.Customer;
 using Common.Infra;
-using Common.Scenario.Entity;
 
 namespace Transaction
 {
@@ -36,6 +32,8 @@ namespace Transaction
 
         private readonly ScenarioConfiguration config;
 
+        private StreamSubscriptionHandle<CustomerStatusUpdate> customerSubscription;
+
         public TransactionOrchestrator(IClusterClient clusterClient, ScenarioConfiguration scenarioConfiguration) : base()
         {
             this.orleansClient = clusterClient;
@@ -43,8 +41,6 @@ namespace Transaction
             this.config = scenarioConfiguration;
             this.random = new Random();
         }
-
-        private StreamSubscriptionHandle<CustomerStatusUpdate> customerSubscription;
 
         private async void ConfigureStream()
         {
@@ -70,7 +66,7 @@ namespace Transaction
                         int stopAt = milli + config.submissionValue;
 
                         do {
-                            tasks.Add( Task.Run(() => SubmitTransaction()) );
+                            tasks.Add( Task.Run(SubmitTransaction) );
                         } while (DateTime.Now.Millisecond < stopAt);
 
                     }
@@ -94,7 +90,7 @@ namespace Transaction
                             await Task.Delay(TimeSpan.FromMilliseconds(config.waitBetweenSubmissions));
                         }
 
-                        tasks.Add(Task.Run(() => SubmitTransaction()));
+                        tasks.Add(Task.Run(SubmitTransaction));
                     }
                     
                     break;

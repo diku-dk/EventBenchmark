@@ -7,15 +7,10 @@ using Common.Ingestion;
 using Common.Ingestion.Config;
 using Common.Scenario;
 using Common.Scenario.Entity;
-using Common.Streaming;
 using DuckDB.NET.Data;
 using Newtonsoft.Json;
-using Orleans;
-using Orleans.Hosting;
-using Orleans.Runtime.Messaging;
 using System;
 using System.Collections.Generic;
-using System.Data.Common;
 using System.Threading.Tasks;
 
 namespace Client
@@ -71,7 +66,7 @@ namespace Client
             waitBetweenSubmissions = 60000 // 60 seconds
         };
 
-        public static void Main(string[] args)
+        public static void Main_(string[] args)
         {
 
             SyntheticDataGenerator syntheticDataGenerator = new SyntheticDataGenerator(new SyntheticDataSourceConfiguration());
@@ -103,7 +98,7 @@ namespace Client
          * Main method based on 
          * http://sergeybykov.github.io/orleans/1.5/Documentation/Deployment-and-Operations/Docker-Deployment.html
          */
-        public static async Task Main_(string[] args)
+        public static async Task Main(string[] args)
         {
             Console.WriteLine("Initializing Orleans client...");
             var client = await OrleansClientFactory.Connect();
@@ -112,10 +107,7 @@ namespace Client
 
             Console.WriteLine("Initializing Mock Http server...");
             HttpServer httpServer = new HttpServer(new HttpHandler());
-            Task httpServerTask = Task.Run(() => { httpServer.Run(); });
-
-            SyntheticDataSourceConfiguration syntheticConfig = new SyntheticDataSourceConfiguration();
-            // syntheticConfig.fileDir = Environment.GetEnvironmentVariable("HOME") + "/workspace/EventBenchmark/Client/DataGeneration/Synthetic";
+            Task httpServerTask = Task.Run(httpServer.Run);
 
             MasterConfiguration masterConfiguration = new()
             {
@@ -128,9 +120,9 @@ namespace Client
                 cleanup = false,
                 scenarioConfig = defaultScenarioConfig,
                 ingestionConfig = defaultIngestionConfig,
-                // syntheticConfig = syntheticConfig
-                olistConfig = new DataGeneration.Real.OlistDataSourceConfiguration()
-            };
+                syntheticConfig = new SyntheticDataSourceConfiguration()
+            // olistConfig = new DataGeneration.Real.OlistDataSourceConfiguration()
+        };
 
             MasterOrchestrator orchestrator = new MasterOrchestrator(masterConfiguration);
             await orchestrator.Run();

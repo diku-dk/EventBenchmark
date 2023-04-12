@@ -2,10 +2,8 @@
 using Common.Scenario.Entity;
 using System.Threading.Tasks;
 using Orleans;
-using Orleans.Runtime;
 using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
-using System.Linq;
 using Common.Entity;
 using Marketplace.Infra;
 using Marketplace.Message;
@@ -48,15 +46,10 @@ namespace Marketplace.Actor
             this.partitionId = this.GetPrimaryKeyLong();
         }
 
-        public ProductActor()
-		{
-            this.products = new();
-        }
-
         public Task DeleteProduct(long productId)
         {
-            products[productId].active = false;
-            products[productId].updated_at = DateTime.Now.ToLongDateString();
+            this.products[productId].active = false;
+            this.products[productId].updated_at = DateTime.Now.ToLongDateString();
             return Task.CompletedTask;
         }
 
@@ -90,14 +83,14 @@ namespace Marketplace.Actor
             // could have all carts active...
             // var mgmt = GrainFactory.GetGrain<IManagementGrain>(0);
             // mgmt.GetDetailedGrainStatistics(new[] { "CartActor" });
-            products[productId].price = newPrice;
-            products[productId].updated_at = DateTime.Now.ToLongDateString();
+            this.products[productId].price = newPrice;
+            this.products[productId].updated_at = DateTime.Now.ToLongDateString();
             return Task.CompletedTask;
         }
 
         public Task<bool> AddProduct(Product product)
         {
-            return Task.FromResult(products.TryAdd(product.id, product));
+            return Task.FromResult(this.products.TryAdd(product.id, product));
         }
     }
 }

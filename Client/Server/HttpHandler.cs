@@ -24,7 +24,6 @@ namespace Client.Server
             Console.WriteLine(req.Url.ToString());
             Console.WriteLine(req.HttpMethod);
             Console.WriteLine(req.UserHostName);
-            // Console.WriteLine(req.UserAgent);
             Console.WriteLine(x);
             Console.WriteLine("==== END OF REQUEST =====\n");
 
@@ -36,10 +35,11 @@ namespace Client.Server
             byte[] data = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(model));
 
             resp.ContentType = "application/json";
+            // is it necessary?
             // resp.ContentEncoding = Encoding.UTF8;
             resp.ContentLength64 = data.Length;
             resp.StatusCode = 200;
-            using System.IO.Stream output = resp.OutputStream;
+            using Stream output = resp.OutputStream;
             output.Write(data, 0, data.Length);
             output.Close();
 
