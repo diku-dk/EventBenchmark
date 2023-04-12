@@ -1,8 +1,10 @@
-﻿using System;
-using Common.Entity;
+﻿using Common.Entity;
 
 namespace Marketplace.Message
 {
+	/*
+	 * Currently not in use
+	 */
 	public class ProductCheck
 	{
         public long Id { get; set; }

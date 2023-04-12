@@ -50,11 +50,14 @@ namespace Marketplace.Actor
 
         public ProductActor()
 		{
-		}
+            this.products = new();
+        }
 
         public Task DeleteProduct(long productId)
         {
-            return Task.FromResult(products[productId].active = false);
+            products[productId].active = false;
+            products[productId].updated_at = DateTime.Now.ToLongDateString();
+            return Task.CompletedTask;
         }
 
         public Task<Product> GetProduct(long productId)
@@ -87,8 +90,8 @@ namespace Marketplace.Actor
             // could have all carts active...
             // var mgmt = GrainFactory.GetGrain<IManagementGrain>(0);
             // mgmt.GetDetailedGrainStatistics(new[] { "CartActor" });
-
             products[productId].price = newPrice;
+            products[productId].updated_at = DateTime.Now.ToLongDateString();
             return Task.CompletedTask;
         }
 

@@ -188,9 +188,8 @@ namespace Transaction
                 }
                 case WorkloadType.UPDATE_DELIVERY: // delivery worker
                 {
-                        // FIXME seller
                     var streamOutgoing = streamProvider.GetStream<int>(StreamingConfiguration.DeliveryStreamId, null);
-                    _ = streamOutgoing.OnNextAsync(1);
+                    _ = streamOutgoing.OnNextAsync(0);
                     return;
                 }
                 default: { throw new Exception("Unknown transaction type defined!"); }

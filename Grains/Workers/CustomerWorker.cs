@@ -379,7 +379,8 @@ namespace Grains.Workers
                 SellerId = product.seller_id,
                 // ProductName = product.name,
                 UnitPrice = product.price,
-                Quantity = quantity
+                Quantity = quantity,
+                FreightValue = 0 // not modeling freight value in this version
             };
             var payload = JsonConvert.SerializeObject(basketItem);
             return HttpUtils.BuildPayload(payload);

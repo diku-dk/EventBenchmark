@@ -35,7 +35,6 @@ namespace Common.Scenario.Entity
         // approved by default
         public string status { get; set; }
 
-        
     }
 }
 

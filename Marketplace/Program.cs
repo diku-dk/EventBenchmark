@@ -6,6 +6,10 @@ namespace Marketplace
 	{
         public static void Main(string[] args)
         {
+
+			// initialize server
+
+
 			return;
 		}
 	}

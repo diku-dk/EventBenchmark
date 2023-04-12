@@ -11,6 +11,7 @@ using Orleans.Runtime;
 using Marketplace.Message;
 using System.Net.NetworkInformation;
 using System.Text;
+using Orleans.Concurrency;
 
 namespace Marketplace.Actor
 {
@@ -31,12 +32,14 @@ namespace Marketplace.Actor
 
         public Task<decimal> GetQuotation(string from, string to);
 
+        [AlwaysInterleave]
         public Task ProcessShipment(Invoice invoice);
 
-        public Task UpdatePackageDelivery(long shipment_id, int package_id);
+        [AlwaysInterleave]
+        public Task UpdateShipment();
 
         // retrieve the packages not delivered yet
-        public Task<List<Package>> GetOpenPackagesBySeller(long seller_id);
+        public Task<List<Package>> GetPendingPackagesBySeller(long seller_id);
     }
 
     public class ShipmentActor : Grain, IShipmentActor
@@ -50,9 +53,15 @@ namespace Marketplace.Actor
         private long nOrderPartitions;
         private long shipmentActorId;
 
+        private readonly Func<long, List<Package>> queryPendingPackagesBySeller;
+
         public ShipmentActor()
         {
             this.nextShipmentId = 1;
+            this.shipments = new();
+            this.packages = new();
+            this.queryPendingPackagesBySeller = (x) => packages.Values.SelectMany(p => p)
+                .Where(p => p.status == PackageStatus.shipped.ToString() && p.seller_id == x).ToList();
         }
 
         public override async Task OnActivateAsync()
@@ -98,10 +107,10 @@ namespace Marketplace.Actor
                         .SelectMany(x => x).ToList();
 
             // create the shipment
-            long today = System.DateTime.Now.Millisecond;
+            long today = DateTime.Now.Millisecond;
             Shipment shipment = new()
             {
-                shipment_id = nextShipmentId,
+                id = nextShipmentId,
                 order_id = invoice.order.id,
                 customer_id = invoice.order.customer_id,
                 package_count = items.Count,
@@ -134,19 +143,19 @@ namespace Marketplace.Actor
                 };
 
                 packages_.Add(package);
-
                 package_id++;
 
             }
 
-            shipments.Add(shipment.shipment_id, shipment);
-            packages.Add(shipment.shipment_id, packages_);
+            shipments.Add(shipment.id, shipment);
+            packages.Add(shipment.id, packages_);
 
             nextShipmentId++;
 
             /**
              * Based on olist (https://dev.olist.com/docs/orders), the status of the order is
              * shipped when "at least one order item has been shipped"
+             * All items are considered shipped here, so just signal the order about that
              */
             IOrderActor orderActor = GrainFactory.GetGrain<IOrderActor>(invoice.order.id % nOrderPartitions);
             await orderActor.UpdateOrderStatus(invoice.order.id, OrderStatus.SHIPPED);
@@ -155,73 +164,106 @@ namespace Marketplace.Actor
 
         /**
          * Inspired by: https://dev.olist.com/docs/retrieving-packages-informations
-         * Index-based operation
+         * Index-based operation.
+         * Can be probably used in the GetOverview transaction in seller
          */
-        public Task<List<Package>> GetOpenPackagesBySeller(long seller_id)
+        public Task<List<Package>> GetPendingPackagesBySeller(long seller_id)
         {
-            var sellerOpenPackages = packages.Values.SelectMany(p => p)
-                .Where(p => p.status == PackageStatus.shipped.ToString() && p.seller_id == seller_id).ToList();
-
-            return Task.FromResult(sellerOpenPackages);          
-                            
+            return Task.FromResult(queryPendingPackagesBySeller.Invoke(seller_id));            
         }
 
         /**
-         * To discuss: The external service (sender) can send duplicate message?
+         * Inspired by Delivery Update from TPC-C
+         * But adapted to a microservice application 
+         * (i.e., writes to customer and order become events emitted)
+         * and olist business rules.
+         * Seller kind of substitutes district as the block of iteration
+         */
+        public async Task UpdateShipment()
+        {
+            var q = packages.SelectMany(x => x.Value)
+                                                .GroupBy(x => x.seller_id)
+                                                .MinBy(y => y.Key)
+                                                .Where(x => x.status.Equals(PackageStatus.shipped.ToString()))
+                                                .ToDictionary(g => g.shipment_id, g => g.seller_id);
+
+            List<Task> tasks = new(q.Count);
+            foreach(var kv in q)
+            {
+                // check if that avoids reentrancy from calling update package twice for same package. if not, disable reentrancy for this method
+                var packages_ = packages[kv.Key].Where(p => p.seller_id == kv.Value && p.status.Equals(PackageStatus.shipped.ToString()));
+                foreach(var pack in packages_)
+                {
+                    tasks.Add(UpdatePackageDelivery(pack));
+                }
+            }
+
+            await Task.WhenAll(tasks);
+
+            /*
+
+            // mark this shipment, so the next delivery transaction will not touch this shipment
+            shipments[oldestPendingShipment.id].status = ShipmentStatus.delivery_in_progress.ToString();
+
+            var today = DateTime.Now.Millisecond;
+
+            List<Package> packages_ = packages[oldestPendingShipment.id];
+            foreach(var package in packages_)
+            {
+                package.status = PackageStatus.delivered.ToString();
+                package.delivery_date = today;
+            }
+
+            IOrderActor orderActor = GrainFactory.GetGrain<IOrderActor>(shipments[oldestPendingShipment.id].order_id % nOrderPartitions);
+            ICustomerActor customerActor = GrainFactory.GetGrain<ICustomerActor>(shipments[oldestPendingShipment.id].customer_id % nCustPartitions);
+            List<Task> tasks = new(2)
+            {
+                customerActor.NotifyDelivery(shipments[oldestPendingShipment.id].customer_id),
+                orderActor.UpdateOrderStatus(shipments[oldestPendingShipment.id].order_id, OrderStatus.DELIVERED)
+            };
+
+            shipments[oldestPendingShipment.id].status = ShipmentStatus.concluded.ToString();
+
+            await Task.WhenAll(tasks);
+
+            */
+        }
+
+        /**
          * 
          */
-        public async Task UpdatePackageDelivery(long shipment_id, int package_id)
+        private async Task UpdatePackageDelivery(Package package)
         {
             // aggregate operation
-            var countDelivered = packages[shipment_id].Where(p => p.status == PackageStatus.delivered.ToString()).Count();
+            var countDelivered = packages[package.shipment_id].Where(p => p.status == PackageStatus.delivered.ToString()).Count();
 
-            Package toUpdate = packages[shipment_id].Where(p => p.package_id == package_id).ElementAt(0);
+            // if falls in this exception, implementation must be rethought
+            if (package.status.Equals(PackageStatus.delivered.ToString())) throw new Exception("Package is already delivered");
 
-            if(toUpdate == null)
+            package.status = PackageStatus.delivered.ToString();
+              
+            IOrderActor orderActor = GrainFactory.GetGrain<IOrderActor>(shipments[package.shipment_id].order_id % nOrderPartitions);
+            var custActor = shipments[package.shipment_id].customer_id % nCustPartitions;
+
+            List<Task> tasks = new(2)
             {
-                string str = new StringBuilder().Append("Package ").Append(package_id)
-                    .Append(" Shipment ").Append(shipment_id)
-                    .Append(" could not be found ").ToString();
-                throw new Exception(str);
-            }
-
-            int sum = 0;
-            
-            // update status
-            if(toUpdate.status == PackageStatus.shipped.ToString())
-            {
-                toUpdate.status = PackageStatus.delivered.ToString();
-                sum = 1;
-            }
-           
-            IOrderActor orderActor = GrainFactory.GetGrain<IOrderActor>(shipments[shipment_id].order_id % nOrderPartitions);
-            var custActor = shipments[shipment_id].customer_id % nCustPartitions;
-
-            List<Task> tasks = new(2);
-            tasks.Add(GrainFactory.GetGrain<ICustomerActor>(custActor).NotifyDelivery(shipments[shipment_id].customer_id));
+                GrainFactory.GetGrain<ICustomerActor>(custActor).NotifyDelivery(shipments[package.shipment_id].customer_id)
+            };
 
             // since shipment is responsible for tracking individual packages
             // it is less complex (and less redundant) to make the shipment update the order status
             if (countDelivered == 0)
             {
-                if (shipments[shipment_id].package_count == 1)
-                {
-                    shipments[shipment_id].status = ShipmentStatus.concluded.ToString();
-                }
-                else
-                {
-                    shipments[shipment_id].status = ShipmentStatus.delivery_in_progress.ToString();
-                }
-
-                // in any case, send message to order
-                tasks.Add(orderActor.UpdateOrderStatus(shipments[shipment_id].order_id, OrderStatus.DELIVERED));
+                // send message to order in the first delivery
+                tasks.Add(orderActor.UpdateOrderStatus(shipments[package.shipment_id].order_id, OrderStatus.DELIVERED));
             } else {
                 // the need to send this message, one drawback of determinism 
-                tasks.Add(orderActor.noOp());
-                if (shipments[shipment_id].package_count == countDelivered + sum)
-                {
-                    shipments[shipment_id].status = ShipmentStatus.concluded.ToString();
-                }
+                tasks.Add(orderActor.noOp());       
+            }
+
+            if (shipments[package.shipment_id].package_count == countDelivered + 1)
+            {
+                shipments[package.shipment_id].status = ShipmentStatus.concluded.ToString();
             }
 
             await Task.WhenAll(tasks);

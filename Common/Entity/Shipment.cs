@@ -4,7 +4,7 @@ namespace Common.Entity
 	public class Shipment
 	{
 		// PK
-		public long shipment_id;
+		public long id;
         public long order_id;
         public long customer_id;
 

@@ -35,8 +35,6 @@ namespace Marketplace.Actor
         // public Task RetrieveFinancialReport(int reference_year, int reference_month);
         // public Task RetrieveInFluxOrders...
 
-        public Task UpdatePackageDelivery(long shipmentId, int packageId);
-
         // TODO discuss. online query. not rare.
         // get open deliveries, in-progress orders, items below threshold, current reserved items, items being browsed and in carts, orders not delivered ordered by date
         // public Task GetOverview();
@@ -131,23 +129,6 @@ namespace Marketplace.Actor
             return;
         }
 
-        /**
-         * Do we really need the seller to call the shipment?
-         * one reason is that it is directly addressable by the http proxy
-         * seller is a user-facing service
-         * so the http proxy is unaware about partitioning schemes
-         * besides, it is worthy to store update in seller history
-         */
-        public async Task UpdatePackageDelivery(long shipmentId, int packageId)
-        {
-            // order id!!!
-            var shipPart = (shipmentId % nShipmentPartitions);
-            await GrainFactory.GetGrain<IShipmentActor>(shipPart).UpdatePackageDelivery(shipmentId, packageId);
-
-
-            // TODO log action, so seller can be aware about the delivery of one of its packages
-
-        }
     }
 }
 

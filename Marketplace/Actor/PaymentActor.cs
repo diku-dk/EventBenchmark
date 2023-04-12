@@ -103,7 +103,7 @@ namespace Marketplace.Actor
                 // I think processing is when the seller must approve or not the order, but here all orders are approved by default. so we dont use processing
                 // notify
                 tasks.Add(orderActor.UpdateOrderStatus(invoice.order.id, OrderStatus.PAYMENT_PROCESSED));
-                tasks.Add(custActor.NotifyPayment(invoice.customer.CustomerId));
+                tasks.Add(custActor.NotifyPayment(invoice.customer.CustomerId, invoice.order));
                 tasks.Add(shipmentActor.ProcessShipment(invoice));
 
                 List<OrderPayment> paymentLines = new();
@@ -175,7 +175,7 @@ namespace Marketplace.Actor
                 tasks.Add( orderActor.UpdateOrderStatus(invoice.order.id, OrderStatus.PAYMENT_FAILED) );
                 // notify again because the shipment would have called it in case of successful payment
                 tasks.Add( orderActor.noOp() );
-                tasks.Add( custActor.NotifyPayment(invoice.customer.CustomerId, false) );
+                tasks.Add( custActor.NotifyPayment(invoice.customer.CustomerId, null, false) );
                 tasks.Add( shipmentActor.noOp() );
             }
 

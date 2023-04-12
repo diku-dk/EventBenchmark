@@ -11,7 +11,7 @@ namespace Marketplace.Actor
     public interface ICustomerActor : IGrainWithIntegerKey, SnapperActor
     {
 		public Task<Customer> GetCustomer(long customerId);
-        public Task NotifyPayment(long customerId, bool success = true);
+        public Task NotifyPayment(long customerId, Order order = null, bool success = true);
         public Task NotifyDelivery(long customerId);
 
         // API
@@ -47,13 +47,16 @@ namespace Marketplace.Actor
             return Task.CompletedTask;
         }
 
-        public Task NotifyPayment(long customerId, bool success = true)
+        public Task NotifyPayment(long customerId, Order order = null, bool success = true)
         {
-            if(success)
+            if (success) { 
                 this.customers[customerId].success_payment_count++;
-            else
+                this.customers[customerId].total_spent_items += order.total_items;
+                this.customers[customerId].total_spent_freights += order.total_freight;
+            }
+            else { 
                 this.customers[customerId].failed_payment_count++;
-
+            }
 
 
             return Task.CompletedTask;

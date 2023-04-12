@@ -4,7 +4,7 @@ namespace Common.Scenario.Entity
     /**
      * 
      */
-	public class Customer
+    public class Customer
     {
         // olist data set
         public long id { get; set; }
@@ -44,6 +44,10 @@ namespace Common.Scenario.Entity
         public int delivery_count { get; set; }
 
         public int abandoned_cart_count { get; set; }
+
+        public decimal total_spent_items { get; set; }
+
+        public decimal total_spent_freights { get; set; }
 
         // additional
         public string data { get; set; }

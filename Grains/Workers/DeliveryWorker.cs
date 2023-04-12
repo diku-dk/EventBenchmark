@@ -12,6 +12,10 @@ using Orleans.Streams;
 using Common.Http;
 using System.Net.Http;
 using System.Text.RegularExpressions;
+using Common.Scenario.Entity;
+using Newtonsoft.Json;
+using Common.Entity;
+using System.Collections.Generic;
 
 namespace Grains.Workers
 {
@@ -28,8 +32,6 @@ namespace Grains.Workers
 
         private IStreamProvider streamProvider;
 
-        private IAsyncStream<int> stream;
-
         private readonly ILogger<DeliveryWorker> _logger;
 
         public DeliveryWorker(ILogger<DeliveryWorker> logger)
@@ -45,7 +47,8 @@ namespace Grains.Workers
 
         public override async Task OnActivateAsync()
         {
-            var workloadStream = streamProvider.GetStream<long>(StreamingConfiguration.DeliveryStreamId, null);
+            this.streamProvider = this.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider);
+            var workloadStream = streamProvider.GetStream<int>(StreamingConfiguration.DeliveryStreamId, null);
             var subscriptionHandles_ = await workloadStream.GetAllSubscriptionHandles();
             if (subscriptionHandles_.Count > 0)
             {
@@ -54,22 +57,39 @@ namespace Grains.Workers
                     await subscriptionHandle.ResumeAsync(Run);
                 }
             }
-            await workloadStream.SubscribeAsync<long>(Run);
+            await workloadStream.SubscribeAsync<int>(Run);
         }
 
         // updating the delivery status of orders
-        public async Task Run(long sellerId, StreamSequenceToken token)
+        public async Task Run(int op, StreamSequenceToken token)
         {
+            // move this later to seller worker => get overview
+            /*
+            // get open orders (not delivered status)
+
             // get shipped packages
-            await Task.Run(() =>
+            HttpResponseMessage response = await Task.Run(() =>
             {
-                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, shipmentUrl + "?seller_id=" + sellerId + "&status=shipped");
-                HttpUtils.client.Send(message);
+                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get,
+                    shipmentUrl + "?seller_id=" + sellerId +
+                    "&status=shipped,sort=shipment_id+asc");
+                return HttpUtils.client.Send(message);
             });
 
-            // TODO deserialize list of packages
-            //      pick some (following a distribution?) to update
+            var packagesStr = await response.Content.ReadAsStringAsync();
+            List<Package> packages = JsonConvert.DeserializeObject<List<Package>>(packagesStr);
+
+            
+            //   TODO   pick some (following a distribution?) to update
             //      send put
+            */
+
+            HttpResponseMessage response = await Task.Run(() =>
+            {
+                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch,
+                    shipmentUrl + "/update");
+                return HttpUtils.client.Send(message);
+            });
 
             return;
         }
