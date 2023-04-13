@@ -2,23 +2,19 @@
 using System.Threading.Tasks;
 using Common.Http;
 using Marketplace.Infra;
+using Orleans;
 
 namespace Marketplace
 {
 	public class Program
 	{
 
-        // configuration. number of partitions. let's start with one for each
-
-        // FIXME: Unhandled exception. System.ArgumentException:
-        // Cannot find an implementation class for grain interface: Marketplace.Actor.IProductActor.
-        // Make sure the grain assembly was correctly deployed and loaded in the silo.
-        // probably need to put the interfaces in a different class file
-
         public static async Task Main(string[] args)
         {
-            var client = await OrleansClientFactory.Connect();
+            IClusterClient client = await OrleansClientFactory.Connect();
             if (client == null) return;
+
+            InitializePartitionedActors(client);
 
             // handler instance
             HttpHandler httpHandler = new HttpHandler(client);
@@ -34,6 +30,12 @@ namespace Marketplace
             Console.ReadLine();
 			httpServer.Stop();
 		}
-	}
+
+        // configuration. number of partitions. let's start with one for each
+        private static void InitializePartitionedActors(IClusterClient client)
+        {
+            //
+        }
+    }
 }
 

@@ -17,17 +17,16 @@ namespace Marketplace.Actor
     public class SellerActor : Grain, ISellerActor
     {
         private long sellerId;
-        private int nProductPartitions;
-        private int nShipmentPartitions;
+        private long nProductPartitions;
+        private long nShipmentPartitions;
         private ILogger<SellerActor> _logger;
 
-        private Dictionary<long, Seller> sellers;
-        private Dictionary<long, SortedList<long, string>> log;
+        private Seller seller;
+        private SortedList<long, string> log;
 
         public SellerActor(ILogger<SellerActor> _logger)
         {
             this._logger = _logger;
-            this.sellers = new();
             this.log = new();
         }
 
@@ -58,7 +57,7 @@ namespace Marketplace.Actor
             // maintain the integrity
             tasks[1] = GrainFactory.GetGrain<IProductActor>(prodPart).DeleteProduct(productId);
             await Task.WhenAll(tasks);
-            _logger.LogInformation("Product {0} deleted", productId);
+            _logger.LogWarning("Product {0} deleted", productId);
         }
 
         public async Task UpdatePrices(List<Product> products)
@@ -75,9 +74,10 @@ namespace Marketplace.Actor
 
         }
 
-        public Task AddSeller(Seller seller)
+        public Task Init(Seller seller)
         {
-            return Task.FromResult(this.sellers.TryAdd(seller.id, seller));
+            this.seller = seller;
+            return Task.CompletedTask;
         }
 
         /**
@@ -100,6 +100,10 @@ namespace Marketplace.Actor
             return;
         }
 
+        public Task<Seller> GetSeller()
+        {
+            return Task.FromResult(this.seller);  
+        }
     }
 }
 

@@ -35,7 +35,9 @@ namespace Marketplace.Interfaces
         // public Task GetOverview();
 
         // API
-        public Task AddSeller(Seller seller);
+        public Task Init(Seller seller);
+
+        public Task<Seller> GetSeller();
     }
 }
 

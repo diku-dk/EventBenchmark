@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using Common.Configuration;
 using Common.Scenario.Customer;
 using Common.Scenario.Seller;
 using Common.Streaming;
@@ -54,15 +55,16 @@ namespace Common.Scenario
             ["product-unavailable"] = StreamingConfiguration.CustomerReactStreamId,
         };
 
-        // provides a ID generator for each workload (e.g., customer, seller)
-        // the generator obeys a distribution
-        public Dictionary<WorkloadType, NumberGenerator> keyGeneratorPerWorkloadType;
-
         // customer config
         public CustomerConfiguration customerConfig;
 
         // seller config
         public SellerConfiguration sellerConfig;
+
+        // customer and seller workers do not need to know about other customer
+        // but the transaction orchestrator needs to assign grain ids to the transactions emitted
+        public Distribution customerDistribution;
+        public Range customerRange;
 
     }
 }

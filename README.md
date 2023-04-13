@@ -21,7 +21,7 @@ EventBenchmark relies on [Apache Kafka](https://github.com/apache/kafka) to cons
 ## Data Set
 EventBenchmark relies upon [Brazilian E-Commerce Public Dataset by Olist](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) to define the data model and workload for simulation.
 EventBenchmark also benefits from [DuckDB](https://duckdb.org/why_duckdb) to quickly load and query generated data for use during the simulated workloads.
-[Dapper](https://github.com/DapperLib/Dapper) is used to map rows to objects.
+[Dapper](https://github.com/DapperLib/Dapper) is used to map rows to objects. [Bogus](https://github.com/bchavez/Bogus) is used to generate faithful synthetic data.
 
 ## Execution
 EventBenchmark requires input configuration in case the user is willing to define a custom workload.

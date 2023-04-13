@@ -11,6 +11,7 @@ using Marketplace.Infra;
 using Newtonsoft.Json;
 using Marketplace.Message;
 using Marketplace.Interfaces;
+using Microsoft.Extensions.Logging;
 
 namespace Marketplace.Actor
 {
@@ -31,13 +32,16 @@ namespace Marketplace.Actor
         // https://dev.olist.com/docs/retrieving-order-informations
         private SortedList<long, List<OrderHistory>> history;
 
-        public OrderActor()
+        private readonly ILogger<OrderActor> _logger;
+
+        public OrderActor(ILogger<OrderActor> _logger)
         {
             this.nextOrderId = 1;
             this.nextHistoryId = 1;
             this.orders = new();
             this.items = new();
             this.history = new();
+            this._logger = _logger;
         }
 
         public override async Task OnActivateAsync()
@@ -65,6 +69,7 @@ namespace Marketplace.Actor
          */
         public async Task<Invoice> Checkout_1(Checkout checkout)
         {
+            _logger.LogWarning("Order part {0} -- Checkout process starting for customer {0}", this.orderActorId, checkout.customerCheckout.CustomerId);
             List<Task<ItemStatus>> statusResp = new(checkout.items.Count);
 
             foreach (var item in checkout.items)
@@ -91,6 +96,7 @@ namespace Marketplace.Actor
 
             if (abort)
             {
+                _logger.LogWarning("Order part {0} -- Checkout process aborted for customer {0}", this.orderActorId, checkout.customerCheckout.CustomerId);
                 foreach (var item in checkout.items)
                 {
                     long partition = (item.Key % nStockPartitions);
@@ -123,26 +129,34 @@ namespace Marketplace.Actor
                 // assuming most succeed, overhead is not too high
             }
 
-            // TODO calculate total freight_value
-            decimal total = 0;
+            // calculate total freight_value
+            decimal total_freight = 0;
             foreach (var item in checkout.items.Values)
             {
-                total += (item.UnitPrice * item.Quantity);
+                total_freight += item.FreightValue;
             }
 
-            decimal total_items = total;
+            decimal total_amount = 0;
+            foreach (var item in checkout.items.Values)
+            {
+                total_amount += (item.UnitPrice * item.Quantity);
+            }
+
+            decimal total_items = total_amount;
 
             // apply vouchers, but only until total >= 0
             int v_idx = 0;
             decimal[] vouchers = checkout.customerCheckout.Vouchers;
-            while (total > 0 && v_idx < vouchers.Length)
+            decimal total_incentive = 0;
+            while (total_amount > 0 && v_idx < vouchers.Length)
             {
-                if (total - vouchers[v_idx] >= 0)
+                if (total_amount - vouchers[v_idx] >= 0)
                 {
-                    total -= vouchers[v_idx];
+                    total_amount -= vouchers[v_idx];
+                    total_incentive += vouchers[v_idx];
                 } else
                 {
-                    total = 0;
+                    total_amount = 0;
                 }
             }
 
@@ -162,9 +176,12 @@ namespace Marketplace.Actor
                 // besides, invoice is a request for payment, so it makes sense to use this status now
                 status = OrderStatus.INVOICED.ToString(),
                 created_at = System.DateTime.Now.ToLongDateString(),
-                total_amount = total,
-                total_items = total_items
-                // TODO complete the other totals
+                total_amount = total_amount,
+                total_items = total_items,
+                total_freight = total_freight,
+                total_incentive = total_incentive,
+                total_invoice = total_amount + total_freight,
+              
             };
             orders.Add(orderId, newOrder);
 
@@ -209,6 +226,9 @@ namespace Marketplace.Actor
             // increment
             nextOrderId++;
             nextHistoryId++;
+
+            _logger.LogWarning("Order part {0} -- Checkout process succeeded for customer {0}", this.orderActorId, checkout.customerCheckout.CustomerId);
+
             return resp;
 
         }

@@ -19,6 +19,7 @@ namespace Marketplace.Interfaces
 
         // API
         public Task AddItem(StockItem item);
+        public Task<StockItem> GetItem(long itemId);
     }
 }
 

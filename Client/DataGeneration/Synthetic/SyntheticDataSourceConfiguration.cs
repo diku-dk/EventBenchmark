@@ -13,7 +13,7 @@ namespace Client.DataGeneration
 
         public int numCustomers = 10;
 
-        public int numProducts = 100;
+        public int numProducts = 50;
 
         public int avgNumProdPerSeller = 5;
 

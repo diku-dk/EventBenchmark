@@ -41,7 +41,8 @@ namespace Marketplace.Actor
 
         public Task<Product> GetProduct(long productId)
         {
-            return Task.FromResult(products[productId]);
+            _logger.LogWarning("Product part {0}, returning product ID {1}", this.partitionId, productId);
+            return Task.FromResult(this.products[productId]);
         }
 
         public Task<ProductCheck> CheckCorrectness(BasketItem item)
@@ -61,7 +62,6 @@ namespace Marketplace.Actor
 
         public Task UpdateProductPrice(long productId, decimal newPrice)
         {
-
             // as cart actors are spread, the product actor do not know which carts are active
             // solutions: there could be a cart proxy receiving and forwarding the cart ops
             // it will be responsible for managing the  but that would lead
@@ -76,7 +76,7 @@ namespace Marketplace.Actor
 
         public Task<bool> AddProduct(Product product)
         {
-            _logger.LogInformation("adding product...");
+            _logger.LogWarning("Product part {0}, adding product ID {1}", this.partitionId, product.id);
             return Task.FromResult(this.products.TryAdd(product.id, product));
         }
     }

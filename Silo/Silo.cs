@@ -22,15 +22,15 @@ var builder = new HostBuilder()
             .AddSimpleMessageStreamProvider(StreamingConfiguration.DefaultStreamProvider, options =>
             {
                 options.PubSubType = Orleans.Streams.StreamPubSubType.ExplicitGrainBasedOnly;
-                options.FireAndForgetDelivery = true;
+                options.FireAndForgetDelivery = false;
                 options.OptimizeForImmutableData = true; // to pass by reference, saving costs
             })
             // .ConfigureLogging(logging => logging.ClearProviders())   //.AddSimpleConsole())
             .ConfigureLogging(logging =>
             {
-                logging.SetMinimumLevel(LogLevel.Information);
-                //logging.ClearProviders();
-                //logging.AddConsole();
+                logging.ClearProviders();
+                logging.AddConsole();
+                logging.SetMinimumLevel(LogLevel.Warning);
             }) // https://learn.microsoft.com/en-us/aspnet/core/fundamentals/logging/?tabs=aspnetcore2x&view=aspnetcore-7.0
                // .UseDashboard(options => { })    // localhost:8080
                // .ConfigureServices(services => { services.Add })

@@ -37,6 +37,8 @@ namespace Client.Ingestion
 
                 foreach (var table in config.mapTableToUrl)
                 {
+                    Console.WriteLine("Ingesting table {0}", table);
+
                     command.CommandText = "select * from "+table.Key+";";
                     var queryResult = command.ExecuteReader();
 
@@ -47,6 +49,8 @@ namespace Client.Ingestion
                     Task t2 = Task.Run(() => Consume(table.Value, rowCount));
 
                     Task.WaitAll(t1, t2);
+
+                    Console.WriteLine("Finished loading table {0}", table);
                 }
 
             }
@@ -68,7 +72,6 @@ namespace Client.Ingestion
                 }
 
                 string strObj = JsonConvert.SerializeObject(obj);
-                // Console.WriteLine(strObj);
                 this.tuples.Add(strObj);
             }
 
@@ -87,9 +90,8 @@ namespace Client.Ingestion
             string obj = null;
             do
             {
-
                 obj = this.tuples.Take();
-               
+           
                 HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, url);
                 message.Content = HttpUtils.BuildPayload(obj);
 

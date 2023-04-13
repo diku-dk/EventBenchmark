@@ -5,6 +5,8 @@ using Orleans;
 using System.Collections.Generic;
 using Marketplace.Infra;
 using Marketplace.Interfaces;
+using Microsoft.Extensions.Logging;
+using Common.Scenario.Entity;
 
 namespace Marketplace.Actor
 {
@@ -12,11 +14,21 @@ namespace Marketplace.Actor
     public class StockActor : Grain, IStockActor
 	{
 
-        private Dictionary<long, StockItem> items;
+        private readonly Dictionary<long, StockItem> items;
+        private readonly ILogger<StockActor> _logger;
+        private long partitionId;
 
-		public StockActor()
+        public StockActor(ILogger<StockActor> _logger)
 		{
             this.items = new();
+            this._logger = _logger;
+        }
+
+        public override async Task OnActivateAsync()
+        {
+            this.partitionId = this.GetPrimaryKeyLong();
+            // to avoid warning...
+            await base.OnActivateAsync();
         }
 
         public Task DeleteItem(long productId)
@@ -70,6 +82,7 @@ namespace Marketplace.Actor
 
         public Task AddItem(StockItem item)
         {
+            _logger.LogWarning("Stock part {0}, adding product ID {1}", this.partitionId, item.product_id);
             return Task.FromResult(items.TryAdd(item.product_id, item));
         }
 
@@ -90,6 +103,11 @@ namespace Marketplace.Actor
             }
             
             return Task.FromResult(in_to_in.Invoke());
+        }
+
+        public Task<StockItem> GetItem(long itemId)
+        {
+            return Task.FromResult(items[itemId]);
         }
     }
 }

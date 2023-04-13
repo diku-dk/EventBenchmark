@@ -5,6 +5,7 @@ using Orleans.Runtime.Messaging;
 using System.Threading.Tasks;
 using Orleans.Hosting;
 using Orleans.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace Marketplace.Infra
 {
@@ -17,6 +18,12 @@ namespace Marketplace.Infra
                                 .Configure<GatewayOptions>(
                                     options =>
                                     options.GatewayListRefreshPeriod = TimeSpan.FromMinutes(10))
+                                .ConfigureLogging(logging =>
+                                {
+                                    logging.ClearProviders();
+                                    logging.AddConsole();
+                                    logging.SetMinimumLevel(LogLevel.Warning);
+                                })
                                 .AddSimpleMessageStreamProvider(StreamingConfiguration.DefaultStreamProvider, options =>
                                 {
                                     options.PubSubType = Orleans.Streams.StreamPubSubType.ExplicitGrainBasedOnly;

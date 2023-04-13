@@ -173,10 +173,10 @@ namespace Client
                 // another solution is making them read from the microservice itself...
                 ISellerWorker sellerWorker = null;
                 List<Task> tasks = new();
-                for (int i = 0; i < numSellers; i++)
+                for (int i = 1; i <= numSellers; i++)
                 {
                     List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
-                    sellerWorker = config.orleansClient.GetGrain<ISellerWorker>(numSellers);
+                    sellerWorker = config.orleansClient.GetGrain<ISellerWorker>(i);
                     tasks.Add( sellerWorker.Init(config.scenarioConfig.sellerConfig, products) );
                 }
                 await Task.WhenAll(tasks);
@@ -207,11 +207,13 @@ namespace Client
                 // setup transaction orchestrator
                 TransactionOrchestrator transactionOrchestrator = new TransactionOrchestrator(config.orleansClient, config.scenarioConfig);
 
-                _ = Task.Run(() => transactionOrchestrator.Run());
+                Task taskTx = Task.Run(() => transactionOrchestrator.Run());
 
+                // TODO listen for cluster client disconnect and stop the sleep if necessary... Task.WhenAny...
                 Thread.Sleep(config.scenarioConfig.period);
 
                 transactionOrchestrator.Stop();
+                await taskTx;
 
                 // stop kafka consumers if necessary
                 if (this.config.streamEnabled)

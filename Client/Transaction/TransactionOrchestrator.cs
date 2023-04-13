@@ -9,6 +9,8 @@ using Orleans.Streams;
 using System.Collections.Concurrent;
 using Common.Scenario.Customer;
 using Common.Infra;
+using Common.Configuration;
+using Common.YCSB;
 
 namespace Transaction
 {
@@ -32,7 +34,11 @@ namespace Transaction
 
         private readonly ScenarioConfiguration config;
 
-        private StreamSubscriptionHandle<CustomerStatusUpdate> customerSubscription;
+        // provides an ID generator for each workload (e.g., customer, seller)
+        // the generator obeys a distribution
+        public Dictionary<WorkloadType, NumberGenerator> keyGeneratorPerWorkloadType;
+
+        private StreamSubscriptionHandle<CustomerStatusUpdate> customerWorkerSubscription;
 
         public TransactionOrchestrator(IClusterClient clusterClient, ScenarioConfiguration scenarioConfiguration) : base()
         {
@@ -40,18 +46,21 @@ namespace Transaction
             this.streamProvider = orleansClient.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider);
             this.config = scenarioConfiguration;
             this.random = new Random();
+            this.keyGeneratorPerWorkloadType = new(2);
         }
 
         private async void ConfigureStream()
         {
             IAsyncStream<CustomerStatusUpdate> resultStream = streamProvider.GetStream<CustomerStatusUpdate>(StreamingConfiguration.CustomerStreamId, StreamingConfiguration.TransactionStreamNameSpace);
-            customerSubscription = await resultStream.SubscribeAsync(UpdateCustomerStatusAsync);
+            customerWorkerSubscription = await resultStream.SubscribeAsync(UpdateCustomerStatusAsync);
         }
 
         public async Task Run()
         {
 
             ConfigureStream();
+
+            ConfigureDistribution();
 
             Console.WriteLine("Transaction orchestrator execution started.");
 
@@ -74,7 +83,7 @@ namespace Transaction
                     {
                         int val = config.submissionValue;
                         do {
-                            tasks.Add(Task.Run(SubmitTransaction));
+                            tasks.Add( Task.Run(SubmitTransaction) );
                             val--;
                         } while (val > 0);
                     }
@@ -105,14 +114,30 @@ namespace Transaction
                     // not supported yet
                     break;
                 }
-                default: { throw new Exception(); }
+                default: { throw new Exception("Strategy for submitting transactions not defined!"); }
             }
 
             Console.WriteLine("Scenario orchestrator main loop terminated.");
 
-            await customerSubscription.UnsubscribeAsync();
+            await customerWorkerSubscription.UnsubscribeAsync();
 
             return;
+        }
+
+        private void ConfigureDistribution()
+        {
+            NumberGenerator sellerIdGenerator = this.config.customerConfig.sellerDistribution == Distribution.UNIFORM ?
+                                    new UniformLongGenerator(this.config.customerConfig.sellerRange.Start.Value, this.config.customerConfig.sellerRange.End.Value) :
+                                    new ZipfianGenerator(this.config.customerConfig.sellerRange.Start.Value, this.config.customerConfig.sellerRange.End.Value);
+
+            NumberGenerator customerIdGenerator = this.config.customerDistribution == Distribution.UNIFORM ?
+                                    new UniformLongGenerator(this.config.customerRange.Start.Value, this.config.customerRange.End.Value) :
+                                    new ZipfianGenerator(this.config.customerRange.Start.Value, this.config.customerRange.End.Value);
+
+            this.keyGeneratorPerWorkloadType[WorkloadType.PRICE_UPDATE] = sellerIdGenerator;
+            this.keyGeneratorPerWorkloadType[WorkloadType.DELETE_PRODUCT] = sellerIdGenerator;
+            this.keyGeneratorPerWorkloadType[WorkloadType.CUSTOMER_SESSION] = customerIdGenerator;
+            // this.keyGeneratorPerWorkloadType[WorkloadType.UPDATE_DELIVERY] = sellerIdGenerator;
         }
 
         private ConcurrentDictionary<long, CustomerStatus> customerStatusCache = new();
@@ -131,30 +156,37 @@ namespace Transaction
          */
         private async Task SubmitTransaction()
         {
+            Console.WriteLine("Submit transaction called!");
+
             int idx = random.Next(0, this.config.weight.Length);
+            Console.WriteLine("index:{0}", idx);
+
             WorkloadType tx = this.config.weight[idx];
 
-            long grainID = config.keyGeneratorPerWorkloadType[tx].NextValue();
+            Console.WriteLine("Transaction type {0}", tx.ToString());
+
+            long grainID;     
 
             switch (tx)
             { 
                 case WorkloadType.CUSTOMER_SESSION: //customer
                 {
+                    grainID = this.keyGeneratorPerWorkloadType[tx].NextValue();
                     // but make sure there is no active session for the customer. if so, pick another customer
-                    if (customerStatusCache.ContainsKey(grainID)) {
+                    if (this.customerStatusCache.ContainsKey(grainID)) {
                         while (customerStatusCache[grainID] == CustomerStatus.BROWSING)
-                            grainID = config.keyGeneratorPerWorkloadType[tx].NextValue();
+                            grainID = this.keyGeneratorPerWorkloadType[tx].NextValue();
                     } else {
-                        customerStatusCache.GetOrAdd(grainID, CustomerStatus.NEW);
+                        this.customerStatusCache.GetOrAdd(grainID, CustomerStatus.NEW);
                     }
                     
-                    ICustomerWorker customerWorker = orleansClient.GetGrain<ICustomerWorker>(grainID);
-                    if (customerStatusCache[grainID] == CustomerStatus.NEW)
+                    ICustomerWorker customerWorker = this.orleansClient.GetGrain<ICustomerWorker>(grainID);
+                    if (this.customerStatusCache[grainID] == CustomerStatus.NEW)
                     {
                         await customerWorker.Init(config.customerConfig);
                     }
-                    var streamOutgoing = streamProvider.GetStream<int>(StreamingConfiguration.CustomerStreamId, grainID.ToString());
-                    customerStatusCache[grainID] = CustomerStatus.BROWSING;
+                    var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConfiguration.CustomerStreamId, grainID.ToString());
+                    this.customerStatusCache[grainID] = CustomerStatus.BROWSING;
                     _ = streamOutgoing.OnNextAsync(1);   
                     break;
                 }
@@ -172,19 +204,21 @@ namespace Transaction
                 // we could also have a skewed distribution of products for each seller
                 case WorkloadType.PRICE_UPDATE: // seller
                 {
-                    var streamOutgoing = streamProvider.GetStream<int>(StreamingConfiguration.SellerStreamId, grainID.ToString());
+                    grainID = this.keyGeneratorPerWorkloadType[tx].NextValue();
+                    var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConfiguration.SellerStreamId, grainID.ToString());
                     _ = streamOutgoing.OnNextAsync(0);
                     return;
                 }
                 case WorkloadType.DELETE_PRODUCT: // seller
                 {
-                    var streamOutgoing = streamProvider.GetStream<int>(StreamingConfiguration.SellerStreamId, grainID.ToString());
+                    grainID = this.keyGeneratorPerWorkloadType[tx].NextValue();
+                    var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConfiguration.SellerStreamId, grainID.ToString());
                     _ = streamOutgoing.OnNextAsync(1);
                     return;
                 }
                 case WorkloadType.UPDATE_DELIVERY: // delivery worker
                 {
-                    var streamOutgoing = streamProvider.GetStream<int>(StreamingConfiguration.DeliveryStreamId, null);
+                    var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConfiguration.DeliveryStreamId, null);
                     _ = streamOutgoing.OnNextAsync(0);
                     return;
                 }

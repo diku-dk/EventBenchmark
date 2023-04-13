@@ -196,3 +196,6 @@ https://theburningmonk.com/2014/12/a-look-at-microsoft-orleans-through-erlang-ti
 ### Storage
 https://github.com/dotnet/orleans/issues/1756
 About storing multiple entities: "just use your favourite ORM. The other way is to use one of the Orleans persistence providers that saves, well, what they save. :)"
+
+### Similar app in Orleans samples
+https://github.com/dotnet/samples/tree/main/orleans/ShoppingCart

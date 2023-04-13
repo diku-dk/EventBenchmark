@@ -39,7 +39,7 @@ namespace Common.Scenario.Entity
 
         // statistics. these vakues can be deduced (by aggregate operation) from order items and packages, respectively. not sure we should keep them
         public int order_count { get; set; }
-        public int delivery_count { get; set; }
+        // public int delivery_count { get; set; }
 
     }
 }

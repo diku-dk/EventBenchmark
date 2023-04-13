@@ -58,12 +58,16 @@ namespace Grains.Workers
 
         public Task Init(SellerConfiguration sellerConfig, List<Product> products)
         {
+
+            _logger.LogWarning("Init -> Seller worker {0} with #{1} product(s).", this.sellerId, products.Count);
             this.config = sellerConfig;
             this.products = products;
 
             this.products.Sort(productComparer);
-            long lastId = this.products[this.products.Count-1].id;
+            long lastId = this.products.ElementAt(this.products.Count-1).id;
 
+            _logger.LogWarning("Init -> Seller worker {0} first {1} last {2}.", this.sellerId, this.products.ElementAt(0).id, lastId);
+             
             this.productIdGenerator = this.config.keyDistribution == Distribution.UNIFORM ?
                  new UniformLongGenerator(this.products[0].id, lastId) :
                  new ZipfianGenerator(this.products[0].id, lastId);
@@ -102,12 +106,12 @@ namespace Grains.Workers
         {
             if (this.config.delayBeforeStart > 0)
             {
-                _logger.LogInformation("Seller {0} delay before start: {1}", this.sellerId, this.config.delayBeforeStart);
+                _logger.LogWarning("Seller {0} delay before start: {1}", this.sellerId, this.config.delayBeforeStart);
                 await Task.Delay(this.config.delayBeforeStart);
             }
             else
             {
-                _logger.LogInformation("Seller {0} NO delay before start!", this.sellerId);
+                _logger.LogWarning("Seller {0} NO delay before start!", this.sellerId);
             }
 
             if (operation < 1)
@@ -142,7 +146,7 @@ namespace Grains.Workers
                     var response = await HttpUtils.client.DeleteAsync(config.urls["products"] + "/" + selectedProduct);
                     response.EnsureSuccessStatusCode();
                     this.deletedProducts.Add(selectedProduct);
-                    _logger.LogInformation("Product {0} deleted by seller {0}", selectedProduct, this.sellerId);
+                    _logger.LogWarning("Product {0} deleted by seller {0}", selectedProduct, this.sellerId);
                 }
                 catch (Exception) {
                     _logger.LogError("Product {0} could not be deleted by seller {0}", selectedProduct, this.sellerId);
@@ -167,7 +171,7 @@ namespace Grains.Workers
         private async void UpdatePrice()
         {
             // to simulate how a seller would interact with the platform
-            _logger.LogInformation("Seller {0} has started UpdatePrice", this.sellerId);
+            _logger.LogWarning("Seller {0} has started UpdatePrice", this.sellerId);
 
             // 1 - simulate seller browsing own main page (that will bring the product list)
             List<Product> products = await GetOwnProducts();
@@ -206,7 +210,7 @@ namespace Grains.Workers
 
             if (task.IsSuccessStatusCode)
             {
-                _logger.LogInformation("Seller {0} has finished price update.", this.sellerId);
+                _logger.LogWarning("Seller {0} has finished price update.", this.sellerId);
                 return;
             }
             _logger.LogError("Seller {0} failed to update prices.", this.sellerId);

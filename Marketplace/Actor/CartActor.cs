@@ -68,17 +68,19 @@ namespace Marketplace.Actor
             int custPartition = (int)(this.customerId % nCustomerPartitions);
             var custActor = GrainFactory.GetGrain<ICustomerActor>(custPartition);
             this.customer = await custActor.GetCustomer(this.customerId);
+            _logger.LogWarning("Customer loaded for cart {0}", customerId);
         }
 
         public Task AddProduct(BasketItem item)
         {
             if (items.ContainsKey(item.ProductId))
             {
-                _logger.LogInformation("Item already added to cart. Item will be updated.");
+                _logger.LogWarning("Item already added to cart {0}. Item will be updated then.", customerId);
                 items[item.ProductId] = item;
                 return Task.CompletedTask;
             }
             items.Add(item.ProductId, item);
+            _logger.LogWarning("Item added to cart {0}: {1}", customerId, item.ProductId);
             return Task.CompletedTask;
         }
 
@@ -107,11 +109,13 @@ namespace Marketplace.Actor
         // customer decided to checkout
         public async Task<Invoice> Checkout(CustomerCheckout basketCheckout)
         {
-            if(items.Count == 0)
-                throw new Exception("Cart is empty.");
+            _logger.LogWarning("Cart {0} received checkout request.", customerId);
+
+            if (items.Count == 0)
+                throw new Exception("Cart "+ customerId+" is empty.");
 
             if(this.status == Status.CHECKOUT_SENT)
-                throw new Exception("Cannot checkout a cart that has a checkout in progress");
+                throw new Exception("Cannot checkout a cart "+ customerId+" that has a checkout in progress.");
 
             /*
             // customer decided to checkout even with the divergences presented earlier
@@ -148,7 +152,7 @@ namespace Marketplace.Actor
             // int orderPart = (int)(this.customerId % nOrderPartitions);
             // pick a random partition. why? (i) we do not know the order id yet (ii) distribute the work more seamlessly
             int orderPart = random.Next(0, nOrderPartitions);
-            var orderActor = GrainFactory.GetGrain<IOrderActor>(orderPart);
+            IOrderActor orderActor = GrainFactory.GetGrain<IOrderActor>(orderPart);
             this.status = Status.CHECKOUT_SENT;
             // pass the responsibility
             Invoice resp = await orderActor.Checkout_1(checkout);

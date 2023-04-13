@@ -25,12 +25,9 @@ namespace Client
             numberCpus = 2,
             mapTableToUrl = new Dictionary<string, string>()
             {
-                /*
-                ["categories"] = "http://127.0.0.1:8001/categories",
                 ["sellers"] = "http://127.0.0.1:8001/sellers",
                 ["customers"] = "http://127.0.0.1:8001/customers",
                 ["stock_items"] = "http://127.0.0.1:8001/stock_items",
-                */
                 ["products"] = "http://127.0.0.1:8001/products",
             }
         };
@@ -51,6 +48,7 @@ namespace Client
                 maxNumberKeysToBrowse = 10,
                 maxNumberKeysToAddToCart = 10, // both the same for simplicity
                 sellerDistribution = Common.Configuration.Distribution.UNIFORM,
+                sellerRange = new Range(1, 10),
                 urls = mapTableToUrl,
                 minMaxQtyRange = new Range(1, 11),
                 delayBetweenRequestsRange = new Range(1, 1000),
@@ -64,7 +62,10 @@ namespace Client
             submissionType = SubmissionEnum.QUANTITY,
             submissionValue = 1,
             period = TimeSpan.FromSeconds(600), // 10 min
-            waitBetweenSubmissions = 60000 // 60 seconds
+            waitBetweenSubmissions = 60000, // 60 seconds
+            // TODO setup this dynamically
+            customerDistribution = Common.Configuration.Distribution.UNIFORM,
+            customerRange = new Range(1, 10),
         };
 
         public static void Main_(string[] args)
@@ -122,12 +123,12 @@ namespace Client
                 load = true,
                 healthCheck = false,
                 ingestion = true,
-                transaction = false,
+                transaction = true,
                 cleanup = false,
                 scenarioConfig = defaultScenarioConfig,
                 ingestionConfig = defaultIngestionConfig,
                 syntheticConfig = new SyntheticDataSourceConfiguration()
-            // olistConfig = new DataGeneration.Real.OlistDataSourceConfiguration()
+                // olistConfig = new DataGeneration.Real.OlistDataSourceConfiguration()
         };
 
             MasterOrchestrator orchestrator = new MasterOrchestrator(masterConfiguration);
@@ -136,6 +137,8 @@ namespace Client
             Console.WriteLine("Master orchestrator finished!");
 
             await client.Close();
+
+            Console.WriteLine("Orleans client finalized!");
 
             if (mock)
             {

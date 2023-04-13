@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using DuckDB.NET.Data;
 using System.Text;
+using Confluent.Kafka;
+using Bogus;
+using Bogus.Extensions.Brazil;
 
 namespace Client.DataGeneration
 {
 	public abstract class BaseDataGenerator
 	{
-
         protected const string numbers = "0123456789";
         protected const string alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
         protected const string alphanumericupper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -19,6 +21,8 @@ namespace Client.DataGeneration
         protected static DateTime minDate = new DateTime(1940, 1, 1);
         protected static DateTime maxDate = new DateTime(2008, 12, 31);
         protected readonly long baseTicks = maxDate.Ticks - minDate.Ticks;
+
+        protected readonly Faker faker = new Faker();
 
         protected readonly Dictionary<string, string> mapTableToCreateStmt = new()
         {
@@ -44,10 +48,10 @@ namespace Client.DataGeneration
 
         protected void GenerateStockItem(DuckDbCommand command, int productId, int sellerId)
         {
-            var quantity = numeric(4, true);
-            var ytd = numeric(2, false);
-            var order_count = numeric(2, false);
-            var data = RandomString(50, alphanumeric);
+            var quantity = Numeric(4, true);
+            var ytd = Numeric(2, false);
+            var order_count = Numeric(2, false);
+            var data = faker.Lorem.Sentence(); // RandomString(50, alphanumeric);
 
             // issue insert statement
             var sb = new StringBuilder(baseStockQuery);
@@ -59,6 +63,8 @@ namespace Client.DataGeneration
             sb.Append(ytd).Append(',');
             sb.Append('\'').Append(data).Append("');");
 
+            Console.WriteLine(sb.ToString());
+
             command.CommandText = sb.ToString();
             command.ExecuteNonQuery();
         }
@@ -67,37 +73,37 @@ namespace Client.DataGeneration
 
         protected void GenerateCustomer(DuckDbCommand command, int customerId, string[] geo)
         {
-            var firstName = RandomString(16, alpha);
-            var lastName = RandomString(16, alpha);
-            var address = RandomString(20, alphanumeric);
-            var complement = RandomString(20, alphanumeric);
+            var firstName = RemoveBadCharacter( faker.Name.FirstName() ); // RandomString(16, alpha);
+            var lastName = RemoveBadCharacter( faker.Name.LastName() ); // RandomString(16, alpha);
+            var address = RemoveBadCharacter(faker.Address.StreetName()); // RandomString(20, alphanumeric);
+            var complement = RemoveBadCharacter(faker.Address.StreetSuffix()); // RandomString(20, alphanumeric);
             var birth_date = GenerateBirthdate();
 
             var city = geo[0];
             var state = geo[1];
             var zip = geo[2];
 
-            var cardNumber = RandomString(16, numbers);
-            var cardSecurityNumber = RandomString(3, numbers);
+            var cardNumber = faker.Finance.CreditCardNumber(); //  RandomString(16, numbers);
+            var cardSecurityNumber = faker.Finance.CreditCardCvv(); //RandomString(3, numbers);
             var cardExpiration = RandomString(4, numbers);
             string cardHolderName;
             if (random.Next(1, 11) < 8)//70% change
             {
-                var middleName = RandomString(16, alpha);
+                var middleName = RemoveBadCharacter( faker.Name.LastName() ); // RandomString(16, alpha);
                 cardHolderName = firstName + " " + middleName + " " + lastName;
             }
             else
             {
-                cardHolderName = RandomString(16, alpha);
+                cardHolderName = RemoveBadCharacter(faker.Name.FullName()); // RandomString(16, alpha);
             }
             var cardType = cardValues.GetValue(random.Next(1, cardValues.Length)).ToString();
 
-            var success_payment_count = numeric(2, false);
-            var failed_payment_count = numeric(2, false);
-            var C_DELIVERY_CNT = numeric(2, false);
-            var C_DATA = RandomString(500, alphanumeric);
+            var success_payment_count = Numeric(2, false);
+            var failed_payment_count = Numeric(2, false);
+            var C_DELIVERY_CNT = Numeric(2, false);
+            var C_DATA = faker.Lorem.Paragraph(); // RandomString(500, alphanumeric);
 
-            var abandonedCartsNum = numeric(2, false);
+            var abandonedCartsNum = Numeric(2, false);
 
             var sb = new StringBuilder(baseCustomerQuery);
             sb.Append('(').Append(customerId).Append(',');
@@ -129,19 +135,19 @@ namespace Client.DataGeneration
 
         protected void GenerateSeller(DuckDbCommand command, long sellerId, string city, string state, string zip)
         {
-            string name = RandomString(10, alpha);
-            string company_name = RandomString(10, alpha);
+            string name = RemoveBadCharacter(faker.Name.FullName()); // RandomString(10, alpha);
+            string company_name = RemoveBadCharacter(faker.Company.CompanyName()); // RandomString(10, alpha);
             string email = GenerateRandomEmail();
             string phone = GeneratePhoneNumber();
             string mobile_phone = GeneratePhoneNumber();
 
-            string cpf = GenerateCpf();
-            string cnpj = GenerateCnpj();
+            string cpf = faker.Person.Cpf(); // GenerateCpf();
+            string cnpj = faker.Company.Cnpj(); // GenerateCnpj();
 
-            string address = RandomString(20, alphanumeric);
-            string complement = RandomString(20, alphanumeric);
+            var address = RemoveBadCharacter(faker.Address.StreetAddress()); // RandomString(20, alphanumeric);
+            var complement = RemoveBadCharacter(faker.Address.SecondaryAddress()); // RandomString(20, alphanumeric);
 
-            var order_count = numeric(1, false);
+            var order_count = Numeric(1, false);
 
             // issue insert statement
             var sb = new StringBuilder(baseSellerQuery);
@@ -168,11 +174,11 @@ namespace Client.DataGeneration
 
         protected void GenerateProduct(DuckDbCommand command, long productId, long sellerId, string category)
         {
-            var name = RandomString(24, alphanumeric);
+            var name = faker.Commerce.ProductName(); // RandomString(24, alphanumeric);
             // e.g., "PRDQQ1UCPOFRHWAA"
             var sku = RandomString(16, alphanumericupper);
-            var price = numeric(5, 2, true);
-            var description = RandomString(50, alphanumeric);
+            var price = Numeric(5, 2, true); // decimal.Parse( faker.Commerce.Price() ); // 
+            var description = RemoveBadCharacter( faker.Commerce.ProductDescription() );  // faker.Lorem.Paragraph(); // RandomString(50, alphanumeric);
             var status = "approved";
             var sb = new StringBuilder(baseProductQuery);
 
@@ -195,7 +201,8 @@ namespace Client.DataGeneration
 
         public abstract void Generate();
 
-        protected static string RemoveBadCharacter(string str) {
+        protected static string RemoveBadCharacter(string str)
+        {
             if (str.Contains('\''))
             {
                 return str.Replace("'", "");
@@ -209,7 +216,7 @@ namespace Client.DataGeneration
               .Select(s => s[random.Next(s.Length)]).ToArray());
         }
 
-        protected int numeric(int m, bool signed)
+        protected int Numeric(int m, bool signed)
         {
             var num = random.Next((int)Math.Pow(10, m), (int)Math.Pow(10, m + 1));
             var isPositive = random.Next(0, 2);
@@ -217,7 +224,7 @@ namespace Client.DataGeneration
             else return num;
         }
 
-        protected float numeric(int m, int n, bool signed)
+        protected float Numeric(int m, int n, bool signed)
         {
             float the_number;
             var str = RandomString(m, numbers);
@@ -239,13 +246,9 @@ namespace Client.DataGeneration
             return the_number;
         }
 
-        /**
-         * Retrieved from:
-         * http://www.java2s.com/example/csharp/system/generate-random-email.html
-         */
-        public static string GenerateRandomEmail()
+        public string GenerateRandomEmail()
         {
-            return string.Format("{0}@{1}.com", GenerateRandomAlphabetString(10), GenerateRandomAlphabetString(10));
+            return faker.Internet.Email();
         }
 
         private static readonly Random seedRandom = new Random(Guid.NewGuid().GetHashCode());
@@ -260,67 +263,15 @@ namespace Client.DataGeneration
             return new string(chars);
         }
 
-        // Retrieved from: https://gist.github.com/georgepaoli/16fd769352646a888ebb157cfe982ff6
-        private string GenerateCpf()
-        {
-            int soma = 0, resto = 0;
-            int[] multiplicador1 = new int[9] { 10, 9, 8, 7, 6, 5, 4, 3, 2 };
-            int[] multiplicador2 = new int[10] { 11, 10, 9, 8, 7, 6, 5, 4, 3, 2 };
-
-            string semente = random.Next(100000000, 999999999).ToString();
-
-            for (int i = 0; i < 9; i++)
-                soma += int.Parse(semente[i].ToString()) * multiplicador1[i];
-
-            resto = soma % 11;
-            if (resto < 2)
-                resto = 0;
-            else
-                resto = 11 - resto;
-
-            semente = semente + resto;
-            soma = 0;
-
-            for (int i = 0; i < 10; i++)
-                soma += int.Parse(semente[i].ToString()) * multiplicador2[i];
-
-            resto = soma % 11;
-
-            if (resto < 2)
-                resto = 0;
-            else
-                resto = 11 - resto;
-
-            semente = semente + resto;
-            return semente;
-        }
-
         private string GeneratePhoneNumber()
         {
-            return this.random.Next(10000000, 99999999).ToString();
+            return faker.Phone.PhoneNumber();
+            // return this.random.Next(10000000, 99999999).ToString();
         }
 
-        /**
-         * 14-digit number. Format: XX.XXX.XXX/0001-XX
-         * More info: https://en.wikipedia.org/wiki/CNPJ
-         */
-        private string GenerateCnpj()
-        {
-            string part1 = this.random.Next(10000000, 99999999).ToString();
-            var part2Char = this.random.Next(100000, 999999).ToString().ToCharArray();
-            part2Char[3] = '1';
-            string part2 = part2Char.ToString();
-            return part1 + part2;
-        }
-
-        /**
-         * Inspiration from: https://stackoverflow.com/questions/44370877/generate-a-random-birthday-given-an-age
-         */
         private string GenerateBirthdate()
         {
-            var toAdd = (long)(random.NextDouble() * baseTicks);
-            var newDate = new DateTime(minDate.Ticks + toAdd);
-            return newDate.ToLongTimeString();
+            return faker.Person.DateOfBirth.ToShortDateString();
         }
 
     }

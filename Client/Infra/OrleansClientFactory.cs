@@ -5,6 +5,7 @@ using Orleans.Runtime.Messaging;
 using System.Threading.Tasks;
 using Orleans.Hosting;
 using Orleans.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace Client.Infra
 {
@@ -17,11 +18,16 @@ namespace Client.Infra
                                 .Configure<GatewayOptions>(
                                     options =>                         // Default is 1 min.
                                     options.GatewayListRefreshPeriod = TimeSpan.FromMinutes(10))
-                                //.ConfigureLogging(logging => logging.AddConsole())
+                                .ConfigureLogging(logging =>
+                                {
+                                    logging.ClearProviders();
+                                    logging.AddConsole();
+                                    logging.SetMinimumLevel(LogLevel.Warning);
+                                })
                                 .AddSimpleMessageStreamProvider(StreamingConfiguration.DefaultStreamProvider, options =>
                                 {
                                     options.PubSubType = Orleans.Streams.StreamPubSubType.ExplicitGrainBasedOnly;
-                                    options.FireAndForgetDelivery = true;
+                                    options.FireAndForgetDelivery = false;
                                     options.OptimizeForImmutableData = true;
                                 })
                                 .Build();

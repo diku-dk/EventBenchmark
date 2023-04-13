@@ -106,7 +106,7 @@ namespace Client.DataGeneration
                 string[] geo = GetGeolocation(command, numGeo);
                 GenerateSeller(command, currSellerId, geo[0], geo[1], geo[2]);
 
-                for(int i = 1; i < numProductsForSeller; i++)
+                for(int i = 1; i <= numProductsForSeller; i++)
                 {
                     // get category
                     var category = GetCategory(command, numCat);
@@ -128,7 +128,7 @@ namespace Client.DataGeneration
                 currCustomer++;
             }
 
-            Console.WriteLine("Synthetic data generation has finished");
+            Console.WriteLine("Synthetic data generation has terminated.");
 
         }
 
