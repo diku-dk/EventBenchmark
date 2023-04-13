@@ -184,10 +184,15 @@ to benchmark
 snapper-based impl does not support pubsub abstraction
 cannot ensure serializability in this case
 
-### Future Directions
+## Future Directions
 Operator, basic building block of Kubernetes
 Orleans as an operator
 
-### Interesting Links
+## Interesting Links
 
+### The runtime itself
 https://theburningmonk.com/2014/12/a-look-at-microsoft-orleans-through-erlang-tinted-glasses/
+
+### Storage
+https://github.com/dotnet/orleans/issues/1756
+About storing multiple entities: "just use your favourite ORM. The other way is to use one of the Orleans persistence providers that saves, well, what they save. :)"

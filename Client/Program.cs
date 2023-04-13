@@ -25,11 +25,13 @@ namespace Client
             numberCpus = 2,
             mapTableToUrl = new Dictionary<string, string>()
             {
+                /*
                 ["categories"] = "http://127.0.0.1:8001/categories",
                 ["sellers"] = "http://127.0.0.1:8001/sellers",
-                ["products"] = "http://127.0.0.1:8001/products",
                 ["customers"] = "http://127.0.0.1:8001/customers",
                 ["stock_items"] = "http://127.0.0.1:8001/stock_items",
+                */
+                ["products"] = "http://127.0.0.1:8001/products",
             }
         };
 
@@ -49,7 +51,6 @@ namespace Client
                 maxNumberKeysToBrowse = 10,
                 maxNumberKeysToAddToCart = 10, // both the same for simplicity
                 sellerDistribution = Common.Configuration.Distribution.UNIFORM,
-                // sellerRange = new Range(1, 15), // this is defined dynamically
                 urls = mapTableToUrl,
                 minMaxQtyRange = new Range(1, 11),
                 delayBetweenRequestsRange = new Range(1, 1000),
@@ -94,6 +95,8 @@ namespace Client
             }
         }
 
+        private static readonly bool mock = false;
+
         /**
          * Main method based on 
          * http://sergeybykov.github.io/orleans/1.5/Documentation/Deployment-and-Operations/Docker-Deployment.html
@@ -105,9 +108,12 @@ namespace Client
             if (client == null) return;
             Console.WriteLine("Orleans client initialized!");
 
-            Console.WriteLine("Initializing Mock Http server...");
-            HttpServer httpServer = new HttpServer(new HttpHandler());
-            Task httpServerTask = Task.Run(httpServer.Run);
+            HttpServer httpServer = null;
+            if (mock) {
+                Console.WriteLine("Initializing Mock Http server...");
+                httpServer = new HttpServer(new HttpHandler());
+                Task httpServerTask = Task.Run(httpServer.Run);
+            }
 
             MasterConfiguration masterConfiguration = new()
             {
@@ -131,8 +137,10 @@ namespace Client
 
             await client.Close();
 
-            httpServer.Stop();
-
+            if (mock)
+            {
+                httpServer.Stop();
+            }
         }
 
     }

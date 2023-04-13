@@ -171,7 +171,7 @@ namespace Client.DataGeneration
             var name = RandomString(24, alphanumeric);
             // e.g., "PRDQQ1UCPOFRHWAA"
             var sku = RandomString(16, alphanumericupper);
-            var price = numeric(5, 2, false);
+            var price = numeric(5, 2, true);
             var description = RandomString(50, alphanumeric);
             var status = "approved";
             var sb = new StringBuilder(baseProductQuery);
@@ -307,8 +307,9 @@ namespace Client.DataGeneration
         private string GenerateCnpj()
         {
             string part1 = this.random.Next(10000000, 99999999).ToString();
-            var part2 = this.random.Next(100000, 999999).ToString().ToCharArray();
-            part2[3] = '1';
+            var part2Char = this.random.Next(100000, 999999).ToString().ToCharArray();
+            part2Char[3] = '1';
+            string part2 = part2Char.ToString();
             return part1 + part2;
         }
 

@@ -7,26 +7,10 @@ using System.Collections.Generic;
 using Common.Entity;
 using Marketplace.Infra;
 using Marketplace.Message;
+using Marketplace.Interfaces;
 
 namespace Marketplace.Actor
 {
-
-	public interface IProductActor : IGrainWithIntegerKey, SnapperActor
-    {
-
-        public Task<Product> GetProduct(long productId);
-
-        // public Task<Product> GetProductWithFreightValue(long productId, string zipCode);
-
-        public Task DeleteProduct(long productId);
-
-        // seller worker calls it
-        public Task UpdateProductPrice(long productId, decimal newPrice);
-
-        public Task<ProductCheck> CheckCorrectness(BasketItem item);
-
-        public Task<bool> AddProduct(Product product);
-    }
 
     public class ProductActor : Grain, IProductActor
     {
@@ -44,6 +28,8 @@ namespace Marketplace.Actor
         public override async Task OnActivateAsync()
         {
             this.partitionId = this.GetPrimaryKeyLong();
+            // to avoid warning...
+            await base.OnActivateAsync();
         }
 
         public Task DeleteProduct(long productId)
@@ -90,6 +76,7 @@ namespace Marketplace.Actor
 
         public Task<bool> AddProduct(Product product)
         {
+            _logger.LogInformation("adding product...");
             return Task.FromResult(this.products.TryAdd(product.id, product));
         }
     }

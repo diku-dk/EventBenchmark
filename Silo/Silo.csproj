@@ -15,6 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="..\GrainInterfaces\GrainInterfaces.csproj" />
     <ProjectReference Include="..\Grains\Grains.csproj" />
+    <ProjectReference Include="..\Marketplace\Marketplace.csproj" />
   </ItemGroup>
 
 </Project>

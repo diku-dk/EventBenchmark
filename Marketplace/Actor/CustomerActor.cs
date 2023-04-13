@@ -5,18 +5,10 @@ using Common.Scenario.Entity;
 using Common.Entity;
 using Marketplace.Infra;
 using Orleans;
+using Marketplace.Interfaces;
 
 namespace Marketplace.Actor
 {
-    public interface ICustomerActor : IGrainWithIntegerKey, SnapperActor
-    {
-		public Task<Customer> GetCustomer(long customerId);
-        public Task NotifyPayment(long customerId, Order order = null, bool success = true);
-        public Task NotifyDelivery(long customerId);
-
-        // API
-        public Task AddCustomer(Customer customer);
-    }
 
     public class CustomerActor : Grain, ICustomerActor
 	{

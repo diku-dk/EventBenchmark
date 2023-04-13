@@ -8,23 +8,10 @@ using Marketplace.Infra;
 using Microsoft.Extensions.Logging;
 using Orleans;
 using Orleans.Runtime;
+using Marketplace.Interfaces;
 
 namespace Marketplace.Actor
 {
-    /**
-     * The benchmark driver ensures a customer does not start a new cart 
-     * while the current cart checkout has not been completed
-     */
-	public interface ICartActor : IGrainWithIntegerKey, SnapperActor
-    {
-		public Task AddProduct(BasketItem item);
-
-        public Task<Invoice> Checkout(CustomerCheckout basketCheckout);
-
-        public Task<Dictionary<long, BasketItem>> GetCart();
-
-        // public Task Seal();
-	}
 
     public enum Status
     {

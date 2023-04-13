@@ -9,6 +9,10 @@ using Newtonsoft.Json;
 
 namespace Client.Server
 {
+    /**
+     * A simple handler for debugging/testing purposes
+     * It processes the request synchronously.
+     */
 	public class HttpHandler : IHttpClientRequestHandler
 	{
 
@@ -18,13 +22,15 @@ namespace Client.Server
             HttpListenerResponse resp = ctx.Response;
 
             StreamReader stream = new StreamReader(req.InputStream);
-            string x = stream.ReadToEnd();
+            string content = stream.ReadToEnd();
 
             Console.WriteLine("==== NEW REQUEST =====");
             Console.WriteLine(req.Url.ToString());
             Console.WriteLine(req.HttpMethod);
-            Console.WriteLine(req.UserHostName);
-            Console.WriteLine(x);
+            // query only if parameters are included in the url
+            // Console.WriteLine(req.Url.PathAndQuery);
+            Console.WriteLine(req.Url.AbsolutePath);
+            Console.WriteLine(content);
             Console.WriteLine("==== END OF REQUEST =====\n");
 
             // return a basic product json to test the driver

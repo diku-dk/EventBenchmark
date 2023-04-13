@@ -8,14 +8,10 @@ using System.Collections.Generic;
 using Common.Scenario.Entity;
 using Marketplace.Infra;
 using Marketplace.Message;
+using Marketplace.Interfaces;
 
 namespace Marketplace.Actor
 {
-
-    public interface IPaymentActor : IGrainWithIntegerKey, SnapperActor
-    {
-        public Task ProcessPayment(Invoice invoice);
-    }
 
     public class PaymentActor : Grain, IPaymentActor
 	{
