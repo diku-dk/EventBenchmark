@@ -5,6 +5,10 @@ using Microsoft.Extensions.Logging;
 using System;
 using Common.Streaming;
 using System.Net;
+using Orleans.Configuration;
+using Orleans.Runtime;
+
+// graceful shutdown: https://sergeybykov.github.io/orleans/Documentation/clusters_and_clients/configuration_guide/shutting_down_orleans.html
 
 // https://learn.microsoft.com/en-us/dotnet/orleans/host/configuration-guide/typical-configurations
 // const string PRIMARY_SILO_IP_ADDRESS = "127.0.0.1";
@@ -34,6 +38,7 @@ var builder = new HostBuilder()
             }) // https://learn.microsoft.com/en-us/aspnet/core/fundamentals/logging/?tabs=aspnetcore2x&view=aspnetcore-7.0
                // .UseDashboard(options => { })    // localhost:8080
                // .ConfigureServices(services => { services.Add })
+            // .Configure<TelemetryOptions>(options => options.AddConsumer<IExceptionTelemetryConsumer>())
         ;
     });
 

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Orleans.Hosting;
 using Orleans.Configuration;
 using Microsoft.Extensions.Logging;
+using Orleans.Runtime;
 
 namespace Client.Infra
 {
@@ -30,6 +31,7 @@ namespace Client.Infra
                                     options.FireAndForgetDelivery = false;
                                     options.OptimizeForImmutableData = true;
                                 })
+                                .Configure<TelemetryOptions>(options => options.AddConsumer<DefaultTelemetryConsumer>())
                                 .Build();
 
             Func<Exception, Task<bool>> func = (x) => {

@@ -76,6 +76,7 @@ namespace Grains.Workers
             }
             await workloadStream.SubscribeAsync<int>(Run);
 
+            // to notify transaction orchestrator about status update
             this.txStream = streamProvider.GetStream<CustomerStatusUpdate>(StreamingConfiguration.CustomerStreamId, StreamingConfiguration.TransactionStreamNameSpace);
 
         }
@@ -88,7 +89,7 @@ namespace Grains.Workers
 
         public async Task Init(CustomerConfiguration config)
         {
-            _logger.LogWarning("Customer {0} init", this.customerId);
+            _logger.LogWarning("Customer worker {0} Init", this.customerId);
             this.config = config;
             this.sellerIdGenerator = this.config.sellerDistribution == Distribution.UNIFORM ?
                 new UniformLongGenerator(this.config.sellerRange.Start.Value, this.config.sellerRange.End.Value) :
@@ -98,14 +99,16 @@ namespace Grains.Workers
             this.customer = await GetCustomer(this.config.urls["customers"], customerId);
         }
 
-        private static async Task<Customer> GetCustomer(string customerUrl, long customerId)
+        private async Task<Customer> GetCustomer(string customerUrl, long customerId)
         {
+            this._logger.LogWarning("Customer worker {0} retrieving customer object...", this.customerId);
             HttpResponseMessage resp = await Task.Run(async () =>
             {
                 HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, customerUrl + "/" + customerId);
                 return await HttpUtils.client.SendAsync(message);
             });
             var str = await resp.Content.ReadAsStringAsync();
+            this._logger.LogWarning("Customer worker {0} retrieved customer object {1}", this.customerId, str);
             return JsonConvert.DeserializeObject<Customer>(str);
         }
 
@@ -154,6 +157,12 @@ namespace Grains.Workers
         private async Task Run(int obj, StreamSequenceToken token)
         {
             _logger.LogWarning("Customer {0} started!", this.customerId);
+
+            if(this.customer == null)
+            {
+                _logger.LogError("Customer object is not set in Customer Worker {0}. Cancelling browsing.", this.customerId);
+                return;
+            }
 
             if (this.config.delayBeforeStart > 0)
             {

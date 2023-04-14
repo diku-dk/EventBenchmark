@@ -155,6 +155,10 @@ namespace Client
                 {
                     throw new Exception("No carts URL found! Execution suspended.");
                 }
+                if (!customerConfig.urls.ContainsKey("customers"))
+                {
+                    throw new Exception("No customers URL found! Execution suspended.");
+                }
 
                 // get number of products
                 using var connection = new DuckDBConnection(config.connectionString);
@@ -167,6 +171,7 @@ namespace Client
 
                 // update customer config
                 long numSellers = DuckDbUtils.Count(connection, "sellers");
+                // defined dynamically
                 config.scenarioConfig.customerConfig.sellerRange = new Range(1, (int) numSellers);
 
                 // make sure to activate all sellers so all can respond to customers when required
@@ -204,16 +209,21 @@ namespace Client
                     Console.WriteLine("Streaming set up finished.");
                 }
 
+                // defined dynamically
+                long numCustomers = DuckDbUtils.Count(connection, "customers");
+                Range customerRange = new Range(1, (int)numCustomers);
+
                 // setup transaction orchestrator
-                TransactionOrchestrator transactionOrchestrator = new TransactionOrchestrator(config.orleansClient, config.scenarioConfig);
+                TransactionOrchestrator transactionOrchestrator = new TransactionOrchestrator(config.orleansClient, config.scenarioConfig, customerRange);
 
-                Task taskTx = Task.Run(() => transactionOrchestrator.Run());
+                _ = Task.Run(() => transactionOrchestrator.Run());
 
+                //config.orleansClient.
                 // TODO listen for cluster client disconnect and stop the sleep if necessary... Task.WhenAny...
                 Thread.Sleep(config.scenarioConfig.period);
 
                 transactionOrchestrator.Stop();
-                await taskTx;
+                
 
                 // stop kafka consumers if necessary
                 if (this.config.streamEnabled)

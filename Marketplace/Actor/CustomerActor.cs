@@ -44,7 +44,6 @@ namespace Marketplace.Actor
         public Task<Customer> GetCustomer(long customerId)
         {
             _logger.LogWarning("Attempt to retrieve customer id {0} in customer actor {1}", customerId, this.customerActorId);
-
             return Task.FromResult(this.customers[customerId]);
         }
 

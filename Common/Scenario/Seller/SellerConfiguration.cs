@@ -4,7 +4,9 @@ using Common.Configuration;
 
 namespace Common.Scenario.Seller
 {
-
+    /**
+     * The necessary data required by a seller worker to work properly
+     */
 	public sealed class SellerConfiguration
 	{
         // to serve customer workers

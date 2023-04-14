@@ -4,7 +4,10 @@ using Common.Configuration;
 
 namespace Common.Scenario.Customer
 {
-	public sealed class CustomerConfiguration
+    /**
+     * The necessary data required by a customer worker to work properly
+     */
+    public sealed class CustomerConfiguration
 	{
         public int maxNumberKeysToBrowse;
 

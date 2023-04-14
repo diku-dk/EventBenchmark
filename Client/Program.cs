@@ -36,7 +36,8 @@ namespace Client
         {
             ["products"] = "http://127.0.0.1:8001/products",
             ["carts"] = "http://127.0.0.1:8001/carts",
-            ["sellers"] = "http://127.0.0.1:8001/sellers"
+            ["sellers"] = "http://127.0.0.1:8001/sellers",
+            ["customers"] = "http://127.0.0.1:8001/customers",
         };
 
         private static readonly ScenarioConfiguration defaultScenarioConfig = new()
@@ -48,7 +49,8 @@ namespace Client
                 maxNumberKeysToBrowse = 10,
                 maxNumberKeysToAddToCart = 10, // both the same for simplicity
                 sellerDistribution = Common.Configuration.Distribution.UNIFORM,
-                sellerRange = new Range(1, 10),
+                // set dynamically by master orchestrator
+                // sellerRange = new Range(1, 10),
                 urls = mapTableToUrl,
                 minMaxQtyRange = new Range(1, 11),
                 delayBetweenRequestsRange = new Range(1, 1000),
@@ -63,9 +65,7 @@ namespace Client
             submissionValue = 1,
             period = TimeSpan.FromSeconds(600), // 10 min
             waitBetweenSubmissions = 60000, // 60 seconds
-            // TODO setup this dynamically
             customerDistribution = Common.Configuration.Distribution.UNIFORM,
-            customerRange = new Range(1, 10),
         };
 
         public static void Main_(string[] args)

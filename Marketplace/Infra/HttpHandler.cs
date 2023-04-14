@@ -12,6 +12,7 @@ using System.Text;
 using System.Net.Http;
 using Marketplace.Interfaces;
 using Common.Entity;
+using Microsoft.Extensions.Logging;
 
 namespace Marketplace.Infra
 {
@@ -21,9 +22,15 @@ namespace Marketplace.Infra
         // orleans client
         private readonly IClusterClient orleansClient;
 
+        private readonly ILogger _logger;
+
         public HttpHandler(IClusterClient orleansClient)
         {
             this.orleansClient = orleansClient;
+            using var loggerFactory = LoggerFactory.Create(loggingBuilder => loggingBuilder
+                                                    .SetMinimumLevel(LogLevel.Warning)
+                                                    .AddConsole());
+            this._logger = loggerFactory.CreateLogger("default");
         }
 
         /**
@@ -33,42 +40,58 @@ namespace Marketplace.Infra
          */
         public async void Handle(HttpListenerContext ctx)
         {
-            // TODO
+            // TODO fix others based on customer...
             // a.make sure all http calls from workers reach here
             // b. init a simple transaction workload (only with customers)
             // c. continue adding new transactions. monitor the system
 
-            // Console.WriteLine("Marketplace Http Handler new event!");
+            _logger.LogWarning("Marketplace Http Handler new request for URL | absolute path | absolute uri: {0} | {1} | {2}",
+                            ctx.Request.Url.Segments, ctx.Request.Url.AbsolutePath, ctx.Request.Url.AbsoluteUri);
+
+            string resource;
+            if (ctx.Request.Url.Segments[1].Contains('/'))
+                resource = ctx.Request.Url.Segments[1].Split('/')[0];
+            else
+                resource = ctx.Request.Url.Segments[1];
+            _logger.LogWarning("Resource is {0}", resource);
+
             // map url to respective actor
-            switch (ctx.Request.Url.AbsolutePath)
+            switch (resource)
             {
-                case "/carts":
+                case "carts":
                     {
                         await HandleCartRequestAsync(ctx);
                         return;
                     }
-                case "/products":
+                case "products":
                     {
                         await HandleProductRequestAsync(ctx);
                         return;
                     }
-                case "/sellers":
+                case "sellers":
                     {
                         await HandleSellerRequestAsync(ctx);
                         return;
                     }
-                case "/customers":
+                case "customers":
                     {
                         await HandleCustomerRequestAsync(ctx);
                         return;
                     }
-                case "/stock_items":
+                case "stock_items":
                     {
                         await HandleStockItemRequestAsync(ctx);
                         return;
                     }
+                default:
+                    {
+                        var resp = ctx.Response;
+                        resp.StatusCode = 404;
+                        resp.Close();
+                        _logger.LogWarning("Failed to process the request in Http Handler.");
+                        return;
+                    }
             }
-            // Console.WriteLine("Marketplace Http Handler not a product event!");
         }
 
         private async Task HandleCartRequestAsync(HttpListenerContext ctx)
@@ -249,11 +272,14 @@ namespace Marketplace.Infra
             HttpListenerRequest req = ctx.Request;
             HttpListenerResponse resp = ctx.Response;
 
+            _logger.LogWarning("Handling customer request");
+
             switch (req.HttpMethod)
             {
                 case "GET":
                     {
-                        string customerId = ctx.Request.Url.AbsolutePath.Split('/')[1];
+                        string customerId = ctx.Request.Url.Segments[2];
+                        _logger.LogWarning("GET method, customer id: {0}", customerId);
                         var obj = await orleansClient.GetGrain<ICustomerActor>(0).GetCustomer(Convert.ToInt64(customerId));
                         var payload = JsonConvert.SerializeObject(obj);
                         byte[] data = Encoding.UTF8.GetBytes(payload);

@@ -61,10 +61,7 @@ namespace Common.Scenario
         // seller config
         public SellerConfiguration sellerConfig;
 
-        // customer and seller workers do not need to know about other customer
-        // but the transaction orchestrator needs to assign grain ids to the transactions emitted
         public Distribution customerDistribution;
-        public Range customerRange;
 
     }
 }

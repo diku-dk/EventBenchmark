@@ -21,4 +21,10 @@
     <ProjectReference Include="..\GrainInterfaces\GrainInterfaces.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Remove="Infra\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Infra\" />
+  </ItemGroup>
 </Project>
