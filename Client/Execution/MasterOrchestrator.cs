@@ -219,7 +219,7 @@ namespace Client
                 _ = Task.Run(() => transactionOrchestrator.Run());
 
                 // listen for cluster client disconnect and stop the sleep if necessary... Task.WhenAny...
-                await Task.WhenAny(Task.Delay(config.scenarioConfig.period), ClusterObserver._siloFailedTask.Task);
+                await Task.WhenAny(Task.Delay(config.scenarioConfig.period), OrleansClientFactory._siloFailedTask.Task);
 
                 transactionOrchestrator.Stop();
                 

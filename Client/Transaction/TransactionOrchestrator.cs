@@ -166,10 +166,10 @@ namespace Transaction
         {
             try
             {
-                Console.WriteLine("Submit transaction called!");
+                this._logger.LogWarning("Submit transaction called!");
 
                 int idx = random.Next(0, this.config.weight.Length);
-                this._logger.LogWarning("index:{0}", idx);
+                this._logger.LogWarning("Index:{0}", idx);
 
                 WorkloadType tx = this.config.weight[idx];
 
@@ -197,7 +197,7 @@ namespace Transaction
                             this.customerStatusCache.TryAdd(grainID, CustomerStatus.NEW);
                         }
 
-                        _logger.LogWarning("Customer worker {0} defined!", grainID);
+                        this._logger.LogWarning("Customer worker {0} defined!", grainID);
 
                         ICustomerWorker customerWorker = this.orleansClient.GetGrain<ICustomerWorker>(grainID);
                         if (this.customerStatusCache[grainID] == CustomerStatus.NEW)
@@ -206,9 +206,9 @@ namespace Transaction
                         }
                         var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConfiguration.CustomerStreamId, grainID.ToString());
                         this.customerStatusCache[grainID] = CustomerStatus.BROWSING;
-                        _logger.LogWarning("Changed customer status of customer {0} in cache!", grainID);
+                        this._logger.LogWarning("Changed customer status of customer {0} in cache!", grainID);
                         _ = streamOutgoing.OnNextAsync(1);
-                        _logger.LogWarning("Customer worker {0} message sent!", grainID);
+                        this._logger.LogWarning("Customer worker {0} message sent!", grainID);
                         break;
                     }
                     // seller

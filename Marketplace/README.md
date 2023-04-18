@@ -197,5 +197,14 @@ https://theburningmonk.com/2014/12/a-look-at-microsoft-orleans-through-erlang-ti
 https://github.com/dotnet/orleans/issues/1756
 About storing multiple entities: "just use your favourite ORM. The other way is to use one of the Orleans persistence providers that saves, well, what they save. :)"
 
+https://learn.microsoft.com/en-us/dotnet/orleans/tutorials-and-samples/custom-grain-storage?pivots=orleans-3-x
+Orleans doc about custom storage
+
 ### Similar app in Orleans samples
 https://github.com/dotnet/samples/tree/main/orleans/ShoppingCart
+
+### Direct mapping from Http request to Grain call
+But it seems is not active at the moment. Last commit in 2018
+https://github.com/OrleansContrib/Orleans.HttpGateway.AspNetCore
+This one seems to be more active
+https://github.com/OrleansContrib/Orleans.Http

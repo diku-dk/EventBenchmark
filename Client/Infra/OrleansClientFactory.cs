@@ -13,6 +13,9 @@ namespace Client.Infra
 {
 	public sealed class OrleansClientFactory
 	{
+
+        public static readonly TaskCompletionSource _siloFailedTask = new TaskCompletionSource();
+
         public static async Task<IClusterClient> Connect()
         {
             IClusterClient client = new ClientBuilder()
@@ -21,14 +24,10 @@ namespace Client.Infra
                                     options =>                         // Default is 1 min.
                                     options.GatewayListRefreshPeriod = TimeSpan.FromMinutes(10)
                                 )
-                                .ConfigureServices(services =>
-                                {
-                                    // services.AddSingleton<ILifecycleParticipant<IClusterClientLifecycle>, ClusterObserver>();
-                                })
                                 .AddClusterConnectionLostHandler((x,y) =>
                                 {
-                                    Console.WriteLine("Connection to cluster lost.");
-                                    ClusterObserver._siloFailedTask.TrySetResult(true);
+                                    Console.WriteLine("[] Connection to cluster lost.");
+                                    _siloFailedTask.SetResult();
                                 })
                                 .ConfigureLogging(logging =>
                                 {

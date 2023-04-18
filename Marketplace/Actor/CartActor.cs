@@ -9,26 +9,18 @@ using Microsoft.Extensions.Logging;
 using Orleans;
 using Orleans.Runtime;
 using Marketplace.Interfaces;
+using Common.State;
 
 namespace Marketplace.Actor
 {
-
-    public enum Status
-    {
-        OPEN,
-        CHECKOUT_SENT,
-        PRODUCT_DIVERGENCE
-    };
-
     /**
      * Grain ID matches the customer ID
      */
     public class CartActor : Grain, ICartActor
     {
         // current basket
-        private Status status;
-        private readonly Dictionary<long, BasketItem> items;
-        private readonly List<ProductCheck> divergences;
+        private readonly CartState state;
+        private readonly IList<ProductCheck> divergences;
         private readonly Random random;
 
         // private readonly SortedList<long,Checkout> history;
@@ -44,10 +36,9 @@ namespace Marketplace.Actor
 
         public CartActor(ILogger<CartActor> _logger)
 		{
-            this.status = Status.OPEN;
-            this.items = new Dictionary<long,BasketItem>();
+            this.state = new CartState();
             this._logger = _logger;
-            this.divergences = new();
+            this.divergences = new List<ProductCheck>();
             this.random = new Random();
         }
 
@@ -69,21 +60,21 @@ namespace Marketplace.Actor
 
         public Task AddProduct(BasketItem item)
         {
-            if (items.ContainsKey(item.ProductId))
+            if (this.state.items.ContainsKey(item.ProductId))
             {
                 this._logger.LogWarning("Item already added to cart {0}. Item will be updated then.", customerId);
-                this.items[item.ProductId] = item;
+                this.state.items[item.ProductId] = item;
                 return Task.CompletedTask;
             }
-            this.items.Add(item.ProductId, item);
+            this.state.items.Add(item.ProductId, item);
             this._logger.LogWarning("Item {0} added to cart {1}", item.ProductId, customerId);
             return Task.CompletedTask;
         }
 
-        public Task<Dictionary<long, BasketItem>> GetCart()
+        public Task<CartState> GetCart()
         {
             this._logger.LogWarning("Cart {0} GET cart request.", this.customerId);
-            return Task.FromResult(this.items);
+            return Task.FromResult(this.state);
         }
 
         /*
@@ -91,7 +82,7 @@ namespace Marketplace.Actor
          * Indicates the customer signaling the checkout
          * Quotes the shipment of the products
          * Retrieves user payment info
-         * Inthe future, get similar products to show to customer
+         * In the future, get similar products to show to customer
          */
         public async Task SignalCheckout()
         {
@@ -108,10 +99,10 @@ namespace Marketplace.Actor
         {
             this._logger.LogWarning("Cart {0} received checkout request.", this.customerId);
 
-            if (this.items.Count == 0)
+            if (this.state.items.Count == 0)
                 throw new Exception("Cart "+ this.customerId+" is empty.");
 
-            if(this.status == Status.CHECKOUT_SENT)
+            if(this.state.status == Status.CHECKOUT_SENT)
                 throw new Exception("Cannot checkout a cart "+ customerId+" that has a checkout in progress.");
 
             /*
@@ -145,15 +136,16 @@ namespace Marketplace.Actor
             */
 
             // build checkout info for order processing
-            Checkout checkout = new(DateTime.Now, basketCheckout, this.items);
+            Checkout checkout = new(DateTime.Now, basketCheckout, this.state.items);
             // int orderPart = (int)(this.customerId % nOrderPartitions);
             // pick a random partition. why? (i) we do not know the order id yet (ii) distribute the work more seamlessly
             int orderPart = this.random.Next(0, nOrderPartitions);
             IOrderActor orderActor = GrainFactory.GetGrain<IOrderActor>(orderPart);
-            this.status = Status.CHECKOUT_SENT;
+            this.state.status = Status.CHECKOUT_SENT;
             // pass the responsibility
             await orderActor.Checkout(checkout);
 
+            Seal();
             /*
             if (resp.inconsistencies.Count() > 0)
             {
@@ -188,20 +180,21 @@ namespace Marketplace.Actor
          * Only used in a pure event-based model.
          * In Snapper, everything is synchronous, so cannot be used to eventually close a cart...
          */
-        public Task Seal()
+        private void Seal()
         {
-            if (this.status == Status.CHECKOUT_SENT)
+            if (this.state.status == Status.CHECKOUT_SENT)
             {
-                this.status = Status.OPEN;
-                this.items.Clear();
+                this.state.status = Status.OPEN;
+                this.state.items.Clear();
                 // history.Add()
-                return Task.CompletedTask;
+                // return Task.CompletedTask;
             }
             else
             {
                 throw new Exception("Cannot seal a cart that has not been checked out");
             }
         }
+
     }
 }
 

@@ -45,8 +45,9 @@ namespace Marketplace.Infra
             // b. init a simple transaction workload (only with customers)
             // c. continue adding new transactions. monitor the system
 
-            _logger.LogWarning("Http Handler new {3} request for URL | absolute path | absolute uri: {0} | {1} | {2}",
-                            ctx.Request.Url.Segments, ctx.Request.Url.AbsolutePath, ctx.Request.Url.AbsoluteUri, ctx.Request.HttpMethod);
+            _logger.LogWarning("[HttpHandler] {0} {1} request: segments | absolute path | absolute uri: {2} | {3} | {4}",
+                              DateTime.Now.Millisecond,  ctx.Request.HttpMethod,
+                            ctx.Request.Url.Segments, ctx.Request.Url.AbsolutePath, ctx.Request.Url.AbsoluteUri);
 
             string resource;
             if (ctx.Request.Url.Segments[1].Contains('/'))

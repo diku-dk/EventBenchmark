@@ -18,6 +18,7 @@
     <None Remove="Scenario\Seller\" />
     <None Remove="Infra\" />
     <None Remove="Entity\" />
+    <None Remove="State\" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Http\" />
@@ -29,6 +30,7 @@
     <Folder Include="Scenario\Seller\" />
     <Folder Include="Infra\" />
     <Folder Include="Entity\" />
+    <Folder Include="State\" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />

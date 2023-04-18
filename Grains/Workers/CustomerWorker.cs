@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -9,6 +10,7 @@ using Common.Configuration;
 using Common.Http;
 using Common.Scenario.Customer;
 using Common.Scenario.Entity;
+using Common.State;
 using Common.Streaming;
 using Common.YCSB;
 using GrainInterfaces.Workers;
@@ -192,19 +194,61 @@ namespace Grains.Workers
                 random.Next(1, Math.Min(numberOfKeysToBrowse, this.config.maxNumberKeysToAddToCart) + 1);
 
             // adding to cart
-            AddToCart(DefineKeysToCheckout(keyMap.ToList(), numberOfKeysToCheckout));
+            var task = new TaskCompletionSource();
+            AddToCart(DefineKeysToCheckout(keyMap.ToList(), numberOfKeysToCheckout), task);
+
+            await task.Task;
+            // taskcompletion to avoid the subsequent lines to continue
+            if (task.Task.IsCanceled)
+            {
+                InformFailedCheckout();
+                return; // no need to continue
+            }
 
             // get cart
             GetCart();
 
             // checkout
-            Checkout();
+            if(await Checkout())
+            {
+                
+                this.status = CustomerStatus.CHECKOUT_SENT;
+                this._logger.LogWarning("Customer " + customerId + " sent the checkout sucessfully");
+
+                // only send the message if the cart actor status is open, otherwise it will receive exception
+                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, cartUrl + "/" + customerId);
+                // pull-based. wait for cart to be open again
+                while (true)
+                {
+                    await Task.Delay(1000);
+                    var response = HttpUtils.client.Send(message);
+                    var stream = response.Content.ReadAsStream();
+                    StreamReader reader = new StreamReader(stream);
+                    string productRet = reader.ReadToEnd();
+                    CartState state = JsonConvert.DeserializeObject<CartState>(productRet);
+                    if (state.status == Status.OPEN) break;
+                }
+
+                await txStream.OnNextAsync(new CustomerStatusUpdate(this.customerId, this.status));
+                
+            } else
+            {
+                InformFailedCheckout();
+            }
 
             return;
         }
 
+        private async void InformFailedCheckout()
+        {
+            this.status = CustomerStatus.CHECKOUT_FAILED;
+            await txStream.OnNextAsync(new CustomerStatusUpdate(this.customerId, this.status));
+            this._logger.LogWarning("Customer " + customerId + " checkout failed");
+        }
+
         /**
          * Simulating the customer browsing the cart before checkout
+         * could verify whether the cart contains all the products chosen, otherwise throw exception
          */
         private async void GetCart()
         {
@@ -215,14 +259,14 @@ namespace Grains.Workers
             });
         }
 
-        private async void Checkout()
+        private async Task<bool> Checkout()
         {
             // define whether client should send a checkout request
             if (this.config.checkoutDistribution[random.Next(0, this.config.checkoutDistribution.Length)] == 0)
             {
                 this.status = CustomerStatus.CHECKOUT_NOT_SENT;
                 this._logger.LogWarning("Customer " + customerId + " decided not to send a checkout!");
-                return;
+                return false;
             }
 
             this._logger.LogWarning("Customer " + customerId + " decided to send a checkout!");
@@ -236,28 +280,18 @@ namespace Grains.Workers
                 return HttpUtils.client.Send(message);
             });
 
-            if (resp != null && resp.IsSuccessStatusCode)
-            {
-                this.status = CustomerStatus.CHECKOUT_SENT;
-                await txStream.OnNextAsync(new CustomerStatusUpdate(this.customerId, this.status));
-                this._logger.LogWarning("Customer " + customerId + " sent the checkout sucessfully");
-            }
-            else
-            {
-                this.status = CustomerStatus.CHECKOUT_FAILED;
-                this._logger.LogWarning("Customer " + customerId + " checkout failed");
-            }
+
+            return resp != null && resp.IsSuccessStatusCode;
 
         }
 
-        private async void AddToCart(ISet<long> keyMap)
+        private async void AddToCart(ISet<long> keyMap, TaskCompletionSource task)
         {
             HttpResponseMessage response;
             foreach (var productId in keyMap)
             {
                 this._logger.LogWarning("Customer {0} adding product {1} to cart", this.customerId, productId);
-                int delay = this.random.Next(this.config.delayBetweenRequestsRange.Start.Value, this.config.delayBetweenRequestsRange.End.Value + 1);
-                await Task.Run(async () =>
+                await Task.Run(() =>
                 {
                     try
                     {
@@ -273,7 +307,11 @@ namespace Grains.Workers
 
                         var qty = random.Next(this.config.minMaxQtyRange.Start.Value, this.config.minMaxQtyRange.End.Value);
 
-                        var productRet = await response.Content.ReadAsStringAsync();
+                        // var productRet = await response.Content.ReadAsStringAsync();
+                        var stream = response.Content.ReadAsStream();
+                      
+                        StreamReader reader = new StreamReader(stream);
+                        string productRet = reader.ReadToEnd();
                         var payload = BuildCartItem(productRet, qty);
 
                         HttpRequestMessage message2 = new HttpRequestMessage(HttpMethod.Put, cartUrl + "/" + customerId);
@@ -286,6 +324,7 @@ namespace Grains.Workers
                     catch (Exception e)
                     {
                         this._logger.LogWarning("Exception Message: {0} Customer {1} Url {2} Key {3}", e.Message, customerId, productUrl, productId);
+                        task.SetCanceled();
                         if (e is HttpRequestException)
                         {
                             HttpRequestException e_ = (HttpRequestException)e;
@@ -293,14 +332,16 @@ namespace Grains.Workers
                         }
                         return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
                     }
-                    finally
-                    {
-                        // artificial delay after adding the product
-                        await Task.Delay(delay);
-                    }
 
                 });
+
+                int delay = this.random.Next(this.config.delayBetweenRequestsRange.Start.Value, this.config.delayBetweenRequestsRange.End.Value + 1);
+                // artificial delay after adding the product
+                await Task.Delay(delay);
+
             }
+
+            task.SetResult();
         }
 
         private async void Browse(ISet<long> keyMap)

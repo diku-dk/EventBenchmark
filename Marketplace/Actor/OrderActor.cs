@@ -13,10 +13,11 @@ using Marketplace.Message;
 using Marketplace.Interfaces;
 using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
+using Orleans.Concurrency;
 
 namespace Marketplace.Actor
 {
-
+    [Reentrant]
     public class OrderActor : Grain, IOrderActor
     {
         private long nStockPartitions;
@@ -100,7 +101,7 @@ namespace Marketplace.Actor
 
             if (abort)
             {
-                _logger.LogWarning("Order part {0} -- Checkout process aborted for customer {0}", this.orderActorId, checkout.customerCheckout.CustomerId);
+                this._logger.LogWarning("Order part {0} -- Checkout process aborted for customer {0}", this.orderActorId, checkout.customerCheckout.CustomerId);
                 foreach (var item in checkout.items)
                 {
                     long partition = (item.Key % nStockPartitions);
@@ -150,7 +151,7 @@ namespace Marketplace.Actor
 
             // apply vouchers, but only until total >= 0
             int v_idx = 0;
-            decimal[] vouchers = checkout.customerCheckout.Vouchers;
+            decimal[] vouchers = checkout.customerCheckout.Vouchers == null ? Array.Empty<decimal>() : checkout.customerCheckout.Vouchers;
             decimal total_incentive = 0;
             while (total_amount > 0 && v_idx < vouchers.Length)
             {
@@ -164,12 +165,9 @@ namespace Marketplace.Actor
                 }
             }
 
-            long orderId = GetNextOrderId();
-
             // generate a global unique order ID
             // unique across partitions
-            // string orderIdStr = this.orderActorId + "" + System.DateTime.Now.Millisecond + "" + nextOrderId;
-            // long orderId = long.Parse(orderIdStr);
+            long orderId = GetNextOrderId();
             Order newOrder = new()
             {
                 id = orderId,
@@ -226,7 +224,7 @@ namespace Marketplace.Actor
             nextOrderId++;
             nextHistoryId++;
 
-            _logger.LogWarning("Order part {0} -- Checkout process succeeded for customer {0}", this.orderActorId, checkout.customerCheckout.CustomerId);
+            this._logger.LogWarning("Order part {0} -- Checkout process succeeded for customer {1} -- Order id is {2}", this.orderActorId, checkout.customerCheckout.CustomerId, orderId);
             
             long paymentActor = newOrder.id % nPaymentPartitions;
             await GrainFactory.GetGrain<IPaymentActor>(paymentActor).ProcessPayment(invoice);
@@ -241,6 +239,8 @@ namespace Marketplace.Actor
          */
         public Task UpdateOrderStatus(long orderId, OrderStatus status)
         {
+            this._logger.LogWarning("Order part {0} -- Updating order status for order id {1}", this.orderActorId, orderId);
+
             if (!this.orders.ContainsKey(orderId))
             {
                 string str = new StringBuilder().Append("Order ").Append(orderId)
@@ -254,6 +254,7 @@ namespace Marketplace.Actor
 
             // on every update, update the field updated_at in the order
             this.orders[orderId].updated_at = now;
+            string oldStatus = this.orders[orderId].status;
             this.orders[orderId].status = status.ToString();
 
             // on shipped status, update delivered_carrier_date and estimated_delivery_date. add the entry
@@ -286,6 +287,8 @@ namespace Marketplace.Actor
             history[orderId].Add(orderHistory);
 
             nextHistoryId++;
+
+            this._logger.LogWarning("Order part {0} -- Updated order status of order id {1} from {2} to {3}", this.orderActorId, orderId, oldStatus, this.orders[orderId].status);
 
             return Task.CompletedTask;
         }

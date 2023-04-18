@@ -131,7 +131,6 @@ namespace Marketplace.Actor
             await orderActor.UpdateOrderStatus(invoice.order.id, OrderStatus.SHIPPED);
 
             this._logger.LogWarning("Shipment grain {0} -- Shipment process finished for order {0}", this.shipmentActorId, invoice.order.id);
-
         }
 
         /**

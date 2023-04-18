@@ -4,6 +4,7 @@ using Marketplace.Infra;
 using Marketplace.Message;
 using Orleans;
 using System.Threading.Tasks;
+using Orleans.Concurrency;
 
 namespace Marketplace.Interfaces
 {
@@ -14,6 +15,7 @@ namespace Marketplace.Interfaces
      * Since product is a user-facing microservice, most
      * customer requests target the product microservice.
      */
+    
     public interface IOrderActor : IGrainWithIntegerKey, SnapperActor
     {
         public Task Checkout(Checkout checkout);
