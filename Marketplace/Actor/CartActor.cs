@@ -28,7 +28,7 @@ namespace Marketplace.Actor
         // current basket
         private Status status;
         private readonly Dictionary<long, BasketItem> items;
-        public readonly List<ProductCheck> divergences;
+        private readonly List<ProductCheck> divergences;
         private readonly Random random;
 
         // private readonly SortedList<long,Checkout> history;
@@ -54,16 +54,12 @@ namespace Marketplace.Actor
         public override async Task OnActivateAsync()
         {
             this.customerId = this.GetPrimaryKeyLong();
-            var mgmt = GrainFactory.GetGrain<IManagementGrain>(0);
-            // https://github.com/dotnet/orleans/pull/1772
-            // https://github.com/dotnet/orleans/issues/8262
-            // GetGrain<IManagementGrain>(0).GetHosts();
-            // 
-            var stats = await mgmt.GetDetailedGrainStatistics(); // new[] { "ProductActor" });
-            this.nProductPartitions = stats.Where(w => w.GrainType.Contains("ProductActor")).Count();
-            this.nOrderPartitions = stats.Where(w => w.GrainType.Contains("OrderActor")).Count();
-            this.nShipmentPartitions = stats.Where(w => w.GrainType.Contains("ShipmentActor")).Count();
-            this.nCustomerPartitions = stats.Where(w => w.GrainType.Contains("CustomerActor")).Count();
+            var mgmt = GrainFactory.GetGrain<IMetadataGrain>(0);
+            var dict = await mgmt.GetActorSettings(new List<string>() { "ProductActor", "OrderActor", "ShipmentActor", "CustomerActor" });
+            this.nProductPartitions = dict["ProductActor"];
+            this.nOrderPartitions = dict["OrderActor"];
+            this.nShipmentPartitions = dict["ShipmentActor"];
+            this.nCustomerPartitions = dict["CustomerActor"];
             // get customer partition
             int custPartition = (int)(this.customerId % nCustomerPartitions);
             var custActor = GrainFactory.GetGrain<ICustomerActor>(custPartition);
@@ -75,18 +71,19 @@ namespace Marketplace.Actor
         {
             if (items.ContainsKey(item.ProductId))
             {
-                _logger.LogWarning("Item already added to cart {0}. Item will be updated then.", customerId);
-                items[item.ProductId] = item;
+                this._logger.LogWarning("Item already added to cart {0}. Item will be updated then.", customerId);
+                this.items[item.ProductId] = item;
                 return Task.CompletedTask;
             }
-            items.Add(item.ProductId, item);
-            _logger.LogWarning("Item added to cart {0}: {1}", customerId, item.ProductId);
+            this.items.Add(item.ProductId, item);
+            this._logger.LogWarning("Item {0} added to cart {1}", item.ProductId, customerId);
             return Task.CompletedTask;
         }
 
         public Task<Dictionary<long, BasketItem>> GetCart()
         {
-            return Task.FromResult(items);
+            this._logger.LogWarning("Cart {0} GET cart request.", this.customerId);
+            return Task.FromResult(this.items);
         }
 
         /*
@@ -107,12 +104,12 @@ namespace Marketplace.Actor
         }
 
         // customer decided to checkout
-        public async Task<Invoice> Checkout(CustomerCheckout basketCheckout)
+        public async Task Checkout(CustomerCheckout basketCheckout)
         {
-            _logger.LogWarning("Cart {0} received checkout request.", customerId);
+            this._logger.LogWarning("Cart {0} received checkout request.", this.customerId);
 
-            if (items.Count == 0)
-                throw new Exception("Cart "+ customerId+" is empty.");
+            if (this.items.Count == 0)
+                throw new Exception("Cart "+ this.customerId+" is empty.");
 
             if(this.status == Status.CHECKOUT_SENT)
                 throw new Exception("Cannot checkout a cart "+ customerId+" that has a checkout in progress.");
@@ -151,11 +148,11 @@ namespace Marketplace.Actor
             Checkout checkout = new(DateTime.Now, basketCheckout, this.items);
             // int orderPart = (int)(this.customerId % nOrderPartitions);
             // pick a random partition. why? (i) we do not know the order id yet (ii) distribute the work more seamlessly
-            int orderPart = random.Next(0, nOrderPartitions);
+            int orderPart = this.random.Next(0, nOrderPartitions);
             IOrderActor orderActor = GrainFactory.GetGrain<IOrderActor>(orderPart);
             this.status = Status.CHECKOUT_SENT;
             // pass the responsibility
-            Invoice resp = await orderActor.Checkout_1(checkout);
+            await orderActor.Checkout(checkout);
 
             /*
             if (resp.inconsistencies.Count() > 0)
@@ -184,7 +181,7 @@ namespace Marketplace.Actor
                 this.items.Clear();
             }
             */
-            return resp;
+            return;
         }
 
         /**

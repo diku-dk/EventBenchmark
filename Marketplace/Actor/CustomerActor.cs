@@ -15,7 +15,7 @@ namespace Marketplace.Actor
     public class CustomerActor : Grain, ICustomerActor
 	{
 
-        private Dictionary<long, Customer> customers;
+        private readonly Dictionary<long, Customer> customers;
         private long customerActorId;
 
         // private Dictionary<long, string> notifications; // or customer log
@@ -53,18 +53,17 @@ namespace Marketplace.Actor
             return Task.CompletedTask;
         }
 
-        public Task NotifyPayment(long customerId, Order order = null, bool success = true)
+        public Task NotifyFailedPayment(long customerId, Order order)
         {
-            if (success) { 
-                this.customers[customerId].success_payment_count++;
-                this.customers[customerId].total_spent_items += order.total_items;
-                this.customers[customerId].total_spent_freights += order.total_freight;
-            }
-            else { 
-                this.customers[customerId].failed_payment_count++;
-            }
+            this.customers[customerId].failed_payment_count++;
+            return Task.CompletedTask;
+        }
 
-
+        public Task NotifyPayment(long customerId, Order order)
+        {
+            this.customers[customerId].success_payment_count++;
+            this.customers[customerId].total_spent_items += order.total_items;
+            this.customers[customerId].total_spent_freights += order.total_freight;
             return Task.CompletedTask;
         }
     }

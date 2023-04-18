@@ -9,6 +9,8 @@ using Common.Scenario.Entity;
 using Marketplace.Infra;
 using Marketplace.Message;
 using Marketplace.Interfaces;
+using Microsoft.Extensions.Logging;
+using System.Collections.ObjectModel;
 
 namespace Marketplace.Actor
 {
@@ -19,28 +21,34 @@ namespace Marketplace.Actor
         private long nStockPartitions;
         private long nCustomerPartitions;
         private long nOrderPartitions;
+        private long nShipmentPartitions;
         private readonly Random random;
 
         // DB
         // key order_id
-        private Dictionary<long, List<OrderPayment>> payments;
-        private Dictionary<long, OrderPaymentCard> cardPayments;
+        private readonly Dictionary<long, List<OrderPayment>> payments;
+        private readonly Dictionary<long, OrderPaymentCard> cardPayments;
 
-        public PaymentActor()
+        private readonly ILogger<PaymentActor> _logger;
+
+        public PaymentActor(ILogger<PaymentActor> _logger)
 		{
             this.random = new Random();
             this.payments = new();
             this.cardPayments = new();
+            this._logger = _logger;
         }
 
         public override async Task OnActivateAsync()
         {
             this.paymentActorId = this.GetPrimaryKeyLong();
-            var mgmt = GrainFactory.GetGrain<IManagementGrain>(0);
-            var stats = await mgmt.GetDetailedGrainStatistics();
-            this.nStockPartitions = stats.Where(w => w.GrainType.Contains("StockActor")).Count();
-            this.nCustomerPartitions = stats.Where(w => w.GrainType.Contains("CustomerActor")).Count();
-            this.nOrderPartitions = stats.Where(w => w.GrainType.Contains("Orderctor")).Count();
+            var mgmt = GrainFactory.GetGrain<IMetadataGrain>(0);
+            var dict = await mgmt.GetActorSettings(new List<string>() { "StockActor", "OrderActor", "ShipmentActor", "CustomerActor" });
+            this.nStockPartitions = dict["StockActor"];
+            this.nCustomerPartitions = dict["CustomerActor"];
+            this.nOrderPartitions = dict["OrderActor"];
+            this.nShipmentPartitions = dict["ShipmentActor"];
+            this._logger.LogWarning("Payment grain {0} activated: #stock grains {1} #customer grains {2} #order grains {3} ", this.paymentActorId, nStockPartitions, nCustomerPartitions, nOrderPartitions);
         }
 
         /**
@@ -54,16 +62,19 @@ namespace Marketplace.Actor
 
             // TODO pick from a distribution
             if (this.random.Next(1, 11) > 7)
-                approved = false;
+            {
+                // approved = false;
+                _logger.LogWarning("Payment grain {0}, order would have failed!", this.paymentActorId);
+            }
 
             return approved;
         }
 
         public async Task ProcessPayment(Invoice invoice)
         {
-
+            this._logger.LogWarning("Payment grain {0} -- Payment process starting for order {0}", this.paymentActorId, invoice.order.id);
             bool approved = await ContactESP(invoice.customer, invoice.order.total_amount);
-            List<Task> tasks = new();
+            List<Task> tasks = new(invoice.items.Count);
 
             if (approved)
             {
@@ -92,11 +103,15 @@ namespace Marketplace.Actor
             var custPartition = (invoice.order.customer_id % nCustomerPartitions);
             ICustomerActor custActor = GrainFactory.GetGrain<ICustomerActor>(custPartition);
             // shipment actor is the same actor id of order
-            IShipmentActor shipmentActor = GrainFactory.GetGrain<IShipmentActor>(invoice.order.id % nOrderPartitions);
+            IShipmentActor shipmentActor = GrainFactory.GetGrain<IShipmentActor>(invoice.order.id % nShipmentPartitions);
             if (approved)
             {
-                // ?? what is the status processing? should come before or after payment? before is INVOICED, so can only come after. but shipment sets to shipped...
-                // I think processing is when the seller must approve or not the order, but here all orders are approved by default. so we dont use processing
+                this._logger.LogWarning("Payment grain {0} -- Payment process suceeded for order {0}", this.paymentActorId, invoice.order.id);
+
+                // ?? what is the status processing? should come before or after payment?
+                // before is INVOICED, so can only come after. but shipment sets to shipped...
+                // I think processing is when the seller must approve or not the order,
+                // but here all orders are approved by default. so we dont use processing
                 // notify
                 tasks.Add(orderActor.UpdateOrderStatus(invoice.order.id, OrderStatus.PAYMENT_PROCESSED));
                 tasks.Add(custActor.NotifyPayment(invoice.customer.CustomerId, invoice.order));
@@ -164,14 +179,18 @@ namespace Marketplace.Actor
                 }
 
                 payments.Add(invoice.order.id, paymentLines);
+
             }
             else
             {
+
+                this._logger.LogWarning("Payment grain {0} -- Payment process failed for order {0}", this.paymentActorId, invoice.order.id);
+
                 // an event approach would avoid the redundancy of contacting several actors to notify about the same fact
                 tasks.Add( orderActor.UpdateOrderStatus(invoice.order.id, OrderStatus.PAYMENT_FAILED) );
                 // notify again because the shipment would have called it in case of successful payment
                 tasks.Add( orderActor.noOp() );
-                tasks.Add( custActor.NotifyPayment(invoice.customer.CustomerId, null, false) );
+                tasks.Add( custActor.NotifyFailedPayment(invoice.customer.CustomerId, null) );
                 tasks.Add( shipmentActor.noOp() );
             }
 

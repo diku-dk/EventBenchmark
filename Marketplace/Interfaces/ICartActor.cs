@@ -16,7 +16,7 @@ namespace Marketplace.Interfaces
     {
         public Task AddProduct(BasketItem item);
 
-        public Task<Invoice> Checkout(CustomerCheckout basketCheckout);
+        public Task Checkout(CustomerCheckout basketCheckout);
 
         public Task<Dictionary<long, BasketItem>> GetCart();
 

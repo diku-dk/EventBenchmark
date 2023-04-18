@@ -5,16 +5,17 @@ namespace Marketplace.Message
 	/*
 	 * Currently not in use
 	 */
-	public class ProductCheck
+	public struct ProductCheck
 	{
-        public long Id { get; set; }
-        public ItemStatus Status { get; set; }
-		public decimal Price { get; set; }
+        public long Id { get; }
+        public ItemStatus Status { get; }
+		public decimal Price { get; }
 
-		public ProductCheck(long Id)
+		public ProductCheck(long id, ItemStatus status, decimal price )
 		{
-			this.Id = Id;
-			this.Status = ItemStatus.IN_STOCK;
+			this.Id = id;
+			this.Status = status;
+			this.Price = price;
 		}
     }
 }

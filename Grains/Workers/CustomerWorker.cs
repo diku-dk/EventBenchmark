@@ -89,7 +89,7 @@ namespace Grains.Workers
 
         public async Task Init(CustomerConfiguration config)
         {
-            _logger.LogWarning("Customer worker {0} Init", this.customerId);
+            this._logger.LogWarning("Customer worker {0} Init", this.customerId);
             this.config = config;
             this.sellerIdGenerator = this.config.sellerDistribution == Distribution.UNIFORM ?
                 new UniformLongGenerator(this.config.sellerRange.Start.Value, this.config.sellerRange.End.Value) :
@@ -150,42 +150,42 @@ namespace Grains.Workers
                 sb.Append(productId);
                 if (i < numberOfKeysToBrowse - 1) sb.Append(", ");
             }
-            _logger.LogWarning("Customer {0} defined the keys to browse: {1}", this.customerId, sb.ToString());
+            this._logger.LogWarning("Customer {0} defined the keys to browse: {1}", this.customerId, sb.ToString());
             return keyMap;
         }
 
         private async Task Run(int obj, StreamSequenceToken token)
         {
-            _logger.LogWarning("Customer {0} started!", this.customerId);
+            this._logger.LogWarning("Customer {0} started!", this.customerId);
 
             if(this.customer == null)
             {
-                _logger.LogError("Customer object is not set in Customer Worker {0}. Cancelling browsing.", this.customerId);
+                this._logger.LogError("Customer object is not set in Customer Worker {0}. Cancelling browsing.", this.customerId);
                 return;
             }
 
             if (this.config.delayBeforeStart > 0)
             {
-                _logger.LogWarning("Customer {0} delay before start: {1}", this.customerId, this.config.delayBeforeStart);
+                this._logger.LogWarning("Customer {0} delay before start: {1}", this.customerId, this.config.delayBeforeStart);
                 await Task.Delay(this.config.delayBeforeStart);
             }
             else
             {
-                _logger.LogWarning("Customer {0} NO delay before start!", this.customerId);
+                this._logger.LogWarning("Customer {0} NO delay before start!", this.customerId);
             }
 
             int numberOfKeysToBrowse = random.Next(1, this.config.maxNumberKeysToBrowse + 1);
 
-            _logger.LogWarning("Customer {0} has this number of keys to browse: {1}", customerId, numberOfKeysToBrowse);
+            this._logger.LogWarning("Customer {0} has this number of keys to browse: {1}", customerId, numberOfKeysToBrowse);
 
             var keyMap = await DefineKeysToBrowseAsync(numberOfKeysToBrowse);
 
-            _logger.LogWarning("Customer {0} will start browsing", this.customerId);
+            this._logger.LogWarning("Customer {0} will start browsing", this.customerId);
 
             // browsing
             Browse(keyMap);
 
-            _logger.LogWarning("Customer " + customerId + " finished browsing!");
+            this._logger.LogWarning("Customer " + customerId + " finished browsing!");
 
             // TODO should we also model this behavior?
             int numberOfKeysToCheckout =
@@ -221,31 +221,31 @@ namespace Grains.Workers
             if (this.config.checkoutDistribution[random.Next(0, this.config.checkoutDistribution.Length)] == 0)
             {
                 this.status = CustomerStatus.CHECKOUT_NOT_SENT;
-                _logger.LogWarning("Customer " + customerId + " decided not to send a checkout!");
+                this._logger.LogWarning("Customer " + customerId + " decided not to send a checkout!");
                 return;
             }
 
-            _logger.LogWarning("Customer " + customerId + " decided to send a checkout!");
+            this._logger.LogWarning("Customer " + customerId + " decided to send a checkout!");
 
             // inform checkout intent. optional feature
 
-            HttpResponseMessage resp = await Task.Run(async () =>
+            HttpResponseMessage resp = await Task.Run(() =>
             {
                 HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, cartUrl + "/" + customerId + "/checkout");
-                message.Content = BuildCheckoutPayload(this.customerId, this.customer);
-                return await HttpUtils.client.SendAsync(message);
+                message.Content = BuildCheckoutPayload(this.customer);
+                return HttpUtils.client.Send(message);
             });
 
             if (resp != null && resp.IsSuccessStatusCode)
             {
                 this.status = CustomerStatus.CHECKOUT_SENT;
                 await txStream.OnNextAsync(new CustomerStatusUpdate(this.customerId, this.status));
-                _logger.LogWarning("Customer " + customerId + " sent the checkout sucessfully");
+                this._logger.LogWarning("Customer " + customerId + " sent the checkout sucessfully");
             }
             else
             {
                 this.status = CustomerStatus.CHECKOUT_FAILED;
-                _logger.LogWarning("Customer " + customerId + " checkout failed");
+                this._logger.LogWarning("Customer " + customerId + " checkout failed");
             }
 
         }
@@ -255,18 +255,19 @@ namespace Grains.Workers
             HttpResponseMessage response;
             foreach (var productId in keyMap)
             {
-                _logger.LogWarning("Customer {0} adding product {1} to cart", this.customerId, productId);
+                this._logger.LogWarning("Customer {0} adding product {1} to cart", this.customerId, productId);
                 int delay = this.random.Next(this.config.delayBetweenRequestsRange.Start.Value, this.config.delayBetweenRequestsRange.End.Value + 1);
                 await Task.Run(async () =>
                 {
                     try
                     {
-                        response = await HttpUtils.client.GetAsync(productUrl + "/" + productId);
+                        HttpRequestMessage message1 = new HttpRequestMessage(HttpMethod.Get, productUrl + "/" + productId);
+                        response = HttpUtils.client.Send(message1);
 
                         // add to cart
                         if (response.Content.Headers.ContentLength == 0)
                         {
-                            _logger.LogWarning("Response content for product {0} is empty! {1}", productId);
+                            this._logger.LogWarning("Response content for product {0} is empty! {1}", productId);
                             return new HttpResponseMessage(HttpStatusCode.InternalServerError);
                         }
 
@@ -275,13 +276,16 @@ namespace Grains.Workers
                         var productRet = await response.Content.ReadAsStringAsync();
                         var payload = BuildCartItem(productRet, qty);
 
-                        response = await HttpUtils.client.PutAsync(cartUrl + "/" + customerId, payload);
+                        HttpRequestMessage message2 = new HttpRequestMessage(HttpMethod.Put, cartUrl + "/" + customerId);
+                        message2.Content = payload;
+
+                        response = HttpUtils.client.Send(message2);
 
                         return response;
                     }
                     catch (Exception e)
                     {
-                        _logger.LogWarning("Exception Message: {0} Customer {1} Url {2} Key {3}", e.Message, customerId, productUrl, productId);
+                        this._logger.LogWarning("Exception Message: {0} Customer {1} Url {2} Key {3}", e.Message, customerId, productUrl, productId);
                         if (e is HttpRequestException)
                         {
                             HttpRequestException e_ = (HttpRequestException)e;
@@ -304,7 +308,7 @@ namespace Grains.Workers
             int delay;
             foreach (var productId in keyMap)
             {
-                _logger.LogWarning("Customer {0} browsing product {1}", this.customerId, productId);
+                this._logger.LogWarning("Customer {0} browsing product {1}", this.customerId, productId);
                 delay = this.random.Next(this.config.delayBetweenRequestsRange.Start.Value, this.config.delayBetweenRequestsRange.End.Value + 1);
                 await Task.Run(async () =>
                 {
@@ -314,7 +318,7 @@ namespace Grains.Workers
                     }
                     catch (Exception e)
                     {
-                        _logger.LogWarning("Exception Message: {0} Customer {1} Url {2} Key {3}", e.Message, customerId, productUrl, productId);
+                        this._logger.LogWarning("Exception Message: {0} Customer {1} Url {2} Key {3}", e.Message, customerId, productUrl, productId);
                     }
 
                 });
@@ -388,7 +392,7 @@ namespace Grains.Workers
             return HttpUtils.BuildPayload(payload);
         }
 
-        private StringContent BuildCheckoutPayload(long customerId, Customer customer)
+        private StringContent BuildCheckoutPayload(Customer customer)
         {
 
             // TODO define payment type from distribution
@@ -398,7 +402,7 @@ namespace Grains.Workers
             // build
             CustomerCheckout basketCheckout = new()
             {
-                CustomerId = customerId,
+                CustomerId = customer.id,
                 FirstName = customer.first_name,
                 LastName = customer.last_name,
                 City = customer.city,

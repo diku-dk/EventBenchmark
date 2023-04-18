@@ -7,6 +7,7 @@ using Orleans.Hosting;
 using Orleans.Configuration;
 using Microsoft.Extensions.Logging;
 using Orleans.Runtime;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Client.Infra
 {
@@ -18,7 +19,17 @@ namespace Client.Infra
                                 .UseLocalhostClustering()
                                 .Configure<GatewayOptions>(
                                     options =>                         // Default is 1 min.
-                                    options.GatewayListRefreshPeriod = TimeSpan.FromMinutes(10))
+                                    options.GatewayListRefreshPeriod = TimeSpan.FromMinutes(10)
+                                )
+                                .ConfigureServices(services =>
+                                {
+                                    // services.AddSingleton<ILifecycleParticipant<IClusterClientLifecycle>, ClusterObserver>();
+                                })
+                                .AddClusterConnectionLostHandler((x,y) =>
+                                {
+                                    Console.WriteLine("Connection to cluster lost.");
+                                    ClusterObserver._siloFailedTask.TrySetResult(true);
+                                })
                                 .ConfigureLogging(logging =>
                                 {
                                     logging.ClearProviders();
@@ -31,7 +42,6 @@ namespace Client.Infra
                                     options.FireAndForgetDelivery = false;
                                     options.OptimizeForImmutableData = true;
                                 })
-                                .Configure<TelemetryOptions>(options => options.AddConsumer<DefaultTelemetryConsumer>())
                                 .Build();
 
             Func<Exception, Task<bool>> func = (x) => {

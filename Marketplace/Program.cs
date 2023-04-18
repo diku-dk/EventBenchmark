@@ -8,6 +8,7 @@ namespace Marketplace
 {
 	public class Program
 	{
+        private static readonly ActorSettings defaultActorSettings = ActorSettings.GetDefault();
 
         public static async Task Main(string[] args)
         {
@@ -32,9 +33,9 @@ namespace Marketplace
 		}
 
         // configuration. number of partitions. let's start with one for each
-        private static void InitializePartitionedActors(IClusterClient client)
+        private static async void InitializePartitionedActors(IClusterClient client)
         {
-            //
+            await client.GetGrain<IMetadataGrain>(0).Init(defaultActorSettings);
         }
     }
 }

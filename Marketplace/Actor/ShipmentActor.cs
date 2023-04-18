@@ -13,6 +13,7 @@ using System.Net.NetworkInformation;
 using System.Text;
 using Orleans.Concurrency;
 using Marketplace.Interfaces;
+using Microsoft.Extensions.Logging;
 
 namespace Marketplace.Actor
 {
@@ -21,20 +22,23 @@ namespace Marketplace.Actor
     {
         private long nextShipmentId;
         // PK
-        private Dictionary<long, Shipment> shipments;
+        private readonly Dictionary<long, Shipment> shipments;
         // other table of shipment
-        private Dictionary<long, List<Package>> packages;
+        private readonly Dictionary<long, List<Package>> packages;
         private long nCustPartitions;
         private long nOrderPartitions;
         private long shipmentActorId;
 
         private readonly Func<long, List<Package>> queryPendingPackagesBySeller;
 
-        public ShipmentActor()
+        private readonly ILogger<ShipmentActor> _logger;
+
+        public ShipmentActor(ILogger<ShipmentActor> _logger)
         {
             this.nextShipmentId = 1;
             this.shipments = new();
             this.packages = new();
+            this._logger = _logger;
             this.queryPendingPackagesBySeller = (x) => packages.Values.SelectMany(p => p)
                 .Where(p => p.status == PackageStatus.shipped.ToString() && p.seller_id == x).ToList();
         }
@@ -42,22 +46,11 @@ namespace Marketplace.Actor
         public override async Task OnActivateAsync()
         {
             this.shipmentActorId = this.GetPrimaryKeyLong();
-            var mgmt = GrainFactory.GetGrain<IManagementGrain>(0);
-            var stats = await mgmt.GetDetailedGrainStatistics();
-            this.nCustPartitions = stats.Where(w => w.GrainType.Contains("CustomerActor")).Count();
-            this.nOrderPartitions = stats.Where(w => w.GrainType.Contains("Orderctor")).Count();
-        }
-
-        public Task<Dictionary<long, decimal>> GetQuotation(string customerZipCode)
-        {
-            // from a table of combinations, seller to another zipcode, build the cost for each item
-            // then sum
-            return null;
-        }
-
-        public Task<decimal> GetQuotation(string from, string to)
-        {
-            throw new NotImplementedException();
+            var mgmt = GrainFactory.GetGrain<IMetadataGrain>(0);
+            var dict = await mgmt.GetActorSettings(new List<string>() { "CustomerActor", "OrderActor" });
+            this.nCustPartitions = dict["CustomerActor"];
+            this.nOrderPartitions = dict["OrderActor"];
+            this._logger.LogWarning("Shipment grain {0} activated: #customer grains {1} #order grains {2}", this.shipmentActorId, nCustPartitions, nOrderPartitions);
         }
 
         /**
@@ -71,6 +64,8 @@ namespace Marketplace.Actor
          */
         public async Task ProcessShipment(Invoice invoice)
         {
+            this._logger.LogWarning("Order grain {0} -- Shipment process starting for order {0}", this.shipmentActorId, invoice.order.id);
+
             // aggregate per seller
             Dictionary<long, int> sellerDeliveryIdMap = new();
             int package_id = 1;
@@ -135,6 +130,8 @@ namespace Marketplace.Actor
             IOrderActor orderActor = GrainFactory.GetGrain<IOrderActor>(invoice.order.id % nOrderPartitions);
             await orderActor.UpdateOrderStatus(invoice.order.id, OrderStatus.SHIPPED);
 
+            this._logger.LogWarning("Shipment grain {0} -- Shipment process finished for order {0}", this.shipmentActorId, invoice.order.id);
+
         }
 
         /**
@@ -156,6 +153,8 @@ namespace Marketplace.Actor
          */
         public async Task UpdateShipment()
         {
+            this._logger.LogWarning("Shipment grain {0} -- Update Shipment starting", this.shipmentActorId);
+
             var q = packages.SelectMany(x => x.Value)
                                                 .GroupBy(x => x.seller_id)
                                                 .MinBy(y => y.Key)
@@ -174,6 +173,8 @@ namespace Marketplace.Actor
             }
 
             await Task.WhenAll(tasks);
+
+            this._logger.LogWarning("Shipment grain {0} -- Update Shipment finished", this.shipmentActorId);
 
             /*
 
@@ -242,6 +243,18 @@ namespace Marketplace.Actor
             }
 
             await Task.WhenAll(tasks);
+        }
+
+        public Task<Dictionary<long, decimal>> GetQuotation(string customerZipCode)
+        {
+            // from a table of combinations, seller to another zipcode, build the cost for each item
+            // then sum
+            return null;
+        }
+
+        public Task<decimal> GetQuotation(string from, string to)
+        {
+            throw new NotImplementedException();
         }
 
     }

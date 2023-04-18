@@ -169,84 +169,76 @@ namespace Transaction
                 Console.WriteLine("Submit transaction called!");
 
                 int idx = random.Next(0, this.config.weight.Length);
-                _logger.LogWarning("index:{0}", idx);
+                this._logger.LogWarning("index:{0}", idx);
 
                 WorkloadType tx = this.config.weight[idx];
 
-                _logger.LogWarning("Transaction type {0}", tx.ToString());
+                this._logger.LogWarning("Transaction type {0}", tx.ToString());
 
                 long grainID;
 
                 switch (tx)
                 {
-                    case WorkloadType.CUSTOMER_SESSION: //customer
+                    //customer
+                    case WorkloadType.CUSTOMER_SESSION:
+                    {
+                        grainID = this.keyGeneratorPerWorkloadType[tx].NextValue();
+                        // but make sure there is no active session for the customer. if so, pick another customer
+                        if (this.customerStatusCache.ContainsKey(grainID))
                         {
-                            grainID = this.keyGeneratorPerWorkloadType[tx].NextValue();
-                            // but make sure there is no active session for the customer. if so, pick another customer
-                            if (this.customerStatusCache.ContainsKey(grainID))
+                            while (this.customerStatusCache.ContainsKey(grainID) &&
+                                    customerStatusCache[grainID] == CustomerStatus.BROWSING)
                             {
-                                while (this.customerStatusCache.ContainsKey(grainID) &&
-                                        customerStatusCache[grainID] == CustomerStatus.BROWSING)
-                                {
-                                    grainID = this.keyGeneratorPerWorkloadType[tx].NextValue();
-                                }
+                                grainID = this.keyGeneratorPerWorkloadType[tx].NextValue();
                             }
-                            else
-                            {
-                                this.customerStatusCache.TryAdd(grainID, CustomerStatus.NEW);
-                            }
-
-                            _logger.LogWarning("Customer worker {0} defined!", grainID);
-
-                            ICustomerWorker customerWorker = this.orleansClient.GetGrain<ICustomerWorker>(grainID);
-                            if (this.customerStatusCache[grainID] == CustomerStatus.NEW)
-                            {
-                                await customerWorker.Init(config.customerConfig);
-                            }
-                            var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConfiguration.CustomerStreamId, grainID.ToString());
-                            this.customerStatusCache[grainID] = CustomerStatus.BROWSING;
-                            _logger.LogWarning("Changed customer status of customer {0} in cache!", grainID);
-                            _ = streamOutgoing.OnNextAsync(1);
-                            _logger.LogWarning("Customer worker {0} message sent!", grainID);
-                            break;
                         }
-                    // to make sure the key distribution of sellers follow of the customers
-                    // the triggering of seller workers must also be based on the customer key distribution
-                    // an option is having a seller proxy that will match the product to the seller grain call...
-
-                    // Q0. what id a relistic behavior for customers?
-                    // what distribution should be followed? we have many products, categories.
-                    // instead of key distribution, seller distribution.. and then pick the products. could pick the same seller again
-                    // Q1. the operations the seller are doing must also obey the key distribution of customers?
-
-                    // consumer demand model... the more items bought from a seller, more likely he will increase price
-                    // we care about stressing the system, less or more conflict
-                    // we could also have a skewed distribution of products for each seller
-                    case WorkloadType.PRICE_UPDATE: // seller
+                        else
                         {
-                            grainID = this.keyGeneratorPerWorkloadType[tx].NextValue();
-                            var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConfiguration.SellerStreamId, grainID.ToString());
-                            _ = streamOutgoing.OnNextAsync(0);
-                            return;
+                            this.customerStatusCache.TryAdd(grainID, CustomerStatus.NEW);
                         }
-                    case WorkloadType.DELETE_PRODUCT: // seller
+
+                        _logger.LogWarning("Customer worker {0} defined!", grainID);
+
+                        ICustomerWorker customerWorker = this.orleansClient.GetGrain<ICustomerWorker>(grainID);
+                        if (this.customerStatusCache[grainID] == CustomerStatus.NEW)
                         {
-                            grainID = this.keyGeneratorPerWorkloadType[tx].NextValue();
-                            var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConfiguration.SellerStreamId, grainID.ToString());
-                            _ = streamOutgoing.OnNextAsync(1);
-                            return;
+                            await customerWorker.Init(config.customerConfig);
                         }
-                    case WorkloadType.UPDATE_DELIVERY: // delivery worker
-                        {
-                            var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConfiguration.DeliveryStreamId, null);
-                            _ = streamOutgoing.OnNextAsync(0);
-                            return;
-                        }
+                        var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConfiguration.CustomerStreamId, grainID.ToString());
+                        this.customerStatusCache[grainID] = CustomerStatus.BROWSING;
+                        _logger.LogWarning("Changed customer status of customer {0} in cache!", grainID);
+                        _ = streamOutgoing.OnNextAsync(1);
+                        _logger.LogWarning("Customer worker {0} message sent!", grainID);
+                        break;
+                    }
+                    // seller
+                    case WorkloadType.PRICE_UPDATE:
+                    {
+                        grainID = this.keyGeneratorPerWorkloadType[tx].NextValue();
+                        var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConfiguration.SellerStreamId, grainID.ToString());
+                        _ = streamOutgoing.OnNextAsync(0);
+                        return;
+                    }
+                    // seller
+                    case WorkloadType.DELETE_PRODUCT:
+                    {
+                        grainID = this.keyGeneratorPerWorkloadType[tx].NextValue();
+                        var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConfiguration.SellerStreamId, grainID.ToString());
+                        _ = streamOutgoing.OnNextAsync(1);
+                        return;
+                    }
+                    // delivery worker
+                    case WorkloadType.UPDATE_DELIVERY:
+                    {
+                        var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConfiguration.DeliveryStreamId, null);
+                        _ = streamOutgoing.OnNextAsync(0);
+                        return;
+                    }
                     default: { throw new Exception("Unknown transaction type defined!"); }
                 }
-            }catch (Exception e)
+            } catch (Exception e)
             {
-                _logger.LogError("Error caught in SubmitTransaction: {0}", e.Message);
+                this._logger.LogError("Error caught in SubmitTransaction: {0}", e.Message);
             }
 
             return;

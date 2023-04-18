@@ -22,6 +22,7 @@ namespace Grains.Ingestion
      * Partitions the workloads across several stateless grains to perform the work
      * I cannot be stateless, since we have to make sure only one source grain is generating the data
      * One per microservice
+     * TODO rethink using sync work lib: https://github.com/OrleansContrib/Orleans.SyncWork
      */
     public class IngestionOrchestrator : Grain, IIngestionOrchestrator
     {

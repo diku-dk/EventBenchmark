@@ -19,10 +19,10 @@ namespace Marketplace.Actor
         private long sellerId;
         private long nProductPartitions;
         private long nShipmentPartitions;
-        private ILogger<SellerActor> _logger;
+        private readonly ILogger<SellerActor> _logger;
 
         private Seller seller;
-        private SortedList<long, string> log;
+        private readonly SortedList<long, string> log;
 
         public SellerActor(ILogger<SellerActor> _logger)
         {
@@ -33,14 +33,16 @@ namespace Marketplace.Actor
         public override async Task OnActivateAsync()
         {
             this.sellerId = this.GetPrimaryKeyLong();
-            var mgmt = GrainFactory.GetGrain<IManagementGrain>(0);
-            // https://github.com/dotnet/orleans/pull/1772
-            // https://github.com/dotnet/orleans/issues/8262
-            // GetGrain<IManagementGrain>(0).GetHosts();
-            // w=>w.GrainType.Contains("PerSiloGrain")
-            var stats = await mgmt.GetDetailedGrainStatistics();
-            this.nProductPartitions = stats.Where(w => w.GrainType.Contains("ProductActor")).Count();
-            this.nShipmentPartitions = stats.Where(w => w.GrainType.Contains("ShipmentActor")).Count();
+            var mgmt = GrainFactory.GetGrain<IMetadataGrain>(0);
+            var dict = await mgmt.GetActorSettings(new List<string>() { "ProductActor", "ShipmentActor" });
+            this.nProductPartitions = dict["ProductActor"];
+            this.nShipmentPartitions = dict["ShipmentActor"];
+        }
+
+        public Task Init(Seller seller)
+        {
+            this.seller = seller;
+            return Task.CompletedTask;
         }
 
         /**
@@ -72,12 +74,6 @@ namespace Marketplace.Actor
 
             await Task.WhenAll(tasks);
 
-        }
-
-        public Task Init(Seller seller)
-        {
-            this.seller = seller;
-            return Task.CompletedTask;
         }
 
         /**

@@ -47,15 +47,18 @@ namespace Marketplace.Actor
 
         public Task<ProductCheck> CheckCorrectness(BasketItem item)
         {
-            var check = new ProductCheck(item.ProductId);
+            ProductCheck check;
             if (this.products[item.ProductId].active)
             {
                 if (this.products[item.ProductId].price != item.UnitPrice)
-                    check.Price = this.products[item.ProductId].price;
+                {
+                    check = new ProductCheck(item.ProductId, ItemStatus.PRICE_DIVERGENCE, this.products[item.ProductId].price);
+                }
+                check = new ProductCheck(item.ProductId, ItemStatus.IN_STOCK, this.products[item.ProductId].price);
             }
             else
             {
-                check.Status = ItemStatus.DELETED;
+                check = new ProductCheck(item.ProductId, ItemStatus.DELETED, this.products[item.ProductId].price);
             }
             return Task.FromResult(check);
         }

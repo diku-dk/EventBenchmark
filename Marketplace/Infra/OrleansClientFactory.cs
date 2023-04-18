@@ -30,6 +30,7 @@ namespace Marketplace.Infra
                                     options.FireAndForgetDelivery = false;
                                     options.OptimizeForImmutableData = true;
                                 })
+                                .Configure<TelemetryOptions>(options => options.AddConsumer<DefaultTelemetryConsumer>())
                                 .Build();
 
             Func<Exception, Task<bool>> func = (x) => {

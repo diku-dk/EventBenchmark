@@ -18,7 +18,7 @@ namespace Client.Infra
             using var loggerFactory = LoggerFactory.Create(loggingBuilder => loggingBuilder
                                                     .SetMinimumLevel(LogLevel.Warning)
                                                     .AddConsole());
-            _logger = loggerFactory.CreateLogger("default");
+            _logger = loggerFactory.CreateLogger("DefaultClientLogger");
         }
 
         public static ILogger GetInstance()

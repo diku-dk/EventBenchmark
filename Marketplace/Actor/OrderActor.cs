@@ -12,6 +12,7 @@ using Newtonsoft.Json;
 using Marketplace.Message;
 using Marketplace.Interfaces;
 using Microsoft.Extensions.Logging;
+using System.Collections.ObjectModel;
 
 namespace Marketplace.Actor
 {
@@ -20,17 +21,18 @@ namespace Marketplace.Actor
     {
         private long nStockPartitions;
         private long nOrderPartitions;
+        private long nPaymentPartitions;
         private long orderActorId;
         // it represents all orders in this partition
         private long nextOrderId;
         private long nextHistoryId;
 
         // database
-        private Dictionary<long, Order> orders;
-        private Dictionary<long, List<OrderItem>> items;
+        private readonly Dictionary<long, Order> orders;
+        private readonly Dictionary<long, List<OrderItem>> items;
 
         // https://dev.olist.com/docs/retrieving-order-informations
-        private SortedList<long, List<OrderHistory>> history;
+        private readonly SortedList<long, List<OrderHistory>> history;
 
         private readonly ILogger<OrderActor> _logger;
 
@@ -47,19 +49,21 @@ namespace Marketplace.Actor
         public override async Task OnActivateAsync()
         {
             this.orderActorId = this.GetPrimaryKeyLong();
-            var mgmt = GrainFactory.GetGrain<IManagementGrain>(0);
-            var stats = await mgmt.GetDetailedGrainStatistics();
-            this.nStockPartitions = stats.Where(w => w.GrainType.Contains("StockActor")).Count();
-            this.nOrderPartitions = stats.Where(w => w.GrainType.Contains("Orderctor")).Count();
+            var mgmt = GrainFactory.GetGrain<IMetadataGrain>(0);
+            var dict = await mgmt.GetActorSettings(new List<string>() { "StockActor", "OrderActor", "PaymentActor" });
+            this.nStockPartitions = dict["StockActor"];
+            this.nOrderPartitions = dict["OrderActor"];
+            this.nPaymentPartitions = dict["PaymentActor"];
+            this._logger.LogWarning("Order grain {0} activated: #stock grains {1} #order grains {2} #payment grains {3} ", this.orderActorId, nStockPartitions, nOrderPartitions, nPaymentPartitions);
         }
 
         private long GetNextOrderId()
         {
-            while(nextOrderId % nOrderPartitions != orderActorId)
+            while(this.nextOrderId % this.nOrderPartitions != this.orderActorId)
             {
-                nextOrderId++;
+                this.nextOrderId++;
             }
-            return nextOrderId;
+            return this.nextOrderId;
         }
 
         /**
@@ -67,9 +71,9 @@ namespace Marketplace.Actor
           * https://dev.olist.com/docs/orders-notifications-details 
           * This transaction may not progress to payment
          */
-        public async Task<Invoice> Checkout_1(Checkout checkout)
+        public async Task Checkout(Checkout checkout)
         {
-            _logger.LogWarning("Order part {0} -- Checkout process starting for customer {0}", this.orderActorId, checkout.customerCheckout.CustomerId);
+            this._logger.LogWarning("Order grain {0} -- Checkout process starting for customer {0}", this.orderActorId, checkout.customerCheckout.CustomerId);
             List<Task<ItemStatus>> statusResp = new(checkout.items.Count);
 
             foreach (var item in checkout.items)
@@ -124,7 +128,7 @@ namespace Marketplace.Actor
                 // database. Here we can just return with a failure status.
                 string res = JsonConvert.SerializeObject(checkout);
                 // orderHistory.Add(DateTime.Now.Millisecond, res);
-                return null;
+                return;
                 // TODO touching all other actors here
                 // assuming most succeed, overhead is not too high
             }
@@ -216,20 +220,18 @@ namespace Marketplace.Actor
 
             } });
 
-            Invoice resp = new()
-            {
-                customer = checkout.customerCheckout,
-                order = newOrder,
-                items = orderItems
-            };
+            Invoice invoice = new Invoice( checkout.customerCheckout, newOrder, orderItems);
 
             // increment
             nextOrderId++;
             nextHistoryId++;
 
             _logger.LogWarning("Order part {0} -- Checkout process succeeded for customer {0}", this.orderActorId, checkout.customerCheckout.CustomerId);
-
-            return resp;
+            
+            long paymentActor = newOrder.id % nPaymentPartitions;
+            await GrainFactory.GetGrain<IPaymentActor>(paymentActor).ProcessPayment(invoice);
+ 
+            return;
 
         }
 
@@ -276,11 +278,14 @@ namespace Marketplace.Actor
 
             orderHistory = new()
             {
+                id = nextHistoryId,
                 created_at = now,
                 status = status.ToString()
             };
 
             history[orderId].Add(orderHistory);
+
+            nextHistoryId++;
 
             return Task.CompletedTask;
         }

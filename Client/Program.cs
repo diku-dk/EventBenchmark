@@ -129,7 +129,7 @@ namespace Client
                 ingestionConfig = defaultIngestionConfig,
                 syntheticConfig = new SyntheticDataSourceConfiguration()
                 // olistConfig = new DataGeneration.Real.OlistDataSourceConfiguration()
-        };
+            };
 
             MasterOrchestrator orchestrator = new MasterOrchestrator(masterConfiguration);
             await orchestrator.Run();

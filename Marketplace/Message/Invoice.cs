@@ -10,17 +10,24 @@ namespace Marketplace.Message
 	 * An invoice data structure contains all necessary info for the payment actor to process
 	 * a payment
 	 */
-    public class Invoice
+    public struct Invoice
 	{
-		public CustomerCheckout customer;
+		public readonly CustomerCheckout customer;
 
-		public Order order;
+		public readonly Order order;
 
 		// items
-		public List<OrderItem> items;
+		public readonly IList<OrderItem> items;
 
 		// inconsistencies, if any
 		// public List<ProductCheck> inconsistencies;
+
+		public Invoice(CustomerCheckout customerCheckout, Order order, IList<OrderItem> items)
+		{
+			this.customer = customerCheckout;
+			this.order = order;
+			this.items = items;
+		}
 	}
 }
 

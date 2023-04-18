@@ -16,7 +16,7 @@ namespace Marketplace.Interfaces
      */
     public interface IOrderActor : IGrainWithIntegerKey, SnapperActor
     {
-        public Task<Invoice> Checkout_1(Checkout checkout);
+        public Task Checkout(Checkout checkout);
         public Task UpdateOrderStatus(long orderId, OrderStatus status);
     }
 }
