@@ -17,8 +17,10 @@ namespace Marketplace.Actor
     public class SellerActor : Grain, ISellerActor
     {
         private long sellerId;
-        private long nProductPartitions;
-        private long nShipmentPartitions;
+
+        private int nProductPartitions;
+        private int nShipmentPartitions;
+
         private readonly ILogger<SellerActor> _logger;
 
         private Seller seller;
@@ -45,12 +47,40 @@ namespace Marketplace.Actor
             return Task.CompletedTask;
         }
 
+        public Task<Seller> GetSeller()
+        {
+            return Task.FromResult(this.seller);
+        }
+
+        public async Task<IList<Product>> GetProducts()
+        {
+            // lack of actor indexing... must call all actors...
+            List<Product> products = new();
+            List<Task<IList<Product>>> tasks = new(nProductPartitions);
+
+            for(int i = 0; i < nProductPartitions; i++)
+            {
+                tasks.Add(GrainFactory.GetGrain<IProductActor>(i).GetProducts(this.sellerId));
+
+            }
+
+            await Task.WhenAll(tasks);
+
+            for (int i = 0; i < nProductPartitions; i++)
+            {
+                products.AddRange(tasks[i].Result);
+            }
+
+            return products;
+        }
+
         /**
          * Snapper has no notion of declared FK across microservices/actors
          * FK must be enforced by the code itself
          */
         public async Task DeleteProduct(long productId)
         {
+            this._logger.LogWarning("Seller {0} starting delete product ({1}) operation", this.sellerId, productId);
             // stock partition is the same of product
             int prodPart = (int)(productId % nProductPartitions);
             Task[] tasks = new Task[2];
@@ -59,11 +89,12 @@ namespace Marketplace.Actor
             // maintain the integrity
             tasks[1] = GrainFactory.GetGrain<IProductActor>(prodPart).DeleteProduct(productId);
             await Task.WhenAll(tasks);
-            _logger.LogWarning("Product {0} deleted", productId);
+            this._logger.LogWarning("Seller {0} product {0} deleted", this.sellerId, productId);
         }
 
-        public async Task UpdatePrices(List<Product> products)
+        public async Task UpdatePrices(IList<Product> products)
         {
+            this._logger.LogWarning("Seller {0} starting update product prices operation", this.sellerId);
             List<Task> tasks = new();
             int prodPart;
             foreach (var item in products)
@@ -73,7 +104,7 @@ namespace Marketplace.Actor
             }
 
             await Task.WhenAll(tasks);
-
+            this._logger.LogWarning("Seller {0} finished update product prices operation", this.sellerId);
         }
 
         /**
@@ -96,10 +127,6 @@ namespace Marketplace.Actor
             return;
         }
 
-        public Task<Seller> GetSeller()
-        {
-            return Task.FromResult(this.seller);  
-        }
     }
 }
 

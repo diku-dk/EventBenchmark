@@ -21,7 +21,7 @@ namespace Marketplace.Interfaces
         [AlwaysInterleave]
         public Task DeleteProduct(long productId);
 
-        public Task UpdatePrices(List<Product> products);
+        public Task UpdatePrices(IList<Product> products);
 
         public Task IncreaseStock(long productId, int quantity);
 
@@ -38,6 +38,8 @@ namespace Marketplace.Interfaces
         public Task Init(Seller seller);
 
         public Task<Seller> GetSeller();
+
+        public Task<IList<Product>> GetProducts();
     }
 }
 

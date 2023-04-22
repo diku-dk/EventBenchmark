@@ -42,7 +42,11 @@ namespace Client
 
         private static readonly ScenarioConfiguration defaultScenarioConfig = new()
         {
-            weight = new WorkloadType[] { WorkloadType.CUSTOMER_SESSION },
+            weight = new WorkloadType[] {
+                // WorkloadType.CUSTOMER_SESSION,
+                WorkloadType.PRICE_UPDATE,
+                WorkloadType.DELETE_PRODUCT,
+            },
             mapTableToUrl = mapTableToUrl,
             customerConfig = new()
             {
@@ -62,7 +66,7 @@ namespace Client
                 delayBetweenRequestsRange = new Range(1, 1000)
             },
             submissionType = SubmissionEnum.QUANTITY,
-            submissionValue = 1,
+            submissionValue =  5,// 1,
             period = TimeSpan.FromSeconds(600), // 10 min
             waitBetweenSubmissions = 60000, // 60 seconds
             customerDistribution = Common.Configuration.Distribution.UNIFORM,

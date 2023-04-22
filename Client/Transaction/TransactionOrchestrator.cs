@@ -154,6 +154,8 @@ namespace Transaction
 
         private Task UpdateCustomerStatusAsync(CustomerStatusUpdate update, StreamSequenceToken token = null)
         {
+            this._logger.LogWarning("Changed customer status of customer {0} in cache. Previous {1} Update {2}",
+                update.customerId, this.customerStatusCache[update.customerId], update.status);
             this.customerStatusCache[update.customerId] = update.status;
             return Task.CompletedTask;
         }
@@ -206,7 +208,6 @@ namespace Transaction
                         }
                         var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConfiguration.CustomerStreamId, grainID.ToString());
                         this.customerStatusCache[grainID] = CustomerStatus.BROWSING;
-                        this._logger.LogWarning("Changed customer status of customer {0} in cache!", grainID);
                         _ = streamOutgoing.OnNextAsync(1);
                         this._logger.LogWarning("Customer worker {0} message sent!", grainID);
                         break;

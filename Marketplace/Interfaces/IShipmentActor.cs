@@ -33,7 +33,7 @@ namespace Marketplace.Interfaces
         public Task UpdateShipment();
 
         // retrieve the packages not delivered yet
-        public Task<List<Package>> GetPendingPackagesBySeller(long seller_id);
+        public Task<IList<Package>> GetPendingPackagesBySeller(long seller_id);
     }
 }
 

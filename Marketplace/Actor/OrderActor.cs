@@ -20,9 +20,9 @@ namespace Marketplace.Actor
     [Reentrant]
     public class OrderActor : Grain, IOrderActor
     {
-        private long nStockPartitions;
-        private long nOrderPartitions;
-        private long nPaymentPartitions;
+        private int nStockPartitions;
+        private int nOrderPartitions;
+        private int nPaymentPartitions;
         private long orderActorId;
         // it represents all orders in this partition
         private long nextOrderId;
@@ -121,16 +121,30 @@ namespace Marketplace.Actor
 
             await Task.WhenAll(tasks);
 
+            // generate a global unique order ID
+            // unique across partitions
+            long orderId = GetNextOrderId();
+
             if (abort)
             {
                 // Should we store this order? what about the order items?
                 // I dont think we should store orders that have not being created
-                // If later a customer or seller cancels it, we can keep them in the
-                // database. Here we can just return with a failure status.
-                string res = JsonConvert.SerializeObject(checkout);
-                // orderHistory.Add(DateTime.Now.Millisecond, res);
+
+                Order failedOrder = new()
+                {
+                    id = orderId,
+                    customer_id = checkout.customerCheckout.CustomerId,
+                    purchase_timestamp = checkout.createdAt.ToLongDateString(),
+                    status = OrderStatus.CANCELED.ToString(),
+                    created_at = System.DateTime.Now.ToLongDateString()
+
+                };
+
+                long paymentActorId = failedOrder.id % nPaymentPartitions;
+                await GrainFactory.GetGrain<IPaymentActor>(paymentActorId).ProcessFailedOrder(checkout.customerCheckout.CustomerId, orderId);
+                this._logger.LogWarning("Order part {0} -- Checkout process failed for customer {1} -- Order id is {2}", this.orderActorId, checkout.customerCheckout.CustomerId, orderId);
+
                 return;
-                // TODO touching all other actors here
                 // assuming most succeed, overhead is not too high
             }
 
@@ -165,9 +179,6 @@ namespace Marketplace.Actor
                 }
             }
 
-            // generate a global unique order ID
-            // unique across partitions
-            long orderId = GetNextOrderId();
             Order newOrder = new()
             {
                 id = orderId,
@@ -271,8 +282,8 @@ namespace Marketplace.Actor
             }
 
             // on first delivery, update delivered customer date
-            // dont need the second check once the shipment is already keeping track
-            if(status == OrderStatus.DELIVERED) //&& !this.orders[orderId].Equals(OrderStatus.DELIVERED.ToString()))
+            // dont need the second check since the shipment is supposed to keep track
+            if(status == OrderStatus.DELIVERED)
             {
                 this.orders[orderId].delivered_customer_date = now;
             }

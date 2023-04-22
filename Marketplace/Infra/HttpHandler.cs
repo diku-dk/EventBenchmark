@@ -13,6 +13,7 @@ using System.Net.Http;
 using Marketplace.Interfaces;
 using Common.Entity;
 using Microsoft.Extensions.Logging;
+using System.Collections.Generic;
 
 namespace Marketplace.Infra
 {
@@ -40,12 +41,8 @@ namespace Marketplace.Infra
          */
         public async void Handle(HttpListenerContext ctx)
         {
-            // TODO fix others based on customer...
-            // a.make sure all http calls from workers reach here
-            // b. init a simple transaction workload (only with customers)
-            // c. continue adding new transactions. monitor the system
 
-            _logger.LogWarning("[HttpHandler] {0} {1} request: segments | absolute path | absolute uri: {2} | {3} | {4}",
+            this._logger.LogWarning("[HttpHandler] {0} {1} request: segments | absolute path | absolute uri: {2} | {3} | {4}",
                               DateTime.Now.Millisecond,  ctx.Request.HttpMethod,
                             ctx.Request.Url.Segments, ctx.Request.Url.AbsolutePath, ctx.Request.Url.AbsoluteUri);
 
@@ -54,7 +51,7 @@ namespace Marketplace.Infra
                 resource = ctx.Request.Url.Segments[1].Split('/')[0];
             else
                 resource = ctx.Request.Url.Segments[1];
-            _logger.LogWarning("Resource is {0}", resource);
+            this._logger.LogWarning("Resource is {0}", resource);
 
             // map url to respective actor
             switch (resource)
@@ -235,19 +232,44 @@ namespace Marketplace.Infra
             {
                 case "GET":
                 {
-                    string id = ctx.Request.Url.Segments[2];
-                    Product product = await orleansClient.GetGrain<IProductActor>(0).GetProduct(Convert.ToInt64(id));
-                    var payload = JsonConvert.SerializeObject(product);
-                    byte[] data = Encoding.UTF8.GetBytes(payload);
-                    resp.ContentType = "application/json";
-                    resp.ContentLength64 = data.Length;
-                    resp.StatusCode = 200;
-                    using Stream output = resp.OutputStream;
-                    output.Write(data, 0, data.Length);
-                    output.Close();
-                    resp.Close();
+
+                    // check if there query is presented
+                    if (req.Url.AbsoluteUri.Contains('?'))
+                    {
+                        // seller_id=15
+                        string[] parts = req.Url.AbsoluteUri.Split('=');
+                        long sellerId = Convert.ToInt64(parts[1]);
+
+                        var products = await orleansClient.GetGrain<IProductActor>(0).GetProducts(sellerId);
+
+                        var payload = JsonConvert.SerializeObject(products);
+                        byte[] data = Encoding.UTF8.GetBytes(payload);
+                        resp.ContentType = "application/json";
+                        resp.ContentLength64 = data.Length;
+                        resp.StatusCode = 200;
+                        using Stream output = resp.OutputStream;
+                        output.Write(data, 0, data.Length);
+                        output.Close();
+                        resp.Close();
+                    }
+                    else
+                    {
+
+                        string id = ctx.Request.Url.Segments[2];
+                        Product product = await orleansClient.GetGrain<IProductActor>(0).GetProduct(Convert.ToInt64(id));
+                        var payload = JsonConvert.SerializeObject(product);
+                        byte[] data = Encoding.UTF8.GetBytes(payload);
+                        resp.ContentType = "application/json";
+                        resp.ContentLength64 = data.Length;
+                        resp.StatusCode = 200;
+                        using Stream output = resp.OutputStream;
+                        output.Write(data, 0, data.Length);
+                        output.Close();
+                        resp.Close();
+                            
+                    }
                     break;
-                }
+                    }
                 case "POST":
                 {
                     StreamReader stream = new StreamReader(req.InputStream);
@@ -258,14 +280,33 @@ namespace Marketplace.Infra
                     resp.Close();
                     break;
                 }
+                case "DELETE":
+                {
+                    string id = ctx.Request.Url.Segments[2];
+                    await orleansClient.GetGrain<ISellerActor>(0).DeleteProduct(Convert.ToInt64(id));
+                    resp.StatusCode = 200;
+                    resp.Close();
+                    break;
+                }
+                case "PATCH":
+                {
+                    // update prices, reach to seller actor
+                    StreamReader stream = new StreamReader(req.InputStream);
+                    string x = stream.ReadToEnd();
+                    List<Product> products = JsonConvert.DeserializeObject<List<Product>>(x);
+                    // all products expected to be from the same seller id
+                    long sellerId = products[0].seller_id;
+                    await orleansClient.GetGrain<ISellerActor>(sellerId).UpdatePrices(products);
+                    resp.StatusCode = 200;
+                    resp.Close();
+                    break;
+                }
                 default:
                 {
                     Console.WriteLine("Entered NO method!!!");
                     break;
                 }
             }
-
-            
 
         }
 

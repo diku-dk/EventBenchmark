@@ -8,6 +8,7 @@ using Common.Entity;
 using Marketplace.Infra;
 using Marketplace.Message;
 using Marketplace.Interfaces;
+using System.Linq;
 
 namespace Marketplace.Actor
 {
@@ -34,15 +35,23 @@ namespace Marketplace.Actor
 
         public Task DeleteProduct(long productId)
         {
+            this._logger.LogWarning("Product part {0} delete product ({1}) operation", this.partitionId, productId);
             this.products[productId].active = false;
             this.products[productId].updated_at = DateTime.Now.ToLongDateString();
+            this._logger.LogWarning("Product part {0} finished delete product ({1}) operation", this.partitionId, productId);
             return Task.CompletedTask;
         }
 
         public Task<Product> GetProduct(long productId)
         {
-            _logger.LogWarning("Product part {0}, returning product ID {1}", this.partitionId, productId);
+            this._logger.LogWarning("Product part {0}, returning product {1}", this.partitionId, productId);
             return Task.FromResult(this.products[productId]);
+        }
+
+        public Task<IList<Product>> GetProducts(long sellerId)
+        {
+            this._logger.LogWarning("Product part {0}, returning products for seller {1}", this.partitionId, sellerId);
+            return Task.FromResult( (IList<Product>) this.products.Values.Select(q => q).Where(q => q.seller_id == sellerId).ToList());
         }
 
         public Task<ProductCheck> CheckCorrectness(BasketItem item)
@@ -65,6 +74,7 @@ namespace Marketplace.Actor
 
         public Task UpdateProductPrice(long productId, decimal newPrice)
         {
+            this._logger.LogWarning("Product part {0} update product ({1}) price operation", this.partitionId, productId);
             // as cart actors are spread, the product actor do not know which carts are active
             // solutions: there could be a cart proxy receiving and forwarding the cart ops
             // it will be responsible for managing the  but that would lead
@@ -74,12 +84,13 @@ namespace Marketplace.Actor
             // mgmt.GetDetailedGrainStatistics(new[] { "CartActor" });
             this.products[productId].price = newPrice;
             this.products[productId].updated_at = DateTime.Now.ToLongDateString();
+            this._logger.LogWarning("Product part {0} finished product ({1}) price operation", this.partitionId, productId);
             return Task.CompletedTask;
         }
 
         public Task<bool> AddProduct(Product product)
         {
-            _logger.LogWarning("Product part {0}, adding product ID {1}", this.partitionId, product.id);
+            this._logger.LogWarning("Product part {0}, adding product ID {1}", this.partitionId, product.id);
             return Task.FromResult(this.products.TryAdd(product.id, product));
         }
     }

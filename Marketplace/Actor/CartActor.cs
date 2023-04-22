@@ -105,39 +105,9 @@ namespace Marketplace.Actor
             if(this.state.status == Status.CHECKOUT_SENT)
                 throw new Exception("Cannot checkout a cart "+ customerId+" that has a checkout in progress.");
 
-            /*
-            // customer decided to checkout even with the divergences presented earlier
-            if(this.status == Status.PRODUCT_DIVERGENCE)
-            {
-                foreach(var item in divergences.Where(p => p.Status == ItemStatus.UNAVAILABLE || p.Status == ItemStatus.OUT_OF_STOCK))
-                {
-                    items.Remove(item.Id);
-                }
-            }
-            */
-
-            // should check correctness of all products? no, stick to the benchmark
-            // this does not give strong guarantees anyway
-            /*
-            List<Task<ProductCheck>> tasks = new();
-            int prodPart;
-            foreach(var item in items)
-            {
-                prodPart = (int)(item.Key % nProductPartitions);
-                tasks.Add(GrainFactory.GetGrain<IProductActor>(prodPart).CheckCorrectness(item.Value));
-            }
-
-            await Task.WhenAll(tasks);
-
-            foreach(var resp in tasks)
-            {
-
-            }
-            */
-
             // build checkout info for order processing
             Checkout checkout = new(DateTime.Now, basketCheckout, this.state.items);
-            // int orderPart = (int)(this.customerId % nOrderPartitions);
+
             // pick a random partition. why? (i) we do not know the order id yet (ii) distribute the work more seamlessly
             int orderPart = this.random.Next(0, nOrderPartitions);
             IOrderActor orderActor = GrainFactory.GetGrain<IOrderActor>(orderPart);
@@ -146,48 +116,15 @@ namespace Marketplace.Actor
             await orderActor.Checkout(checkout);
 
             Seal();
-            /*
-            if (resp.inconsistencies.Count() > 0)
-            {
-                this.status = Status.PRODUCT_DIVERGENCE;
-                divergences.Clear();
-                divergences.AddRange(resp.inconsistencies);
-
-                // update basket items
-                foreach (var item in divergences)
-                {
-                    if (item.Status == ItemStatus.UNAVAILABLE || item.Status == ItemStatus.OUT_OF_STOCK)
-                    {
-                        items[item.Id].unavailable = true;
-                        continue;
-                    }
-
-                    items[item.Id].OldUnitPrice = items[item.Id].UnitPrice;
-                    items[item.Id].UnitPrice = item.Price;
-
-                }
-            }
-            else
-            {
-                this.status = Status.OPEN;
-                this.items.Clear();
-            }
-            */
             return;
         }
 
-        /**
-         * Only used in a pure event-based model.
-         * In Snapper, everything is synchronous, so cannot be used to eventually close a cart...
-         */
         private void Seal()
         {
             if (this.state.status == Status.CHECKOUT_SENT)
             {
                 this.state.status = Status.OPEN;
                 this.state.items.Clear();
-                // history.Add()
-                // return Task.CompletedTask;
             }
             else
             {

@@ -8,6 +8,7 @@ using Orleans.Configuration;
 using Microsoft.Extensions.Logging;
 using Orleans.Runtime;
 using Microsoft.Extensions.DependencyInjection;
+using System.Threading;
 
 namespace Client.Infra
 {
@@ -16,15 +17,19 @@ namespace Client.Infra
 
         public static readonly TaskCompletionSource _siloFailedTask = new TaskCompletionSource();
 
-        public static async Task<IClusterClient> Connect()
+        public static async Task<IClusterClient> Connect(int maxAttempts = int.MaxValue)
         {
-            IClusterClient client = new ClientBuilder()
+            IClusterClient client;
+            int attempts = 0;
+            while (true)
+            {
+                client = new ClientBuilder()
                                 .UseLocalhostClustering()
                                 .Configure<GatewayOptions>(
                                     options =>                         // Default is 1 min.
                                     options.GatewayListRefreshPeriod = TimeSpan.FromMinutes(10)
                                 )
-                                .AddClusterConnectionLostHandler((x,y) =>
+                                .AddClusterConnectionLostHandler((x, y) =>
                                 {
                                     Console.WriteLine("[] Connection to cluster lost.");
                                     _siloFailedTask.SetResult();
@@ -43,21 +48,30 @@ namespace Client.Infra
                                 })
                                 .Build();
 
-            Func<Exception, Task<bool>> func = (x) => {
-                return Task.FromResult(false);
-            };
+                Func<Exception, Task<bool>> func = (x) =>
+                {
+                    return Task.FromResult(false);
+                };
 
-            try
-            {
-                Task connectTask = client.Connect(func);
-                await connectTask;
-                return client;
+                try
+                {
+                    Task connectTask = client.Connect(func);
+                    await connectTask;
+                    break;
+                }
+                catch (ConnectionFailedException e)
+                {
+                    Console.Write("Error connecting to Silo: {0}.", e.Message);
+                    attempts++;
+                    if(attempts > maxAttempts)
+                    {
+                        throw;
+                    }
+                    Console.WriteLine("Trying again in 3 seconds...");
+                    Thread.Sleep(TimeSpan.FromSeconds(3));
+                }
             }
-            catch (ConnectionFailedException e)
-            {
-                Console.WriteLine("Error connecting to Silo: {0}", e.Message);
-            }
-            return null;
+            return client;
         }
 
     }

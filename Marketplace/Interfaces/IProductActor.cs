@@ -4,6 +4,7 @@ using Marketplace.Infra;
 using Marketplace.Message;
 using Orleans;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace Marketplace.Interfaces
 {
@@ -12,6 +13,8 @@ namespace Marketplace.Interfaces
     {
 
         public Task<Product> GetProduct(long productId);
+
+        public Task<IList<Product>> GetProducts(long sellerId);
 
         // public Task<Product> GetProductWithFreightValue(long productId, string zipCode);
 

@@ -128,7 +128,7 @@ namespace Grains.Workers
         {
             if(this.deletedProducts.Count == products.Count)
             {
-                _logger.LogWarning("All products already deleted by seller {0}", this.sellerId);
+                this._logger.LogWarning("All products already deleted by seller {0}", this.sellerId);
                 return;
             }
             
@@ -146,10 +146,10 @@ namespace Grains.Workers
                     var response = await HttpUtils.client.DeleteAsync(config.urls["products"] + "/" + selectedProduct);
                     response.EnsureSuccessStatusCode();
                     this.deletedProducts.Add(selectedProduct);
-                    _logger.LogWarning("Product {0} deleted by seller {0}", selectedProduct, this.sellerId);
+                    this._logger.LogWarning("Product {0} deleted by seller {0}", selectedProduct, this.sellerId);
                 }
                 catch (Exception) {
-                    _logger.LogError("Product {0} could not be deleted by seller {0}", selectedProduct, this.sellerId);
+                    this._logger.LogError("Product {0} could not be deleted by seller {0}", selectedProduct, this.sellerId);
                 }
             });
         }
@@ -171,7 +171,7 @@ namespace Grains.Workers
         private async void UpdatePrice()
         {
             // to simulate how a seller would interact with the platform
-            _logger.LogWarning("Seller {0} has started UpdatePrice", this.sellerId);
+            this._logger.LogWarning("Seller {0} has started UpdatePrice", this.sellerId);
 
             // 1 - simulate seller browsing own main page (that will bring the product list)
             List<Product> products = await GetOwnProducts();
@@ -203,17 +203,15 @@ namespace Grains.Workers
                 // https://dev.olist.com/docs/editing-a-product
                 HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Patch, config.urls["products"]);
                 request.Content = HttpUtils.BuildPayload(productsUpdated);
-                var response = await HttpUtils.client.SendAsync(request);
-                
-                return response;
+                return await HttpUtils.client.SendAsync(request);
             });
 
             if (task.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Seller {0} has finished price update.", this.sellerId);
+                this._logger.LogWarning("Seller {0} has finished price update.", this.sellerId);
                 return;
             }
-            _logger.LogError("Seller {0} failed to update prices.", this.sellerId);
+            this._logger.LogError("Seller {0} failed to update prices.", this.sellerId);
         }
 
         private sealed class ProductEqualityComparer : IEqualityComparer<Product>

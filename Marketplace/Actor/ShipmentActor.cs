@@ -25,11 +25,13 @@ namespace Marketplace.Actor
         private readonly Dictionary<long, Shipment> shipments;
         // other table of shipment
         private readonly Dictionary<long, List<Package>> packages;
-        private long nCustPartitions;
-        private long nOrderPartitions;
+
+        private int nCustPartitions;
+        private int nOrderPartitions;
+
         private long shipmentActorId;
 
-        private readonly Func<long, List<Package>> queryPendingPackagesBySeller;
+        private readonly Func<long, IList<Package>> queryPendingPackagesBySeller;
 
         private readonly ILogger<ShipmentActor> _logger;
 
@@ -138,7 +140,7 @@ namespace Marketplace.Actor
          * Index-based operation.
          * Can be probably used in the GetOverview transaction in seller
          */
-        public Task<List<Package>> GetPendingPackagesBySeller(long seller_id)
+        public Task<IList<Package>> GetPendingPackagesBySeller(long seller_id)
         {
             return Task.FromResult(queryPendingPackagesBySeller.Invoke(seller_id));            
         }

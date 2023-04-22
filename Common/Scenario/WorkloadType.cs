@@ -9,6 +9,5 @@
         DELETE_PRODUCT,
         // external service operation
         UPDATE_DELIVERY
-
     }
 }

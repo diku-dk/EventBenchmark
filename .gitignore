@@ -115,3 +115,4 @@ local.properties
 # DuckDB
 *.db
 *.db.wal
+testdb

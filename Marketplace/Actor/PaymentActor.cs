@@ -18,10 +18,12 @@ namespace Marketplace.Actor
     public class PaymentActor : Grain, IPaymentActor
 	{
         private long paymentActorId;
-        private long nStockPartitions;
-        private long nCustomerPartitions;
-        private long nOrderPartitions;
-        private long nShipmentPartitions;
+
+        private int nStockPartitions;
+        private int nCustomerPartitions;
+        private int nOrderPartitions;
+        private int nShipmentPartitions;
+
         private readonly Random random;
 
         // DB
@@ -100,9 +102,7 @@ namespace Marketplace.Actor
 
             // call order, customer, and shipment
             IOrderActor orderActor = GrainFactory.GetGrain<IOrderActor>(invoice.order.id % nOrderPartitions);
-            var custPartition = (invoice.order.customer_id % nCustomerPartitions);
-            ICustomerActor custActor = GrainFactory.GetGrain<ICustomerActor>(custPartition);
-            // shipment actor is the same actor id of order
+            ICustomerActor custActor = GrainFactory.GetGrain<ICustomerActor>(invoice.order.customer_id % nCustomerPartitions);
             IShipmentActor shipmentActor = GrainFactory.GetGrain<IShipmentActor>(invoice.order.id % nShipmentPartitions);
             if (approved)
             {
@@ -183,9 +183,7 @@ namespace Marketplace.Actor
             }
             else
             {
-
                 this._logger.LogWarning("Payment grain {0} -- Payment process failed for order {0}", this.paymentActorId, invoice.order.id);
-
                 // an event approach would avoid the redundancy of contacting several actors to notify about the same fact
                 tasks.Add( orderActor.UpdateOrderStatus(invoice.order.id, OrderStatus.PAYMENT_FAILED) );
                 // notify again because the shipment would have called it in case of successful payment
@@ -198,6 +196,21 @@ namespace Marketplace.Actor
 
         }
 
+        public async Task ProcessFailedOrder(long customerId, long orderId)
+        {
+            IOrderActor orderActor = GrainFactory.GetGrain<IOrderActor>(orderId % nOrderPartitions);
+            ICustomerActor custActor = GrainFactory.GetGrain<ICustomerActor>(customerId % nCustomerPartitions);
+            IShipmentActor shipmentActor = GrainFactory.GetGrain<IShipmentActor>(orderId % nShipmentPartitions);
+
+            List<Task> tasks = new(4);
+
+            tasks.Add(orderActor.UpdateOrderStatus(orderId, OrderStatus.PAYMENT_FAILED));
+            tasks.Add(orderActor.noOp());
+            tasks.Add(custActor.NotifyFailedPayment(customerId, null));
+            tasks.Add(shipmentActor.noOp());
+
+            await Task.WhenAll(tasks);
+        }
     }
 }
 
