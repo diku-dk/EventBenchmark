@@ -22,6 +22,8 @@ namespace Marketplace.Interfaces
 
         public Task<CartState> GetCart();
 
+        public Task ClearCart();
+
         // public Task Seal();
     }
 }

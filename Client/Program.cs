@@ -38,14 +38,21 @@ namespace Client
             ["carts"] = "http://127.0.0.1:8001/carts",
             ["sellers"] = "http://127.0.0.1:8001/sellers",
             ["customers"] = "http://127.0.0.1:8001/customers",
+            ["shipments"] = "http://127.0.0.1:8001/shipments",
         };
 
         private static readonly ScenarioConfiguration defaultScenarioConfig = new()
         {
             weight = new WorkloadType[] {
-                // WorkloadType.CUSTOMER_SESSION,
+                WorkloadType.CUSTOMER_SESSION,
+                WorkloadType.CUSTOMER_SESSION,
+                WorkloadType.CUSTOMER_SESSION,
+                /*
                 WorkloadType.PRICE_UPDATE,
                 WorkloadType.DELETE_PRODUCT,
+                */
+                // WorkloadType.UPDATE_DELIVERY,
+                WorkloadType.UPDATE_DELIVERY,
             },
             mapTableToUrl = mapTableToUrl,
             customerConfig = new()

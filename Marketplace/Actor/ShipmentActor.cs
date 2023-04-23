@@ -157,23 +157,25 @@ namespace Marketplace.Actor
             this._logger.LogWarning("Shipment grain {0} -- Update Shipment starting", this.shipmentActorId);
 
             var q = packages.SelectMany(x => x.Value)
-                                                .GroupBy(x => x.seller_id)
-                                                .MinBy(y => y.Key)
-                                                .Where(x => x.status.Equals(PackageStatus.shipped.ToString()))
-                                                .ToDictionary(g => g.shipment_id, g => g.seller_id);
+                                .Where(x => x.status.Equals(PackageStatus.shipped.ToString()))
+                                .GroupBy(x => x.seller_id)
+                                .Select(g => new { key = g.Key, Sort = g.Min( x => x.shipment_id ) } )
+                                .ToDictionary(g => g.key, g => g.Sort);
 
-            List<Task> tasks = new(q.Count);
-            foreach(var kv in q)
+            this._logger.LogWarning("Shipment grain {0} -- Shipments to update: \n{1}", this.shipmentActorId, string.Join(Environment.NewLine, q));
+
+            // List<Task> tasks = new(q.Count);
+            foreach (var kv in q)
             {
                 // check if that avoids reentrancy from calling update package twice for same package. if not, disable reentrancy for this method
-                var packages_ = packages[kv.Key].Where(p => p.seller_id == kv.Value && p.status.Equals(PackageStatus.shipped.ToString()));
+                var packages_ = packages[kv.Value].Where(p => p.seller_id == kv.Key && p.status.Equals(PackageStatus.shipped.ToString()));
                 foreach(var pack in packages_)
                 {
-                    tasks.Add(UpdatePackageDelivery(pack));
+                    await UpdatePackageDelivery(pack);
                 }
             }
 
-            await Task.WhenAll(tasks);
+            // await Task.WhenAll(tasks);
 
             this._logger.LogWarning("Shipment grain {0} -- Update Shipment finished", this.shipmentActorId);
 
@@ -211,8 +213,12 @@ namespace Marketplace.Actor
          */
         private async Task UpdatePackageDelivery(Package package)
         {
+
             // aggregate operation
             var countDelivered = packages[package.shipment_id].Where(p => p.status == PackageStatus.delivered.ToString()).Count();
+
+            this._logger.LogWarning("Shipment grain {0} -- Count delivery for shipment id {1}: {2} total of {3}",
+                this.shipmentActorId, package.shipment_id, countDelivered, shipments[package.shipment_id].package_count);
 
             // if falls in this exception, implementation must be rethought
             if (package.status.Equals(PackageStatus.delivered.ToString())) throw new Exception("Package is already delivered");

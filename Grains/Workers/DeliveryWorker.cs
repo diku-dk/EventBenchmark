@@ -34,6 +34,8 @@ namespace Grains.Workers
 
         private readonly ILogger<DeliveryWorker> _logger;
 
+        private long actorId;
+
         public DeliveryWorker(ILogger<DeliveryWorker> logger)
         {
             this._logger = logger;
@@ -47,8 +49,9 @@ namespace Grains.Workers
 
         public override async Task OnActivateAsync()
         {
+            this.actorId = this.GetPrimaryKeyLong();
             this.streamProvider = this.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider);
-            var workloadStream = streamProvider.GetStream<int>(StreamingConfiguration.DeliveryStreamId, null);
+            var workloadStream = streamProvider.GetStream<int>(StreamingConfiguration.DeliveryStreamId, actorId.ToString());
             var subscriptionHandles_ = await workloadStream.GetAllSubscriptionHandles();
             if (subscriptionHandles_.Count > 0)
             {
@@ -63,6 +66,7 @@ namespace Grains.Workers
         // updating the delivery status of orders
         public async Task Run(int op, StreamSequenceToken token)
         {
+            this._logger.LogWarning("Delivery worker {0} task started!", this.actorId);
             // move this later to seller worker => get overview
             /*
             // get open orders (not delivered status)
@@ -90,6 +94,8 @@ namespace Grains.Workers
                     shipmentUrl + "/update");
                 return HttpUtils.client.Send(message);
             });
+
+            this._logger.LogWarning("Delivery worker {0} task terminated!", this.actorId);
 
             return;
         }

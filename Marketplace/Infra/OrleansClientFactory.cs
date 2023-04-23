@@ -15,9 +15,11 @@ namespace Marketplace.Infra
         {
             IClusterClient client = new ClientBuilder()
                                 .UseLocalhostClustering()
+                                /*
                                 .Configure<GatewayOptions>(
                                     options =>
                                     options.GatewayListRefreshPeriod = TimeSpan.FromMinutes(10))
+                                */
                                 .ConfigureLogging(logging =>
                                 {
                                     logging.ClearProviders();
@@ -30,7 +32,6 @@ namespace Marketplace.Infra
                                     options.FireAndForgetDelivery = false;
                                     options.OptimizeForImmutableData = true;
                                 })
-                                .Configure<TelemetryOptions>(options => options.AddConsumer<DefaultTelemetryConsumer>())
                                 .Build();
 
             Func<Exception, Task<bool>> func = (x) => {

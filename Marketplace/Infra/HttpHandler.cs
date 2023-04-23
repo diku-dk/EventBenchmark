@@ -81,6 +81,11 @@ namespace Marketplace.Infra
                         await HandleStockItemRequestAsync(ctx);
                         return;
                     }
+                case "shipments":
+                    {
+                        await HandleShipmentRequestAsync(ctx);
+                        return;
+                    }
                 default:
                     {
                         var resp = ctx.Response;
@@ -136,6 +141,14 @@ namespace Marketplace.Infra
                         string x = stream.ReadToEnd();
                         var obj = JsonConvert.DeserializeObject<BasketItem>(x);
                         await orleansClient.GetGrain<ICartActor>(Convert.ToInt64(id)).AddProduct(obj);
+                        resp.StatusCode = 200;
+                        resp.Close();
+                        break;
+                    }
+                case "PATCH":
+                    {
+                        string id = ctx.Request.Url.Segments[2];
+                        await orleansClient.GetGrain<ICartActor>(Convert.ToInt64(id)).ClearCart();
                         resp.StatusCode = 200;
                         resp.Close();
                         break;
@@ -353,6 +366,49 @@ namespace Marketplace.Infra
 
         }
 
-	}
+        private async Task HandleShipmentRequestAsync(HttpListenerContext ctx)
+        {
+            HttpListenerRequest req = ctx.Request;
+            HttpListenerResponse resp = ctx.Response;
+
+            _logger.LogWarning("Handling shipment request");
+
+            switch (req.HttpMethod)
+            {
+                case "GET":
+                    {
+                        string id = ctx.Request.Url.Segments[2];
+                        var obj = await orleansClient.GetGrain<IShipmentActor>(0).GetPendingPackagesBySeller(Convert.ToInt64(id));
+                        var payload = JsonConvert.SerializeObject(obj);
+                        byte[] data = Encoding.UTF8.GetBytes(payload);
+                        resp.ContentType = "application/json";
+                        resp.ContentLength64 = data.Length;
+                        resp.StatusCode = 200;
+                        using Stream output = resp.OutputStream;
+                        output.Write(data, 0, data.Length);
+                        output.Close();
+                        resp.Close();
+                        break;
+                    }
+                case "PATCH":
+                    {
+                        StreamReader stream = new StreamReader(req.InputStream);
+                        string x = stream.ReadToEnd();
+                        var obj = JsonConvert.DeserializeObject<Customer>(x);
+                        await orleansClient.GetGrain<IShipmentActor>(0).UpdateShipment();
+                        resp.StatusCode = 200;
+                        resp.Close();
+                        break;
+                    }
+                default:
+                    {
+                        Console.WriteLine("Entered NO method!!!");
+                        break;
+                    }
+            }
+
+        }
+
+    }
 }
 

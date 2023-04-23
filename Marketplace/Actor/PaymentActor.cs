@@ -106,7 +106,7 @@ namespace Marketplace.Actor
             IShipmentActor shipmentActor = GrainFactory.GetGrain<IShipmentActor>(invoice.order.id % nShipmentPartitions);
             if (approved)
             {
-                this._logger.LogWarning("Payment grain {0} -- Payment process suceeded for order {0}", this.paymentActorId, invoice.order.id);
+                this._logger.LogWarning("Payment grain {0} -- Payment process succeeded for order {0}", this.paymentActorId, invoice.order.id);
 
                 // ?? what is the status processing? should come before or after payment?
                 // before is INVOICED, so can only come after. but shipment sets to shipped...

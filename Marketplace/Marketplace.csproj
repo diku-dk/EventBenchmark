@@ -29,4 +29,7 @@
     <Folder Include="Message\" />
     <Folder Include="Interfaces\" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="Infra\DefaultTelemetryConsumer.cs" />
+  </ItemGroup>
 </Project>

@@ -170,8 +170,7 @@ namespace Grains.Workers
             {
                 this._logger.LogWarning("Customer {0} delay before start: {1}", this.customerId, this.config.delayBeforeStart);
                 await Task.Delay(this.config.delayBeforeStart);
-            }
-            else
+            } else
             {
                 this._logger.LogWarning("Customer {0} NO delay before start!", this.customerId);
             }
@@ -213,37 +212,50 @@ namespace Grains.Workers
             {
                 
                 this.status = CustomerStatus.CHECKOUT_SENT;
-                this._logger.LogWarning("Customer " + customerId + " sent the checkout sucessfully");
+                this._logger.LogWarning("Customer {0} sent the checkout successfully", customerId);
 
-                // only send the message if the cart actor status is open, otherwise it will receive exception
-                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, cartUrl + "/" + customerId);
-                // pull-based. wait for cart to be open again
-                while (true)
-                {
-                    await Task.Delay(1000);
-                    var response = HttpUtils.client.Send(message);
-                    var stream = response.Content.ReadAsStream();
-                    StreamReader reader = new StreamReader(stream);
-                    string productRet = reader.ReadToEnd();
-                    CartState state = JsonConvert.DeserializeObject<CartState>(productRet);
-                    if (state.status == Status.OPEN) break;
-                }
-
-                await txStream.OnNextAsync(new CustomerStatusUpdate(this.customerId, this.status));
-                
+                // the timer is disposed if the grain is deactivated
+                this.timer = RegisterTimer(UpdateStatusAsync, null, TimeSpan.FromMilliseconds(1000), TimeSpan.MaxValue);
+         
             } else
             {
+                // fail and deciding not to send treated in the same way
                 InformFailedCheckout();
             }
 
             return;
         }
 
+        // pull-based. wait for cart to be open again
+        private async Task UpdateStatusAsync(object arg)
+        {
+            this._logger.LogWarning("Timer fired for customer {0}", customerId);
+            // only send the message if the cart actor status is open, otherwise it will receive exception
+            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, cartUrl + "/" + customerId);
+            var response = HttpUtils.client.Send(message);
+            var stream = response.Content.ReadAsStream();
+            StreamReader reader = new StreamReader(stream);
+            string productRet = reader.ReadToEnd();
+            CartState state = JsonConvert.DeserializeObject<CartState>(productRet);
+            if (state.status == Status.OPEN)
+            {
+                this._logger.LogWarning("Timer in customer {0} will report status update...", customerId);
+                await txStream.OnNextAsync(new CustomerStatusUpdate(this.customerId, this.status));
+                this.timer.Dispose();
+            }
+        }  
+
+        private IDisposable timer;
+
         private async void InformFailedCheckout()
         {
             this.status = CustomerStatus.CHECKOUT_FAILED;
+
+            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, cartUrl);
+            HttpUtils.client.Send(message);
+
             await txStream.OnNextAsync(new CustomerStatusUpdate(this.customerId, this.status));
-            this._logger.LogWarning("Customer " + customerId + " checkout failed");
+            this._logger.LogWarning("Customer {0} checkout failed", customerId);
         }
 
         /**
@@ -265,11 +277,11 @@ namespace Grains.Workers
             if (this.config.checkoutDistribution[random.Next(0, this.config.checkoutDistribution.Length)] == 0)
             {
                 this.status = CustomerStatus.CHECKOUT_NOT_SENT;
-                this._logger.LogWarning("Customer " + customerId + " decided not to send a checkout!");
+                this._logger.LogWarning("Customer {0} decided to not send a checkout.", customerId);
                 return false;
             }
 
-            this._logger.LogWarning("Customer " + customerId + " decided to send a checkout!");
+            this._logger.LogWarning("Customer {0} decided to send a checkout.", customerId);
 
             // inform checkout intent. optional feature
 

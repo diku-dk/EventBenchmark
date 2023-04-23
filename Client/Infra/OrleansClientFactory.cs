@@ -31,7 +31,7 @@ namespace Client.Infra
                                 )
                                 .AddClusterConnectionLostHandler((x, y) =>
                                 {
-                                    Console.WriteLine("[] Connection to cluster lost.");
+                                    LoggerProxy.GetInstance().LogCritical("Connection to cluster has been lost");
                                     _siloFailedTask.SetResult();
                                 })
                                 .ConfigureLogging(logging =>

@@ -19,12 +19,12 @@ namespace Marketplace.Infra
         {
             this.settings = settings;
 
-            actorSettings.Add("OrderActor", settings.numOrderPartitions);
-            actorSettings.Add("PaymentActor", settings.numPaymentPartitions);
-            actorSettings.Add("ShipmentActor", settings.numShipmentPartitions);
-            actorSettings.Add("CustomerActor", settings.numCustomerPartitions);
-            actorSettings.Add("ProductActor", settings.numProductPartitions);
-            actorSettings.Add("StockActor", settings.numStockPartitions);
+            actorSettings.TryAdd("OrderActor", settings.numOrderPartitions);
+            actorSettings.TryAdd("PaymentActor", settings.numPaymentPartitions);
+            actorSettings.TryAdd("ShipmentActor", settings.numShipmentPartitions);
+            actorSettings.TryAdd("CustomerActor", settings.numCustomerPartitions);
+            actorSettings.TryAdd("ProductActor", settings.numProductPartitions);
+            actorSettings.TryAdd("StockActor", settings.numStockPartitions);
 
             return Task.CompletedTask;
         }

@@ -58,6 +58,13 @@ namespace Marketplace.Actor
             _logger.LogWarning("Customer loaded for cart {0}", customerId);
         }
 
+        public Task ClearCart()
+        {
+            this.state.status = Status.OPEN;
+            this.state.items.Clear();
+            return Task.CompletedTask;
+        }
+
         public Task AddProduct(BasketItem item)
         {
             if (this.state.items.ContainsKey(item.ProductId))

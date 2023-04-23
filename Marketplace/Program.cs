@@ -26,7 +26,14 @@ namespace Marketplace
             Task httpServerTask = Task.Run(httpServer.Run);
 
             Console.WriteLine("\n *************************************************************************");
-            Console.WriteLine("            Marketplace started. Press any key to terminate...         ");
+            Console.WriteLine("            Marketplace started. Configuration:         ");
+            Console.WriteLine("             numCustomerPartitions = {0}                ", defaultActorSettings.numCustomerPartitions);
+            Console.WriteLine("             numOrderPartitions    = {0}                ", defaultActorSettings.numOrderPartitions);
+            Console.WriteLine("             numPaymentPartitions  = {0}                ", defaultActorSettings.numPaymentPartitions);
+            Console.WriteLine("             numProductPartitions  = {0}                ", defaultActorSettings.numProductPartitions);
+            Console.WriteLine("             numShipmentPartitions = {0}                ", defaultActorSettings.numShipmentPartitions);
+            Console.WriteLine("             numStockPartitions    = {0}                ", defaultActorSettings.numStockPartitions);
+            Console.WriteLine("            Press any key to terminate...               ");
             Console.WriteLine("\n *************************************************************************");
             Console.ReadLine();
 			httpServer.Stop();

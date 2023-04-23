@@ -13,6 +13,7 @@ using Common.Configuration;
 using Common.YCSB;
 using Microsoft.Extensions.Logging;
 using Client.Infra;
+using System.Threading;
 
 namespace Transaction
 {
@@ -116,7 +117,7 @@ namespace Transaction
                         } while (val > 0);
                     }
 
-                    Console.WriteLine("Scenario orchestrator first batch terminated! Initializing main loop.");
+                    Console.WriteLine("Transaction orchestrator first batch terminated! Initializing main loop.");
 
                     while (this.IsRunning())
                     {
@@ -145,7 +146,7 @@ namespace Transaction
                 default: { throw new Exception("Strategy for submitting transactions not defined!"); }
             }
 
-            Console.WriteLine("Scenario orchestrator main loop terminated.");
+            Console.WriteLine("Transaction orchestrator main loop terminated.");
 
             await customerWorkerSubscription.UnsubscribeAsync();
 
@@ -154,9 +155,10 @@ namespace Transaction
 
         private Task UpdateCustomerStatusAsync(CustomerStatusUpdate update, StreamSequenceToken token = null)
         {
-            this._logger.LogWarning("Changed customer status of customer {0} in cache. Previous {1} Update {2}",
-                update.customerId, this.customerStatusCache[update.customerId], update.status);
-            this.customerStatusCache[update.customerId] = update.status;
+            var old = this.customerStatusCache[update.customerId];
+            this._logger.LogWarning("Attempt to update customer {0} status in cache. Previous {1} Update {2}",
+                update.customerId, old, update.status);
+            this.customerStatusCache.TryUpdate(update.customerId, update.status, old);
             return Task.CompletedTask;
         }
 
@@ -166,16 +168,16 @@ namespace Transaction
          */
         private async Task SubmitTransaction()
         {
+            long threadId = System.Environment.CurrentManagedThreadId;
             try
             {
-                this._logger.LogWarning("Submit transaction called!");
+                this._logger.LogWarning("Thread ID {0} Submit transaction called", threadId);
 
                 int idx = random.Next(0, this.config.weight.Length);
-                this._logger.LogWarning("Index:{0}", idx);
 
                 WorkloadType tx = this.config.weight[idx];
 
-                this._logger.LogWarning("Transaction type {0}", tx.ToString());
+                this._logger.LogWarning("Thread ID {0} Transaction type {0}", threadId, tx.ToString());
 
                 long grainID;
 
@@ -186,6 +188,7 @@ namespace Transaction
                     {
                         grainID = this.keyGeneratorPerWorkloadType[tx].NextValue();
                         // but make sure there is no active session for the customer. if so, pick another customer
+                        ICustomerWorker customerWorker;
                         if (this.customerStatusCache.ContainsKey(grainID))
                         {
                             while (this.customerStatusCache.ContainsKey(grainID) &&
@@ -193,19 +196,15 @@ namespace Transaction
                             {
                                 grainID = this.keyGeneratorPerWorkloadType[tx].NextValue();
                             }
+                            customerWorker = this.orleansClient.GetGrain<ICustomerWorker>(grainID);
                         }
                         else
                         {
-                            this.customerStatusCache.TryAdd(grainID, CustomerStatus.NEW);
+                            customerWorker = this.orleansClient.GetGrain<ICustomerWorker>(grainID);
+                            await customerWorker.Init(config.customerConfig);
                         }
 
                         this._logger.LogWarning("Customer worker {0} defined!", grainID);
-
-                        ICustomerWorker customerWorker = this.orleansClient.GetGrain<ICustomerWorker>(grainID);
-                        if (this.customerStatusCache[grainID] == CustomerStatus.NEW)
-                        {
-                            await customerWorker.Init(config.customerConfig);
-                        }
                         var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConfiguration.CustomerStreamId, grainID.ToString());
                         this.customerStatusCache[grainID] = CustomerStatus.BROWSING;
                         _ = streamOutgoing.OnNextAsync(1);
@@ -231,15 +230,15 @@ namespace Transaction
                     // delivery worker
                     case WorkloadType.UPDATE_DELIVERY:
                     {
-                        var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConfiguration.DeliveryStreamId, null);
+                        var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConfiguration.DeliveryStreamId, 0.ToString());
                         _ = streamOutgoing.OnNextAsync(0);
                         return;
                     }
-                    default: { throw new Exception("Unknown transaction type defined!"); }
+                    default: { throw new Exception("Thread ID "+ threadId + " Unknown transaction type defined!"); }
                 }
             } catch (Exception e)
             {
-                this._logger.LogError("Error caught in SubmitTransaction: {0}", e.Message);
+                this._logger.LogError("Thread ID {0} Error caught in SubmitTransaction: {1}", threadId, e.Message);
             }
 
             return;

@@ -208,3 +208,7 @@ But it seems is not active at the moment. Last commit in 2018
 https://github.com/OrleansContrib/Orleans.HttpGateway.AspNetCore
 This one seems to be more active
 https://github.com/OrleansContrib/Orleans.Http
+
+### Scheduled jobs
+Timers are disposed if a grain is deactivated. A soluton could be using the following lib:
+https://www.hangfire.io/

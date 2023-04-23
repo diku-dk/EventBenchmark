@@ -37,6 +37,8 @@ namespace Marketplace.Actor
 
         private readonly ILogger<OrderActor> _logger;
 
+        private static readonly decimal[] emptyArray = Array.Empty<decimal>();
+
         public OrderActor(ILogger<OrderActor> _logger)
         {
             this.nextOrderId = 1;
@@ -165,7 +167,7 @@ namespace Marketplace.Actor
 
             // apply vouchers, but only until total >= 0
             int v_idx = 0;
-            decimal[] vouchers = checkout.customerCheckout.Vouchers == null ? Array.Empty<decimal>() : checkout.customerCheckout.Vouchers;
+            decimal[] vouchers = checkout.customerCheckout.Vouchers == null ? emptyArray : checkout.customerCheckout.Vouchers;
             decimal total_incentive = 0;
             while (total_amount > 0 && v_idx < vouchers.Length)
             {

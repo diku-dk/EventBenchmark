@@ -3,7 +3,6 @@ namespace Common.Scenario.Customer
 {
     public enum CustomerStatus
     {
-        NEW,
         BROWSING,
         CHECKOUT_SENT,
         CHECKOUT_NOT_SENT,
