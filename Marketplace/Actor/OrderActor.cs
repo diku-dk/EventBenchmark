@@ -292,14 +292,14 @@ namespace Marketplace.Actor
 
             orderHistory = new()
             {
-                id = nextHistoryId,
+                id = this.nextHistoryId,
                 created_at = now,
                 status = status.ToString()
             };
 
             history[orderId].Add(orderHistory);
 
-            nextHistoryId++;
+            this.nextHistoryId++;
 
             this._logger.LogWarning("Order part {0} -- Updated order status of order id {1} from {2} to {3}", this.orderActorId, orderId, oldStatus, this.orders[orderId].status);
 

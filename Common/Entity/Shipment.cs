@@ -5,6 +5,8 @@ namespace Common.Entity
 	{
 		// PK
 		public long id;
+
+        // FK
         public long order_id;
         public long customer_id;
 

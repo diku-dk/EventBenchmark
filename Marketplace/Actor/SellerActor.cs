@@ -52,16 +52,19 @@ namespace Marketplace.Actor
             return Task.FromResult(this.seller);
         }
 
+        /**
+         * The proposal of AODB have an index actor to ask whether the data is stored
+         * 
+         */
         public async Task<IList<Product>> GetProducts()
         {
             // lack of actor indexing... must call all actors...
             List<Product> products = new();
-            List<Task<IList<Product>>> tasks = new(nProductPartitions);
+            List<Task<IList<Product>>> tasks = new(this.nProductPartitions);
 
             for(int i = 0; i < nProductPartitions; i++)
             {
                 tasks.Add(GrainFactory.GetGrain<IProductActor>(i).GetProducts(this.sellerId));
-
             }
 
             await Task.WhenAll(tasks);

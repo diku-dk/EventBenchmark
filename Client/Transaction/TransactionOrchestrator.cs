@@ -50,7 +50,7 @@ namespace Transaction
 
         private readonly Dictionary<long, int> sellerStatusCache;
 
-        private readonly ConcurrentDictionary<long, CustomerStatus> customerStatusCache;
+        private readonly ConcurrentDictionary<long, CustomerWorkerStatus> customerStatusCache;
 
         private readonly ILogger _logger;
 
@@ -156,7 +156,7 @@ namespace Transaction
         private Task UpdateCustomerStatusAsync(CustomerStatusUpdate update, StreamSequenceToken token = null)
         {
             var old = this.customerStatusCache[update.customerId];
-            this._logger.LogWarning("Attempt to update customer {0} status in cache. Previous {1} Update {2}",
+            this._logger.LogWarning("Attempt to update customer worker {0} status in cache. Previous {1} Update {2}",
                 update.customerId, old, update.status);
             this.customerStatusCache.TryUpdate(update.customerId, update.status, old);
             return Task.CompletedTask;
@@ -183,7 +183,7 @@ namespace Transaction
 
                 switch (tx)
                 {
-                    //customer
+                    //customer worker
                     case WorkloadType.CUSTOMER_SESSION:
                     {
                         grainID = this.keyGeneratorPerWorkloadType[tx].NextValue();
@@ -192,7 +192,7 @@ namespace Transaction
                         if (this.customerStatusCache.ContainsKey(grainID))
                         {
                             while (this.customerStatusCache.ContainsKey(grainID) &&
-                                    customerStatusCache[grainID] == CustomerStatus.BROWSING)
+                                    customerStatusCache[grainID] == CustomerWorkerStatus.BROWSING)
                             {
                                 grainID = this.keyGeneratorPerWorkloadType[tx].NextValue();
                             }
@@ -206,12 +206,12 @@ namespace Transaction
 
                         this._logger.LogWarning("Customer worker {0} defined!", grainID);
                         var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConfiguration.CustomerStreamId, grainID.ToString());
-                        this.customerStatusCache[grainID] = CustomerStatus.BROWSING;
+                        this.customerStatusCache[grainID] = CustomerWorkerStatus.BROWSING;
                         _ = streamOutgoing.OnNextAsync(1);
                         this._logger.LogWarning("Customer worker {0} message sent!", grainID);
                         break;
                     }
-                    // seller
+                    // seller worker
                     case WorkloadType.PRICE_UPDATE:
                     {
                         grainID = this.keyGeneratorPerWorkloadType[tx].NextValue();

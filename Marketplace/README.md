@@ -2,6 +2,7 @@
 ======================================
 
 The port of the marketplace application to Orleans.
+Basic implementation of the benchmark in Orleans.
 
 ## Why Orleans?
 Orleans is a notable framework for building distributed applications.
@@ -49,19 +50,23 @@ Serve as a user-facing actor. Low-latency. Potentially could have one cart actor
 Stock and Product are stateful actors partitioned by the product entity identifier.
 This design allows for a better distribution of the workload across actors to avoid overhead on accessing the possible many stock and product entities. 
 
+We could partition by seller, but hot sellers would lead to skew. The same can happen for hot products.
+
 ### Order
 Order is a stateful actor partitioned by the order identifier.
+
 Another possibility would be partitioning by customer identifier, but that would lead to skewed distribution of work and data, since some customers are more active than others.
 Having a partition scheme by order identifier allows a more seamless distribution of work across actors.
+To support retrieving orders by customer this would be ideal.
 
 ### Customer
 Customer is stateful actor partioned customer entity identifier.
+Can create more customer actors if increase cncurrency between customers.
 
 ### Seller
 Seller is stateful actor uniquely addressed by its respective seller entity identifier.
 In other words, not partioned actor.
-As sellers actively participate in transactions, and given that there is a statistical distribution in place for
-"activating" developers
+As sellers actively participate in transactions, and given that there is a statistical distribution in place for "activating" developers
 
 ### Payment
 Payment is a stateful actor partitioned by order identifier.
@@ -130,6 +135,9 @@ Stock
 - CancelReservation(productId)
 
 ## Transactional Workflows
+
+Driver: Transaction orchestrator -> customer worker (simulate a customer)
+Marketplace: customer actor (manages state)
 
 To match the virtual actor model prescribed by Orleans to an event-driven microservice benchmark, some adaptations
 are necessary

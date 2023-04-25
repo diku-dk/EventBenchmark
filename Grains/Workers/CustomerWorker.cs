@@ -23,6 +23,7 @@ namespace Grains.Workers
 {
 
     /**
+     * Driver-side, client-side code, which is also run in Orleans silo
      * Nice example of tasks in a customer session:
      * https://github.com/GoogleCloudPlatform/microservices-demo/blob/main/src/loadgenerator/locustfile.py
      */
@@ -42,7 +43,7 @@ namespace Grains.Workers
 
         private long customerId;
 
-        private CustomerStatus status;
+        private CustomerWorkerStatus status;
 
         private string productUrl;
 
@@ -87,6 +88,7 @@ namespace Grains.Workers
         {
             this._logger = logger;
             this.random = new Random();
+            this.status = CustomerWorkerStatus.IDLE;
         }
 
         public async Task Init(CustomerConfiguration config)
@@ -175,6 +177,8 @@ namespace Grains.Workers
                 this._logger.LogWarning("Customer {0} NO delay before start!", this.customerId);
             }
 
+            this.status = CustomerWorkerStatus.BROWSING;
+
             int numberOfKeysToBrowse = random.Next(1, this.config.maxNumberKeysToBrowse + 1);
 
             this._logger.LogWarning("Customer {0} has this number of keys to browse: {1}", customerId, numberOfKeysToBrowse);
@@ -211,11 +215,13 @@ namespace Grains.Workers
             if(await Checkout())
             {
                 
-                this.status = CustomerStatus.CHECKOUT_SENT;
+                this.status = CustomerWorkerStatus.CHECKOUT_SENT;
                 this._logger.LogWarning("Customer {0} sent the checkout successfully", customerId);
 
                 // the timer is disposed if the grain is deactivated
-                this.timer = RegisterTimer(UpdateStatusAsync, null, TimeSpan.FromMilliseconds(1000), TimeSpan.MaxValue);
+                // but unlikely to be deactivated after 1000
+                // to be sure, we would need a background scheduler. an external task could also do the job...
+                this.timer = RegisterTimer(UpdateStatusAsync, null, TimeSpan.FromMilliseconds(1000), TimeSpan.FromMilliseconds(2000));
          
             } else
             {
@@ -229,9 +235,9 @@ namespace Grains.Workers
         // pull-based. wait for cart to be open again
         private async Task UpdateStatusAsync(object arg)
         {
-            this._logger.LogWarning("Timer fired for customer {0}", customerId);
+            this._logger.LogWarning("Timer fired for customer {0}", this.customerId);
             // only send the message if the cart actor status is open, otherwise it will receive exception
-            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, cartUrl + "/" + customerId);
+            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, this.cartUrl + "/" + this.customerId);
             var response = HttpUtils.client.Send(message);
             var stream = response.Content.ReadAsStream();
             StreamReader reader = new StreamReader(stream);
@@ -239,7 +245,8 @@ namespace Grains.Workers
             CartState state = JsonConvert.DeserializeObject<CartState>(productRet);
             if (state.status == Status.OPEN)
             {
-                this._logger.LogWarning("Timer in customer {0} will report status update...", customerId);
+                this.status = CustomerWorkerStatus.IDLE;
+                this._logger.LogWarning("Timer in customer {0} reporting status update: {1}", this.customerId, this.status);
                 await txStream.OnNextAsync(new CustomerStatusUpdate(this.customerId, this.status));
                 this.timer.Dispose();
             }
@@ -249,13 +256,13 @@ namespace Grains.Workers
 
         private async void InformFailedCheckout()
         {
-            this.status = CustomerStatus.CHECKOUT_FAILED;
+            this.status = CustomerWorkerStatus.CHECKOUT_FAILED;
 
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, cartUrl);
             HttpUtils.client.Send(message);
 
             await txStream.OnNextAsync(new CustomerStatusUpdate(this.customerId, this.status));
-            this._logger.LogWarning("Customer {0} checkout failed", customerId);
+            this._logger.LogWarning("Customer {0} checkout failed", this.customerId);
         }
 
         /**
@@ -266,7 +273,7 @@ namespace Grains.Workers
         {
             await Task.Run(() =>
             {
-                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, cartUrl + "/" + customerId);
+                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, cartUrl + "/" + this.customerId);
                 return HttpUtils.client.Send(message);
             });
         }
@@ -276,18 +283,18 @@ namespace Grains.Workers
             // define whether client should send a checkout request
             if (this.config.checkoutDistribution[random.Next(0, this.config.checkoutDistribution.Length)] == 0)
             {
-                this.status = CustomerStatus.CHECKOUT_NOT_SENT;
-                this._logger.LogWarning("Customer {0} decided to not send a checkout.", customerId);
+                this.status = CustomerWorkerStatus.CHECKOUT_NOT_SENT;
+                this._logger.LogWarning("Customer {0} decided to not send a checkout.", this.customerId);
                 return false;
             }
 
-            this._logger.LogWarning("Customer {0} decided to send a checkout.", customerId);
+            this._logger.LogWarning("Customer {0} decided to send a checkout.", this.customerId);
 
             // inform checkout intent. optional feature
 
             HttpResponseMessage resp = await Task.Run(() =>
             {
-                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, cartUrl + "/" + customerId + "/checkout");
+                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, cartUrl + "/" + this.customerId + "/checkout");
                 message.Content = BuildCheckoutPayload(this.customer);
                 return HttpUtils.client.Send(message);
             });

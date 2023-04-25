@@ -46,7 +46,7 @@ namespace Client
             weight = new WorkloadType[] {
                 WorkloadType.CUSTOMER_SESSION,
                 WorkloadType.CUSTOMER_SESSION,
-                WorkloadType.CUSTOMER_SESSION,
+                // WorkloadType.CUSTOMER_SESSION,
                 /*
                 WorkloadType.PRICE_UPDATE,
                 WorkloadType.DELETE_PRODUCT,
@@ -73,9 +73,9 @@ namespace Client
                 delayBetweenRequestsRange = new Range(1, 1000)
             },
             submissionType = SubmissionEnum.QUANTITY,
-            submissionValue =  5,// 1,
+            submissionValue = 5,// 1,
             period = TimeSpan.FromSeconds(600), // 10 min
-            waitBetweenSubmissions = 60000, // 60 seconds
+            waitBetweenSubmissions = 10000, // 60000, // 60 seconds
             customerDistribution = Common.Configuration.Distribution.UNIFORM,
         };
 

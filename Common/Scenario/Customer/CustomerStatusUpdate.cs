@@ -7,9 +7,9 @@ namespace Common.Streaming
 	{
         public readonly long customerId;
 
-        public readonly CustomerStatus status;
+        public readonly CustomerWorkerStatus status;
 
-        public CustomerStatusUpdate(long customerId, CustomerStatus status) {
+        public CustomerStatusUpdate(long customerId, CustomerWorkerStatus status) {
             this.customerId = customerId;
             this.status = status;
         }

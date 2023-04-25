@@ -1,8 +1,9 @@
 ﻿using System;
 namespace Common.Scenario.Customer
 {
-    public enum CustomerStatus
+    public enum CustomerWorkerStatus
     {
+        IDLE,
         BROWSING,
         CHECKOUT_SENT,
         CHECKOUT_NOT_SENT,
