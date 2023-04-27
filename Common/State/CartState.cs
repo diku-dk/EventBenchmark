@@ -1,5 +1,5 @@
 ﻿using System;
-using Common.Scenario.Entity;
+using Common.Entity;
 using System.Collections.Generic;
 
 namespace Common.State

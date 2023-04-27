@@ -1,8 +1,7 @@
 ﻿using System;
-using Common.Scenario.Entity;
+using Common.Entity;
 using Orleans;
 using System.Threading.Tasks;
-using Common.Entity;
 using System.Collections.Generic;
 using Orleans.Runtime;
 using System.Linq;
@@ -136,11 +135,12 @@ namespace Marketplace.Actor
                 {
                     id = orderId,
                     customer_id = checkout.customerCheckout.CustomerId,
-                    purchase_timestamp = checkout.createdAt.ToLongDateString(),
                     status = OrderStatus.CANCELED.ToString(),
-                    created_at = System.DateTime.Now.ToLongDateString()
-
+                    purchase_timestamp = checkout.createdAt,
+                    created_at = System.DateTime.Now,
+                    data = JsonConvert.SerializeObject(checkout),
                 };
+                this.orders.Add(orderId, failedOrder);
 
                 long paymentActorId = failedOrder.id % nPaymentPartitions;
                 await GrainFactory.GetGrain<IPaymentActor>(paymentActorId).ProcessFailedOrder(checkout.customerCheckout.CustomerId, orderId);
@@ -185,20 +185,21 @@ namespace Marketplace.Actor
             {
                 id = orderId,
                 customer_id = checkout.customerCheckout.CustomerId,
-                purchase_timestamp = checkout.createdAt.ToLongDateString(),
                 // olist have seller acting in the approval process
                 // here we approve automatically
                 // besides, invoice is a request for payment, so it makes sense to use this status now
                 status = OrderStatus.INVOICED.ToString(),
-                created_at = System.DateTime.Now.ToLongDateString(),
+                created_at = System.DateTime.Now,
+                purchase_timestamp = checkout.createdAt,
                 total_amount = total_amount,
                 total_items = total_items,
                 total_freight = total_freight,
                 total_incentive = total_incentive,
                 total_invoice = total_amount + total_freight,
-              
+                count_items = checkout.items.Count(),
+
             };
-            orders.Add(orderId, newOrder);
+            this.orders.Add(orderId, newOrder);
 
             List<OrderItem> orderItems = new(checkout.items.Count);
             int id = 0;
@@ -261,7 +262,7 @@ namespace Marketplace.Actor
                 throw new Exception(str);
             }
 
-            string now = DateTime.Now.ToLongDateString();
+            var now = DateTime.Now;
 
             OrderHistory orderHistory = null;
 
@@ -297,7 +298,7 @@ namespace Marketplace.Actor
                 status = status.ToString()
             };
 
-            history[orderId].Add(orderHistory);
+            this.history[orderId].Add(orderHistory);
 
             this.nextHistoryId++;
 
@@ -306,6 +307,15 @@ namespace Marketplace.Actor
             return Task.CompletedTask;
         }
 
+        public Task<List<Order>> GetOrders(long customerId, Predicate<Order> predicate = null)
+        {
+            List<Order> res;
+            if (predicate is not null)
+                res = this.orders.Select(o => o.Value).Where(p => p.customer_id == customerId && predicate.Invoke(p)).ToList();
+            else
+                res = this.orders.Select(o => o.Value).Where(p => p.customer_id == customerId).ToList();
+            return Task.FromResult(res);
+        }
     }
 }
 

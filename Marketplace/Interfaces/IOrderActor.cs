@@ -1,10 +1,11 @@
 ﻿using System;
-using Common.Scenario.Entity;
+using Common.Entity;
 using Marketplace.Infra;
 using Marketplace.Message;
 using Orleans;
 using System.Threading.Tasks;
 using Orleans.Concurrency;
+using System.Collections.Generic;
 
 namespace Marketplace.Interfaces
 {
@@ -20,6 +21,8 @@ namespace Marketplace.Interfaces
     {
         public Task Checkout(Checkout checkout);
         public Task UpdateOrderStatus(long orderId, OrderStatus status);
+
+        public Task<List<Order>> GetOrders(long customerId, Predicate<Order> predicate);
     }
 }
 

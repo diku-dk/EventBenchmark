@@ -5,7 +5,6 @@ using Orleans;
 using Orleans.Runtime;
 using System.Linq;
 using System.Collections.Generic;
-using Common.Scenario.Entity;
 using Marketplace.Infra;
 using Marketplace.Message;
 using Marketplace.Interfaces;

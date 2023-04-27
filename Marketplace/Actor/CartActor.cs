@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Common.Scenario.Entity;
+using Common.Entity;
 using Marketplace.Message;
 using Marketplace.Infra;
 using Microsoft.Extensions.Logging;
@@ -74,7 +74,7 @@ namespace Marketplace.Actor
                 return Task.CompletedTask;
             }
             this.state.items.Add(item.ProductId, item);
-            this._logger.LogWarning("Item {0} added to cart {1}", item.ProductId, customerId);
+            this._logger.LogWarning("Item {0} added to cart {1}.", item.ProductId, customerId);
             return Task.CompletedTask;
         }
 
@@ -109,20 +109,24 @@ namespace Marketplace.Actor
             if (this.state.items.Count == 0)
                 throw new Exception("Cart "+ this.customerId+" is empty.");
 
-            if(this.state.status == Status.CHECKOUT_SENT)
+            if (this.customerId != basketCheckout.CustomerId)
+                throw new Exception("Cart " + this.customerId + " does not correspond to customr ID received: "+basketCheckout.CustomerId);
+
+            if (this.state.status == Status.CHECKOUT_SENT)
                 throw new Exception("Cannot checkout a cart "+ customerId+" that has a checkout in progress.");
 
             // build checkout info for order processing
-            Checkout checkout = new(DateTime.Now, basketCheckout, this.state.items);
+            Checkout checkout = new Checkout(DateTime.Now, basketCheckout, this.state.items);
 
             // pick a random partition. why? (i) we do not know the order id yet (ii) distribute the work more seamlessly
             int orderPart = this.random.Next(0, nOrderPartitions);
-            IOrderActor orderActor = GrainFactory.GetGrain<IOrderActor>(orderPart);
+            IOrderActor orderActor = this.GrainFactory.GetGrain<IOrderActor>(orderPart);
             this.state.status = Status.CHECKOUT_SENT;
             // pass the responsibility
             await orderActor.Checkout(checkout);
 
             Seal();
+
             return;
         }
 

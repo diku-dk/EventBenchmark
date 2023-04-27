@@ -1,5 +1,5 @@
 ﻿using System;
-namespace Common.Scenario.Entity
+namespace Common.Entity
 {
     /**
      * 
@@ -42,6 +42,8 @@ namespace Common.Scenario.Entity
         public int success_payment_count { get; set; }
 
         public int failed_payment_count { get; set; }
+
+        public int pending_deliveries_count { get; set; }
 
         public int delivery_count { get; set; }
 

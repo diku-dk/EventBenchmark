@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using Marketplace.Infra;
 using Marketplace.Interfaces;
 using Microsoft.Extensions.Logging;
-using Common.Scenario.Entity;
 
 namespace Marketplace.Actor
 {
@@ -33,20 +32,23 @@ namespace Marketplace.Actor
 
         public Task DeleteItem(long productId)
         {
-            return Task.FromResult(items.Remove(productId));
+            this.items[productId].updated_at = DateTime.Now;
+            this.items[productId].active = false;
+            return Task.CompletedTask;
         }
 
         // called by order actor only
         public Task<ItemStatus> AttemptReservation(long productId, int quantity)
         {
-            if (!items.ContainsKey(productId))
+            if (!this.items[productId].active)
             {
                 return Task.FromResult(ItemStatus.DELETED);
 
             }
-            if (items[productId].qty_available - items[productId].qty_reserved >= quantity)
+            if (this.items[productId].qty_available - this.items[productId].qty_reserved >= quantity)
             {
-                items[productId].qty_reserved += quantity;
+                this.items[productId].qty_reserved += quantity;
+                this.items[productId].updated_at = DateTime.Now;
                 return Task.FromResult(ItemStatus.IN_STOCK);
             }
 
@@ -58,8 +60,9 @@ namespace Marketplace.Actor
         public Task ConfirmReservation(long productId, int quantity)
         {
             // deduct from stock
-            items[productId].qty_available -= quantity;
-            items[productId].qty_reserved -= quantity;
+            this.items[productId].qty_available -= quantity;
+            this.items[productId].qty_reserved -= quantity;
+            this.items[productId].updated_at = DateTime.Now;
             return Task.CompletedTask;
         }
 
@@ -67,7 +70,8 @@ namespace Marketplace.Actor
         public Task CancelReservation(long productId, int quantity)
         {
             // return item to stock
-            items[productId].qty_reserved -= quantity;
+            this.items[productId].qty_reserved -= quantity;
+            this.items[productId].updated_at = DateTime.Now;
             return Task.CompletedTask;
         }
 
@@ -76,14 +80,17 @@ namespace Marketplace.Actor
         public Task ConfirmOrder(long productId, int quantity)
         {
             // increase order count
-            items[productId].order_count += 1;
+            this.items[productId].order_count += 1;
+            this.items[productId].updated_at = DateTime.Now;
             return Task.CompletedTask;
         }
 
         public Task AddItem(StockItem item)
         {
-            _logger.LogWarning("Stock part {0}, adding product ID {1}", this.partitionId, item.product_id);
-            return Task.FromResult(items.TryAdd(item.product_id, item));
+            this._logger.LogWarning("Stock part {0}, adding product ID {1}", this.partitionId, item.product_id);
+            this.items.Add(item.product_id, item);
+            this.items[item.product_id].created_at = DateTime.Now;
+            return Task.CompletedTask;
         }
 
         Func<(ItemStatus, ItemStatus)> out_to_in = () => (ItemStatus.OUT_OF_STOCK, ItemStatus.IN_STOCK);
@@ -96,8 +103,9 @@ namespace Marketplace.Actor
         public Task<(ItemStatus,ItemStatus)> IncreaseStock(long productId, int quantity)
         {
             
-            items[productId].qty_available += quantity;
-            if(items[productId].qty_available == quantity)
+            this.items[productId].qty_available += quantity;
+            this.items[productId].updated_at = DateTime.Now;
+            if (this.items[productId].qty_available == quantity)
             {
                 return Task.FromResult(out_to_in.Invoke());
             }

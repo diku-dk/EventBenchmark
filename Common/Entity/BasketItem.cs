@@ -1,5 +1,5 @@
 ﻿using System;
-namespace Common.Scenario.Entity
+namespace Common.Entity
 {
     /**
      * Entity not present in olist original data set

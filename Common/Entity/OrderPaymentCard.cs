@@ -1,5 +1,5 @@
 ﻿using System;
-namespace Common.Scenario.Entity
+namespace Common.Entity
 {
 	public class OrderPaymentCard
 	{

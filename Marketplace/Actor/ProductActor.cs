@@ -1,10 +1,9 @@
 ﻿using System;
-using Common.Scenario.Entity;
+using Common.Entity;
 using System.Threading.Tasks;
 using Orleans;
 using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
-using Common.Entity;
 using Marketplace.Infra;
 using Marketplace.Message;
 using Marketplace.Interfaces;

@@ -1,6 +1,6 @@
 ﻿using System.Threading.Tasks;
 using Common.Scenario.Customer;
-using Common.Scenario.Entity;
+using Common.Entity;
 using Orleans;
 using Orleans.Concurrency;
 

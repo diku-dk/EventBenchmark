@@ -15,7 +15,7 @@ namespace Common.Entity
 		public decimal total_freight_value;
 
 		// date all deliveries were requested
-        public string request_date;
+        public DateTime request_date;
 
         // shipment status
         public string status;

@@ -12,9 +12,8 @@ using Orleans.Streams;
 using Common.Http;
 using System.Net.Http;
 using System.Text.RegularExpressions;
-using Common.Scenario.Entity;
-using Newtonsoft.Json;
 using Common.Entity;
+using Newtonsoft.Json;
 using System.Collections.Generic;
 
 namespace Grains.Workers

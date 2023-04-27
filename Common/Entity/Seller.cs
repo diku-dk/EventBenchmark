@@ -1,5 +1,5 @@
 ﻿using System;
-namespace Common.Scenario.Entity
+namespace Common.Entity
 {
     /**
      * Seller information is assembled based on two sources:

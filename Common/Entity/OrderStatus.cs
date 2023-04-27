@@ -1,5 +1,5 @@
 ﻿using System;
-namespace Common.Scenario.Entity
+namespace Common.Entity
 {
     /**
      * https://dev.olist.com/docs/orders

@@ -16,7 +16,7 @@ using Common.Ingestion;
 using Common.Ingestion.Config;
 using Common.Scenario;
 using Common.Scenario.Customer;
-using Common.Scenario.Entity;
+using Common.Entity;
 using Common.Scenario.Seller;
 using Common.Streaming;
 using Confluent.Kafka;

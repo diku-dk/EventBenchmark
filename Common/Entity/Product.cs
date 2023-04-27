@@ -1,5 +1,5 @@
 ﻿using System;
-namespace Common.Scenario.Entity
+namespace Common.Entity
 {
     /**
      * Product is based on info found in:
@@ -27,6 +27,7 @@ namespace Common.Scenario.Entity
         public decimal price { get; set; }
 
         // "2017-10-06T01:40:58.172415Z"
+        public string created_at { get; set; }
         public string updated_at { get; set; }
 
         public bool active { get; set; }

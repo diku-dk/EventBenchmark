@@ -15,6 +15,11 @@ namespace Common.Entity
 
         public int ytd { get; set; }
 
+        public DateTime created_at { get; set; }
+        public DateTime updated_at { get; set; }
+
+        public bool active { get; set; } = true;
+
         public string data { get; set; }
     }
 }

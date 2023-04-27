@@ -6,7 +6,7 @@ using Common.Http;
 using Common.Ingestion;
 using Common.Ingestion.Config;
 using Common.Scenario;
-using Common.Scenario.Entity;
+using Common.Entity;
 using DuckDB.NET.Data;
 using Newtonsoft.Json;
 using System;

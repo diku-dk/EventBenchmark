@@ -1,5 +1,5 @@
 ﻿using System;
-namespace Common.Scenario.Entity
+namespace Common.Entity
 {
     /*
      * Order is based on two sources:
@@ -17,29 +17,31 @@ namespace Common.Scenario.Entity
 
         public string status { get; set; }
 
-        public string purchase_timestamp { get; set; }
+        public DateTime purchase_timestamp { get; set; }
 
         // public string approved_at { get; set; }
 
         // added
-        public string payment_date { get; set; }
+        public DateTime payment_date { get; set; }
 
-        public string delivered_carrier_date { get; set; }
+        public DateTime delivered_carrier_date { get; set; }
 
-        public string delivered_customer_date { get; set; }
+        public DateTime delivered_customer_date { get; set; }
 
-        public string estimated_delivery_date { get; set; }
+        public DateTime estimated_delivery_date { get; set; }
 
         // dev
-        public string count_items { get; set; }
-        public string created_at { get; set; }
-        public string updated_at { get; set; }
+        public int count_items { get; set; }
+        public DateTime created_at { get; set; }
+        public DateTime updated_at { get; set; }
 
         public decimal total_amount { get; set; }
         public decimal total_freight { get; set; }
         public decimal total_incentive { get; set; }
         public decimal total_invoice { get; set; }
         public decimal total_items { get; set; }
+
+        public string data { get; set; }
 
         public Order()
         {

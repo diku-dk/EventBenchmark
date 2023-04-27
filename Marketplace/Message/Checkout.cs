@@ -1,5 +1,5 @@
 ﻿using System;
-using Common.Scenario.Entity;
+using Common.Entity;
 using System.Collections.Generic;
 
 namespace Marketplace.Message
@@ -8,7 +8,7 @@ namespace Marketplace.Message
 	 * Assemble all data necessary for processing a checkout
 	 * Data structure delivered to order actor to proceed with order processing
 	 */
-	public struct Checkout
+	public record Checkout
 	{
 		public readonly DateTime createdAt;
 		public readonly CustomerCheckout customerCheckout;

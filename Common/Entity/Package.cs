@@ -15,10 +15,10 @@ namespace Common.Entity
         public decimal freight_value;
 
 		// date the shipment has actually been performed
-		public long shipping_date;
+		public DateTime shipping_date;
 
         // delivery date
-        public long delivery_date;
+        public DateTime delivery_date;
 		// public long estimated_delivery_date;
 
 		// delivery to carrier date

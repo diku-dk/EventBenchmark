@@ -1,5 +1,5 @@
 ﻿using System;
-using Common.Scenario.Entity;
+using Common.Entity;
 using Marketplace.Infra;
 using Marketplace.Message;
 using Orleans;

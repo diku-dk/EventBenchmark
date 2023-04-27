@@ -1,12 +1,12 @@
 ﻿using System;
-namespace Common.Scenario.Entity
+namespace Common.Entity
 {
     /**
      * A sub-type of customer.
      * Ideally, address and credit card info may change across customer checkouts
      * Basket and Order does not need to know all internal data about customers
      */
-    public class CustomerCheckout
+    public record CustomerCheckout
     {
         public long CustomerId { get; set; }
 

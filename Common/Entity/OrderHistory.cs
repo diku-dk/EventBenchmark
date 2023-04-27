@@ -1,5 +1,5 @@
 ﻿using System;
-namespace Common.Scenario.Entity
+namespace Common.Entity
 {
     /**
 	 * Based on the payload found in:
@@ -19,7 +19,7 @@ namespace Common.Scenario.Entity
         // FK can be ommitted if document-oriented model (as a nested object) is adopted
         public long order_id { get; set; }
 
-        public string created_at { get; set; }
+        public DateTime created_at { get; set; }
         public string status { get; set; }
 
     }

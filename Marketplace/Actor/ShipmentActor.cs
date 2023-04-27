@@ -2,7 +2,6 @@
 using Common.Entity;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using Common.Scenario.Entity;
 using Orleans;
 using Marketplace.Infra;
 using System.Linq;
@@ -79,7 +78,6 @@ namespace Marketplace.Actor
                         .SelectMany(x => x).ToList();
 
             // create the shipment
-            long today = DateTime.Now.Millisecond;
             Shipment shipment = new()
             {
                 id = this.nextShipmentId,
@@ -108,7 +106,7 @@ namespace Marketplace.Actor
                     package_id = package_id,
                     status = PackageStatus.shipped.ToString(),
                     freight_value = item.freight_value,
-                    shipping_date = today,
+                    shipping_date = DateTime.Now,
                     seller_id = item.seller_id,
                     product_id = item.product_id,
                     quantity = item.quantity
@@ -124,15 +122,20 @@ namespace Marketplace.Actor
 
             this.nextShipmentId++;
 
+            Task[] tasks = new Task[2];
             /**
              * Based on olist (https://dev.olist.com/docs/orders), the status of the order is
              * shipped when "at least one order item has been shipped"
              * All items are considered shipped here, so just signal the order about that
              */
             IOrderActor orderActor = GrainFactory.GetGrain<IOrderActor>(invoice.order.id % nOrderPartitions);
-            await orderActor.UpdateOrderStatus(invoice.order.id, OrderStatus.SHIPPED);
+            tasks[0] = orderActor.UpdateOrderStatus(invoice.order.id, OrderStatus.SHIPPED);
 
-            // TODO notify customer about shipment!
+            // notify customer about shipment
+            ICustomerActor custActor = GrainFactory.GetGrain<ICustomerActor>(invoice.customer.CustomerId % nCustPartitions);
+            tasks[1] = custActor.NotifyShipment(invoice.customer.CustomerId, packages_.Count());
+
+            await Task.WhenAll(tasks);
 
             this._logger.LogWarning("Shipment grain {0} -- Shipment process finished for order {0}", this.shipmentActorId, invoice.order.id);
         }
@@ -225,13 +228,15 @@ namespace Marketplace.Actor
             // if (package.status.Equals(PackageStatus.delivered.ToString())) throw new Exception("Package is already delivered");
 
             // update
+            var now = DateTime.Now;
             foreach (var package in sellerPackages)
             {
                 package.status = PackageStatus.delivered.ToString();
+                package.delivery_date = now;
             }
               
             IOrderActor orderActor = GrainFactory.GetGrain<IOrderActor>(this.shipments[shipment_id].order_id % nOrderPartitions);
-            var custActor = this.shipments[shipment_id].customer_id % nCustPartitions;
+            long custActor = this.shipments[shipment_id].customer_id % nCustPartitions;
 
             List<Task> tasks = new(2)
             {

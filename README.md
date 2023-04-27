@@ -10,7 +10,7 @@ By taking advantage of the [Orleans framework](https://learn.microsoft.com/en-us
 At the same time, the framework intends to provide a smooth learning curve, being easy to adapt to different workload scenarios.
 
 ## Target Application
-In particular, EventBenchmark is able to model the workload of an [online marketplace platform](https://en.wikipedia.org/wiki/Online_marketplace). Experiencing a growing popularity, such platforms offer an e-commerce infrastructure so multiple retailers can offer their products or services to individual consumers.
+In particular, EventBenchmark models the workload of an [online marketplace platform](https://en.wikipedia.org/wiki/Online_marketplace). Experiencing a growing popularity, such platforms offer an e-commerce infrastructure so multiple retailers can offer their products or services to individual consumers.
 Further details about the target application can be found in [to be announced].
 
 ## Why Event Benchmark?

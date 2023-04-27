@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 using Common.Configuration;
 using Common.Http;
 using Common.Scenario.Customer;
-using Common.Scenario.Entity;
+using Common.Entity;
 using Common.State;
 using Common.Streaming;
 using Common.YCSB;
