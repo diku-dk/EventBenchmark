@@ -1,0 +1,9 @@
+﻿{
+    "healthCheck": true,
+    "dataLoad": true,
+    "ingestion": true,
+    "transactionSubmission": true,
+    "pubsubEnabled": false,
+    "cleanup": false
+}
+

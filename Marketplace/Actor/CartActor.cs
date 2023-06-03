@@ -1,15 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using Common.Entity;
 using Marketplace.Message;
 using Marketplace.Infra;
 using Microsoft.Extensions.Logging;
 using Orleans;
-using Orleans.Runtime;
 using Marketplace.Interfaces;
-using Common.State;
+using Common.Event;
+using System.Linq;
 
 namespace Marketplace.Actor
 {
@@ -19,8 +18,8 @@ namespace Marketplace.Actor
     public class CartActor : Grain, ICartActor
     {
         // current basket
-        private readonly CartState state;
-        private readonly IList<ProductCheck> divergences;
+        private readonly Cart cart;
+        private readonly IList<ProductStatus> divergences;
         private readonly Random random;
 
         // private readonly SortedList<long,Checkout> history;
@@ -36,9 +35,9 @@ namespace Marketplace.Actor
 
         public CartActor(ILogger<CartActor> _logger)
 		{
-            this.state = new CartState();
+            this.cart = new Cart();
             this._logger = _logger;
-            this.divergences = new List<ProductCheck>();
+            this.divergences = new List<ProductStatus>();
             this.random = new Random();
         }
 
@@ -55,33 +54,48 @@ namespace Marketplace.Actor
             int custPartition = (int)(this.customerId % nCustomerPartitions);
             var custActor = GrainFactory.GetGrain<ICustomerActor>(custPartition);
             this.customer = await custActor.GetCustomer(this.customerId);
-            _logger.LogWarning("Customer loaded for cart {0}", customerId);
+            this._logger.LogWarning("Customer loaded for cart {0}", customerId);
         }
 
         public Task ClearCart()
         {
-            this.state.status = Status.OPEN;
-            this.state.items.Clear();
+            this.cart.status = CartStatus.OPEN;
+            this.cart.items.Clear();
             return Task.CompletedTask;
         }
 
-        public Task AddProduct(BasketItem item)
+        public Task AddProduct(CartItem item)
         {
-            if (this.state.items.ContainsKey(item.ProductId))
+
+            if(item.Quantity <= 0)
             {
-                this._logger.LogWarning("Item already added to cart {0}. Item will be updated then.", customerId);
-                this.state.items[item.ProductId] = item;
+                throw new Exception("Item " + item.ProductId + " shows no positive value.");
+            }
+
+            if (this.cart.items.ContainsKey(item.ProductId))
+            {
+
+                if (this.cart.items[item.ProductId].Unavailable)
+                {
+                    this._logger.LogError("Item is unavailable. request will be discarded.", this.customerId);
+                }
+                else
+                {
+                    this._logger.LogWarning("Item already added to cart {0}. Item will be updated then.", this.customerId);
+                    this.cart.items[item.ProductId] = item;
+                }
                 return Task.CompletedTask;
             }
-            this.state.items.Add(item.ProductId, item);
-            this._logger.LogWarning("Item {0} added to cart {1}.", item.ProductId, customerId);
+
+            this.cart.items.Add(item.ProductId, item);
+            this._logger.LogWarning("Item {0} added to cart {1}.", item.ProductId, this.customerId);
             return Task.CompletedTask;
         }
 
-        public Task<CartState> GetCart()
+        public Task<Cart> GetCart()
         {
             this._logger.LogWarning("Cart {0} GET cart request.", this.customerId);
-            return Task.FromResult(this.state);
+            return Task.FromResult(this.cart);
         }
 
         /*
@@ -96,7 +110,7 @@ namespace Marketplace.Actor
             // send products to shipment, get shipment quotation
             // any shipment actor carries the quotation logic.
             // shipment partitioned by order, order is not created yet at this point
-            Dictionary<long, decimal> quotationMap = await GrainFactory.GetGrain<IShipmentActor>(0).GetQuotation(this.customer.zip_code_prefix);
+            Dictionary<long, decimal> quotationMap = await GrainFactory.GetGrain<IShipmentActor>(0).GetQuotation(this.customer.zip_code);
             // while wait, get customer info so it can be shown in the UI
             return;
         }
@@ -106,22 +120,23 @@ namespace Marketplace.Actor
         {
             this._logger.LogWarning("Cart {0} received checkout request.", this.customerId);
 
-            if (this.state.items.Count == 0)
+            if (this.cart.items.Count == 0)
                 throw new Exception("Cart "+ this.customerId+" is empty.");
 
             if (this.customerId != basketCheckout.CustomerId)
-                throw new Exception("Cart " + this.customerId + " does not correspond to customr ID received: "+basketCheckout.CustomerId);
+                throw new Exception("Cart " + this.customerId + " does not correspond to customer ID received: "+basketCheckout.CustomerId);
 
-            if (this.state.status == Status.CHECKOUT_SENT)
-                throw new Exception("Cannot checkout a cart "+ customerId+" that has a checkout in progress.");
+            if (this.cart.status == Status.CHECKOUT_SENT)
+                throw new Exception("Cannot checkout a cart "+ this.customerId +" that has a checkout in progress.");
 
             // build checkout info for order processing
-            Checkout checkout = new Checkout(DateTime.Now, basketCheckout, this.state.items);
+            Checkout checkout = new Checkout(DateTime.Now, basketCheckout,
+                this.cart.items.Select( c => c.Value).Where( c => !c.Unavailable).ToList() );
 
             // pick a random partition. why? (i) we do not know the order id yet (ii) distribute the work more seamlessly
-            int orderPart = this.random.Next(0, nOrderPartitions);
+            int orderPart = this.random.Next(0, this.nOrderPartitions);
             IOrderActor orderActor = this.GrainFactory.GetGrain<IOrderActor>(orderPart);
-            this.state.status = Status.CHECKOUT_SENT;
+            this.cart.status = CartStatus.CHECKOUT_SENT;
             // pass the responsibility
             await orderActor.Checkout(checkout);
 
@@ -132,10 +147,10 @@ namespace Marketplace.Actor
 
         private void Seal()
         {
-            if (this.state.status == Status.CHECKOUT_SENT)
+            if (this.cart.status == CartStatus.CHECKOUT_SENT)
             {
-                this.state.status = Status.OPEN;
-                this.state.items.Clear();
+                this.cart.status = CartStatus.OPEN;
+                this.cart.items.Clear();
             }
             else
             {
@@ -143,6 +158,16 @@ namespace Marketplace.Actor
             }
         }
 
+        public Task NotifyProductUnavailability(List<long> itemIds)
+        {
+            // mark products as unavailable
+            foreach(long id in itemIds)
+            {
+                if(!this.cart.items.ContainsKey(id)) throw new Exception("Unavailable product has been reported to a cart that do not shows this product!");
+                this.cart.items[id].Unavailable = true;
+            }
+            return Task.CompletedTask;
+        }
     }
 }
 

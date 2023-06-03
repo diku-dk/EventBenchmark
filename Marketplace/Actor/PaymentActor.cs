@@ -1,15 +1,13 @@
 ﻿using System;
 using Common.Entity;
+using Common.Event;
 using System.Threading.Tasks;
 using Orleans;
-using Orleans.Runtime;
-using System.Linq;
 using System.Collections.Generic;
 using Marketplace.Infra;
 using Marketplace.Message;
 using Marketplace.Interfaces;
 using Microsoft.Extensions.Logging;
-using System.Collections.ObjectModel;
 
 namespace Marketplace.Actor
 {
@@ -65,7 +63,7 @@ namespace Marketplace.Actor
             if (this.random.Next(1, 11) > 7)
             {
                 // approved = false;
-                _logger.LogWarning("Payment grain {0}, order would have failed!", this.paymentActorId);
+                this._logger.LogWarning("Payment grain {0}, order would have failed!", this.paymentActorId);
             }
 
             return approved;
@@ -74,6 +72,12 @@ namespace Marketplace.Actor
         public async Task ProcessPayment(Invoice invoice)
         {
             this._logger.LogWarning("Payment grain {0} -- Payment process starting for order {0}", this.paymentActorId, invoice.order.id);
+
+            if(invoice.order.total_amount < 0)
+            {
+                throw new Exception("Payment grain "+ this.paymentActorId  + " -- Total amount is negative. Cannot process the order.");
+            }
+
             bool approved = await ContactESP(invoice.customer, invoice.order.total_amount);
             List<Task> tasks = new(invoice.items.Count);
 
@@ -195,21 +199,6 @@ namespace Marketplace.Actor
 
         }
 
-        public async Task ProcessFailedOrder(long customerId, long orderId)
-        {
-            IOrderActor orderActor = GrainFactory.GetGrain<IOrderActor>(orderId % nOrderPartitions);
-            ICustomerActor custActor = GrainFactory.GetGrain<ICustomerActor>(customerId % nCustomerPartitions);
-            IShipmentActor shipmentActor = GrainFactory.GetGrain<IShipmentActor>(orderId % nShipmentPartitions);
-
-            List<Task> tasks = new(4);
-
-            tasks.Add(orderActor.UpdateOrderStatus(orderId, OrderStatus.PAYMENT_FAILED));
-            tasks.Add(orderActor.noOp());
-            tasks.Add(custActor.NotifyFailedPayment(customerId, null));
-            tasks.Add(shipmentActor.noOp());
-
-            await Task.WhenAll(tasks);
-        }
     }
 }
 

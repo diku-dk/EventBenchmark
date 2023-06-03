@@ -1,5 +1,5 @@
 ﻿using System;
-namespace Client.DataGeneration
+namespace Common.Entity
 {
 	public enum CardBrand
 	{

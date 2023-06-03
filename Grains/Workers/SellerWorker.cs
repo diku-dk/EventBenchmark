@@ -50,7 +50,7 @@ namespace Grains.Workers
         {
             public int Compare(Product x, Product y)
             {
-                if (x.id < y.id) return 0; return 1;
+                if (x.product_id < y.product_id) return 0; return 1;
             }
         }
 
@@ -64,13 +64,13 @@ namespace Grains.Workers
             this.products = products;
 
             this.products.Sort(productComparer);
-            long lastId = this.products.ElementAt(this.products.Count-1).id;
+            long lastId = this.products.ElementAt(this.products.Count-1).product_id;
 
-            this._logger.LogWarning("Init -> Seller worker {0} first {1} last {2}.", this.sellerId, this.products.ElementAt(0).id, lastId);
+            this._logger.LogWarning("Init -> Seller worker {0} first {1} last {2}.", this.sellerId, this.products.ElementAt(0).product_id, lastId);
              
             this.productIdGenerator = this.config.keyDistribution == Distribution.UNIFORM ?
-                 new UniformLongGenerator(this.products[0].id, lastId) :
-                 new ZipfianGenerator(this.products[0].id, lastId);
+                 new UniformLongGenerator(this.products[0].product_id, lastId) :
+                 new ZipfianGenerator(this.products[0].product_id, lastId);
 
             return Task.CompletedTask;
         }
@@ -218,12 +218,12 @@ namespace Grains.Workers
         {
             public bool Equals(Product x, Product y)
             {
-                return (x.id == y.id);
+                return (x.product_id == y.product_id);
             }
 
             public int GetHashCode([DisallowNull] Product obj)
             {
-                return obj.id.GetHashCode();
+                return obj.product_id.GetHashCode();
             }
         }
 
@@ -233,7 +233,7 @@ namespace Grains.Workers
         {
             ISet<Product> set = new HashSet<Product>(productEqualityComparer);
 
-            var map = products.GroupBy(p => p.id).ToDictionary(group => group.Key, group => group.First());
+            var map = products.GroupBy(p => p.product_id).ToDictionary(group => group.Key, group => group.First());
 
             while(set.Count < numberProducts)
             {

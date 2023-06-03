@@ -1,0 +1,45 @@
+﻿{
+    // from lowest to highest. last entry must be 100
+    "transactionDistribution": {
+        "CUSTOMER_SESSION": 70,
+        "UPDATE_DELIVERY": 100
+    },
+    // not inside customer config because customer
+    // worker does not need to know that
+    "customerDistribution": "UNIFORM",
+    "executionTime": 60000, // 1 minute by default
+    "waitBetweenSubmissions": 10000,
+    "submissionType": "QUANTITY",
+    "submissionValue" :  5,
+    // mandatory entry points
+    "mapTableToUrl": {
+        "products": "http://127.0.0.1:8001/products",
+        "carts": "http://127.0.0.1:8001/carts",
+        "sellers": "http://127.0.0.1:8001/sellers",
+        "customers": "http://127.0.0.1:8001/customers",
+        "shipments": "http://127.0.0.1:8001/shipments"
+    },
+    "customerConfig": {
+        "maxNumberKeysToBrowse": 10,
+        "maxNumberKeysToAddToCart": 10,
+        "sellerDistribution": "UNIFORM", // NORMAL, UNIFORM, ZIPFIAN
+        "minMaxQtyRange": {
+            "min": 1,
+            "max": 10
+        },
+        "delayBetweenRequestsRange": {
+            "min": 1,
+            "max": 1000
+        },
+        "delayBeforemin": 0,
+        "checkoutProbability": 50
+    },
+    "sellerConfig": {
+        "keyDistribution": "UNIFORM",
+        "delayBetweenRequestsRange": {
+            "min": 1,
+            "max": 1000
+        }
+    }
+}
+

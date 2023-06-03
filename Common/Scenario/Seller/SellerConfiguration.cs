@@ -17,14 +17,14 @@ namespace Common.Scenario.Seller
         public int[] typeUpdateDistribution = new int[] { 0, 1 };
 
         // the perc of increase
-        public Range adjustRange = new Range(1, 21);
+        public Interval adjustRange = new Interval(1, 20);
 
         // seller main page (the one after login), seller products page
         public Dictionary<string, string> urls;
 
         public int delayBeforeStart = 0;
 
-        public Range delayBetweenRequestsRange;
+        public Interval delayBetweenRequestsRange;
 
     }
 }

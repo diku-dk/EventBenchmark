@@ -1,0 +1,11 @@
+﻿{
+    "connectionString" : "Data Source=file.db", // optional if data source file is read
+    "distributionStrategy": "SINGLE_WORKER", //optional
+    "numberCpus": 2, // optional
+    "mapTableToUrl": {
+        "sellers": "http://127.0.0.1:8001/sellers",
+        "customers": "http://127.0.0.1:8001/customers",
+        "stock_items": "http://127.0.0.1:8001/stock_items",
+        "products": "http://127.0.0.1:8001/products"
+    }
+}

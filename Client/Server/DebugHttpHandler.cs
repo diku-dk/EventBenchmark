@@ -13,7 +13,7 @@ namespace Client.Server
      * A simple handler for debugging/testing purposes
      * It processes the request synchronously.
      */
-	public class HttpHandler : IHttpClientRequestHandler
+	public class DebugHttpHandler : IHttpClientRequestHandler
 	{
 
         public void Handle(HttpListenerContext ctx)

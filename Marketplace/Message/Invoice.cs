@@ -1,5 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using Common.Event;
 using Common.Entity;
 
 namespace Marketplace.Message
@@ -10,24 +10,7 @@ namespace Marketplace.Message
 	 * An invoice data structure contains all necessary info for the payment 
 	 * actor to process a payment
 	 */
-    public record Invoice
-	{
-		public readonly CustomerCheckout customer;
+    public record Invoice(CustomerCheckout customer, Order order, IList<OrderItem> items);
 
-		public readonly Order order;
-
-		// items
-		public readonly IList<OrderItem> items;
-
-		// inconsistencies, if any
-		// public List<ProductCheck> inconsistencies;
-
-		public Invoice(CustomerCheckout customerCheckout, Order order, IList<OrderItem> items)
-		{
-			this.customer = customerCheckout;
-			this.order = order;
-			this.items = items;
-		}
-	}
 }
 

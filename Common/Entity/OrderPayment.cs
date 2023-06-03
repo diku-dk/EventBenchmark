@@ -1,15 +1,15 @@
 ﻿using System;
 namespace Common.Entity
 {
-	public class OrderPayment
-	{
+    public class OrderPayment
+    {
         public long order_id { get; set; }
 
         // 1 - coupon, 2 - coupon, 3 - credit card
         public int payment_sequential { get; set; }
 
         // coupon, credit card
-        public string payment_type { get; set; }
+        public PaymentType payment_type { get; set; }
 
         // number of times the credit card is charged (usually once a month)
         public int payment_installments { get; set; }

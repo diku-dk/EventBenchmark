@@ -10,6 +10,9 @@ namespace Marketplace.Interfaces
     public interface ICustomerActor : IGrainWithIntegerKey, SnapperActor
     {
         public Task<Customer> GetCustomer(long customerId);
+
+        public Task NotifyProductUnavailability(long customerId, List<long> itemIds);
+
         public Task NotifyPayment(long customerId, Order order);
         public Task NotifyFailedPayment(long customerId, Order order);
 

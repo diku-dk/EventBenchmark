@@ -1,21 +1,22 @@
 ﻿using System;
 namespace Common.Entity
 {
-	public class OrderItem
-	{
-        // Composite PK
+    public class OrderItem
+    {
         public long order_id { get; set; }
+
         public long order_item_id { get; set; }
 
-        // FK
         public long product_id { get; set; }
 
-        // FK
+        public string product_name { get; set; } = "";
+
         public long seller_id { get; set; }
 
+        // prices change over time
         public decimal unit_price { get; set; }
 
-        public string shipping_limit_date { get; set; }
+        public DateTime shipping_limit_date { get; set; }
 
         public decimal freight_value { get; set; }
 
@@ -25,8 +26,11 @@ namespace Common.Entity
         // without freight value
         public decimal total_items { get; set; }
 
-        // with freight value
+        // without freight value
         public decimal total_amount { get; set; }
+
+        //
+        public decimal[] vouchers { get; set; } = Array.Empty<decimal>();
+
     }
 }
-

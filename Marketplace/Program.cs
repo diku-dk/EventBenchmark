@@ -37,6 +37,7 @@ namespace Marketplace
             Console.WriteLine("\n *************************************************************************");
             Console.ReadLine();
 			httpServer.Stop();
+            Task.WaitAll(httpServerTask, client.Close());
 		}
 
         // configuration. number of partitions. let's start with one for each

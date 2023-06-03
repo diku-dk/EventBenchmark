@@ -26,18 +26,15 @@ namespace Common.Scenario
         // how much time a window or burst may remain. in milliseconds
         public int submissionValue = 5000;
 
-        public long waitBetweenSubmissions = 0;
-
-        // period to wait before start
-        public TimeSpan dueTime = TimeSpan.FromSeconds(5);
+        public int waitBetweenSubmissions = 0;
 
         // a timer is configured to notify the orchestrator grain about the termination
-        public TimeSpan period = TimeSpan.FromSeconds(60);
+        public int executionTime = 6000;
 
-        // e.g. 10 entries, new order has 7 entries and price update 3, meaning 70% probability of new order
-        public WorkloadType[] weight;
+        // e.g. customer_session 70, price_update 75, 
+        public IDictionary<TransactionType,int> transactionDistribution;
 
-        // usually the same as the ingestion
+        // similar to ingestion config
         // but as new microservices might be added here
         // we have this attribute in the config
         public Dictionary<string, string> mapTableToUrl;

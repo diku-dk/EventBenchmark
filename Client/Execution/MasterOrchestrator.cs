@@ -35,7 +35,10 @@ namespace Client
 	public class MasterOrchestrator
 	{
 
-        private readonly MasterConfiguration config;
+        private readonly MasterConfiguration masterConfig;
+
+        // orleans client
+        private readonly IClusterClient orleansClient;
 
         // streams
         private readonly IStreamProvider streamProvider;
@@ -43,10 +46,11 @@ namespace Client
         // synchronization with possible many ingestion orchestrator
         // CountdownEvent ingestionProcess;
 
-        public MasterOrchestrator(MasterConfiguration masterConfig)
+        public MasterOrchestrator(IClusterClient orleansClient, MasterConfiguration masterConfig)
 		{
-            this.config = masterConfig;
-            this.streamProvider = masterConfig.orleansClient.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider);
+            this.orleansClient = orleansClient;
+            this.masterConfig = masterConfig;
+            this.streamProvider = orleansClient.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider);
         }
 
         /*
@@ -63,31 +67,31 @@ namespace Client
          */
         public async Task Run()
         {
-            if (this.config.load)
+            if (this.masterConfig.workflowConfig.dataLoad)
             {
-                if(this.config.syntheticConfig != null)
+                if(this.masterConfig.syntheticDataConfig != null)
                 {
-                    var syntheticDataGenerator = new SyntheticDataGenerator(config.syntheticConfig);
+                    var syntheticDataGenerator = new SyntheticDataGenerator(masterConfig.syntheticDataConfig);
                     syntheticDataGenerator.Generate();
                 } else {
 
-                    if(this.config.olistConfig == null)
+                    if(this.masterConfig.olistDataConfig == null)
                     {
                         throw new Exception("Loading data is set up but no configuration was found!");
                     }
 
-                    var realDataGenerator = new RealDataGenerator(config.olistConfig);
+                    var realDataGenerator = new RealDataGenerator(masterConfig.olistDataConfig);
                     realDataGenerator.Generate();
 
                 }
             }
 
-            if (this.config.healthCheck)
+            if (this.masterConfig.workflowConfig.healthCheck)
             {
                 // for each table and associated url, perform a GET request to check if return is OK
                 // health check. is the microservice online?
                 var responses = new List<Task<HttpResponseMessage>>();
-                foreach (var tableUrl in config.ingestionConfig.mapTableToUrl)
+                foreach (var tableUrl in masterConfig.ingestionConfig.mapTableToUrl)
                 {
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, tableUrl.Value);
                     responses.Add(HttpUtils.client.SendAsync(message));
@@ -96,7 +100,7 @@ namespace Client
                 await Task.WhenAll(responses);
 
                 int idx = 0;
-                foreach (var tableUrl in config.ingestionConfig.mapTableToUrl)
+                foreach (var tableUrl in masterConfig.ingestionConfig.mapTableToUrl)
                 {
                     if (!responses[idx].Result.IsSuccessStatusCode)
                     {
@@ -108,10 +112,10 @@ namespace Client
 
             }
 
-            if (this.config.ingestion)
+            if (this.masterConfig.workflowConfig.ingestion)
             {
 
-                var ingestionOrchestrator = new IngestionOrchestrator(config.ingestionConfig);
+                var ingestionOrchestrator = new IngestionOrchestrator(masterConfig.ingestionConfig);
 
                 ingestionOrchestrator.Run();
 
@@ -141,11 +145,11 @@ namespace Client
                 */
             }
 
-            if (this.config.transaction)
+            if (this.masterConfig.workflowConfig.transactionSubmission)
             {
 
-                this.config.scenarioConfig.customerConfig.urls = config.scenarioConfig.mapTableToUrl;
-                CustomerConfiguration customerConfig = config.scenarioConfig.customerConfig;
+                this.masterConfig.scenarioConfig.customerConfig.urls = masterConfig.scenarioConfig.mapTableToUrl;
+                CustomerConfiguration customerConfig = masterConfig.scenarioConfig.customerConfig;
 
                 if (!customerConfig.urls.ContainsKey("products"))
                 {
@@ -161,7 +165,7 @@ namespace Client
                 }
 
                 // get number of products
-                using var connection = new DuckDBConnection(config.connectionString);
+                using var connection = new DuckDBConnection(masterConfig.connectionString);
                 connection.Open();
                 var endValue = DuckDbUtils.Count(connection, "products");
                 if (endValue < customerConfig.maxNumberKeysToBrowse || endValue < customerConfig.maxNumberKeysToAddToCart)
@@ -172,7 +176,7 @@ namespace Client
                 // update customer config
                 long numSellers = DuckDbUtils.Count(connection, "sellers");
                 // defined dynamically
-                this.config.scenarioConfig.customerConfig.sellerRange = new Range(1, (int) numSellers);
+                this.masterConfig.scenarioConfig.customerConfig.sellerRange = new Interval(1, (int) numSellers);
 
                 // make sure to activate all sellers so all can respond to customers when required
                 // another solution is making them read from the microservice itself...
@@ -181,27 +185,27 @@ namespace Client
                 for (int i = 1; i <= numSellers; i++)
                 {
                     List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
-                    sellerWorker = this.config.orleansClient.GetGrain<ISellerWorker>(i);
-                    tasks.Add( sellerWorker.Init(this.config.scenarioConfig.sellerConfig, products) );
+                    sellerWorker = this.orleansClient.GetGrain<ISellerWorker>(i);
+                    tasks.Add( sellerWorker.Init(this.masterConfig.scenarioConfig.sellerConfig, products) );
                 }
                 await Task.WhenAll(tasks);
 
                 // activate delivery worker
-                await this.config.orleansClient.GetGrain<IDeliveryWorker>(0).Init(this.config.scenarioConfig.mapTableToUrl["shipments"]);
+                await this.orleansClient.GetGrain<IDeliveryWorker>(0).Init(this.masterConfig.scenarioConfig.mapTableToUrl["shipments"]);
 
                 List<KafkaConsumer> kafkaWorkers = new();
-                if (this.config.streamEnabled)
+                if (this.masterConfig.workflowConfig.pubsubEnabled)
                 {
                     // setup kafka consumer. setup forwarding events to proper grains (e.g., customers)
                     // https://github.com/YijianLiu1210/BDS-Programming-Assignment/blob/main/OrleansWorld/Client/Stream/StreamClient.cs
 
                     Console.WriteLine("Streaming will be set up.");
 
-                    foreach (var entry in this.config.scenarioConfig.mapTopicToStreamGuid)
+                    foreach (var entry in this.masterConfig.scenarioConfig.mapTopicToStreamGuid)
                     {
                         KafkaConsumer kafkaConsumer = new KafkaConsumer(
                             BuildKafkaConsumer(entry.Key, StreamingConfiguration.KafkaService),
-                            this.config.orleansClient.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider),
+                            this.orleansClient.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider),
                             entry.Value,
                             entry.Key);
 
@@ -214,20 +218,21 @@ namespace Client
 
                 // defined dynamically
                 long numCustomers = DuckDbUtils.Count(connection, "customers");
-                Range customerRange = new Range(1, (int)numCustomers);
+                var customerRange = new Interval(1, (int)numCustomers);
 
                 // setup transaction orchestrator
-                TransactionOrchestrator transactionOrchestrator = new TransactionOrchestrator(this.config.orleansClient, this.config.scenarioConfig, customerRange);
+                TransactionOrchestrator transactionOrchestrator = new TransactionOrchestrator(
+                    this.orleansClient, this.masterConfig.scenarioConfig, customerRange);
 
                 _ = Task.Run(() => transactionOrchestrator.Run());
 
                 // listen for cluster client disconnect and stop the sleep if necessary... Task.WhenAny...
-                await Task.WhenAny(Task.Delay(this.config.scenarioConfig.period), OrleansClientFactory._siloFailedTask.Task);
+                await Task.WhenAny(Task.Delay(this.masterConfig.scenarioConfig.executionTime), OrleansClientFactory._siloFailedTask.Task);
 
                 transactionOrchestrator.Stop();
                 
                 // stop kafka consumers if necessary
-                if (this.config.streamEnabled)
+                if (this.masterConfig.workflowConfig.pubsubEnabled)
                 {
                     foreach (var task in kafkaWorkers)
                     {

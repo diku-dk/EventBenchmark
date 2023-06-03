@@ -218,5 +218,5 @@ This one seems to be more active
 https://github.com/OrleansContrib/Orleans.Http
 
 ### Scheduled jobs
-Timers are disposed if a grain is deactivated. A soluton could be using the following lib:
+Timers are disposed if a grain is deactivated. A solution could be using the following lib:
 https://www.hangfire.io/

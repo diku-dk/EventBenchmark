@@ -1,12 +1,8 @@
-﻿using System;
-using Orleans.TestingHost;
-using System.Threading.Tasks;
-using Xunit;
+﻿using Orleans.TestingHost;
 using Marketplace.Interfaces;
-using System.Text;
 using Common.Entity;
+using Common.Event;
 using Marketplace.Infra;
-using System.Collections.Generic;
 
 namespace Marketplace.Test
 {
@@ -19,18 +15,18 @@ namespace Marketplace.Test
 
         public CheckoutWorkflowTest(ClusterFixture fixture)
         {
-            _cluster = fixture.Cluster;
+            this._cluster = fixture.Cluster;
         }
 
         [Fact]
         public async Task Checkout()
         {
             // initialize default metadata
-            var metadata = _cluster.GrainFactory.GetGrain<IMetadataGrain>(0);
+            var metadata = this._cluster.GrainFactory.GetGrain<IMetadataGrain>(0);
             await metadata.Init(ActorSettings.GetDefault());
 
             // load customer in customer actor
-            var customer = _cluster.GrainFactory.GetGrain<ICustomerActor>(0);
+            var customer = this._cluster.GrainFactory.GetGrain<ICustomerActor>(0);
             await customer.AddCustomer(new Customer()
             {
                 id = 0,
@@ -51,12 +47,12 @@ namespace Marketplace.Test
                 total_spent_items = 0
             });
 
-            var cart = _cluster.GrainFactory.GetGrain<ICartActor>(0);
+            var cart = this._cluster.GrainFactory.GetGrain<ICartActor>(0);
             await cart.AddProduct(GenerateBasketItem(1));
             await cart.AddProduct(GenerateBasketItem(2));
 
             // add correspondent stock items
-            var stock = _cluster.GrainFactory.GetGrain<IStockActor>(0);
+            var stock = this._cluster.GrainFactory.GetGrain<IStockActor>(0);
             await stock.AddItem(new StockItem()
             {
                 product_id = 1,
@@ -76,35 +72,34 @@ namespace Marketplace.Test
                 ytd = 1,
             });
 
-            CustomerCheckout customerCheckout = new()
-            {
-                CustomerId = 0,
-                FirstName = "",
-                LastName = "",
-                Street = "",
-                Complement = "",
-                City = "",
-                State = "",
-                ZipCode = "",
-                PaymentType = PaymentType.CREDIT_CARD.ToString(),
-                CardNumber = random.Next().ToString(),
-                CardHolderName = "",
-                CardExpiration = "",
-                CardSecurityNumber = "",
-                CardBrand = "",
-                Installments = 1,
-                Vouchers = null
-            };
+            CustomerCheckout customerCheckout = new CustomerCheckout(
+                0,
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                PaymentType.CREDIT_CARD.ToString(),
+                random.Next().ToString(),
+                "",
+                "",
+                "",
+                "",
+                 1,
+                null
+            );
 
             await cart.Checkout(customerCheckout);
 
-            var order = _cluster.GrainFactory.GetGrain<IOrderActor>(0);
+            var order = this._cluster.GrainFactory.GetGrain<IOrderActor>(0);
             List<Order> orders = await order.GetOrders(0, null);
 
             Assert.Single(orders);
         }
 
-        private BasketItem GenerateBasketItem(long id, long sellerId = 1)
+        private CartItem GenerateBasketItem(long id, long sellerId = 1)
         {
             return new()
             {

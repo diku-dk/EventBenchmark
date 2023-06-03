@@ -1,11 +1,9 @@
-﻿using System;
-using Common.Entity;
-using Marketplace.Infra;
-using Marketplace.Message;
+﻿using Marketplace.Infra;
 using Orleans;
-using System.Collections.Generic;
 using System.Threading.Tasks;
-using Common.State;
+using Common.Entity;
+using Common.Event;
+using System.Collections.Generic;
 
 namespace Marketplace.Interfaces
 {
@@ -16,13 +14,15 @@ namespace Marketplace.Interfaces
     public interface ICartActor : IGrainWithIntegerKey, SnapperActor
     {
 
-        public Task AddProduct(BasketItem item);
+        public Task AddProduct(CartItem item);
 
         public Task Checkout(CustomerCheckout basketCheckout);
 
-        public Task<CartState> GetCart();
+        public Task<Cart> GetCart();
 
         public Task ClearCart();
+
+        public Task NotifyProductUnavailability(List<long> itemIds);
 
         // public Task Seal();
     }

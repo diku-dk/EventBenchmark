@@ -44,7 +44,7 @@ namespace Transaction
 
         // provides an ID generator for each workload (e.g., customer, seller)
         // the generator obeys a distribution
-        public readonly Dictionary<WorkloadType, NumberGenerator> keyGeneratorPerWorkloadType;
+        public readonly Dictionary<TransactionType, NumberGenerator> keyGeneratorPerWorkloadType;
 
         private StreamSubscriptionHandle<CustomerStatusUpdate> customerWorkerSubscription;
 
@@ -54,7 +54,7 @@ namespace Transaction
 
         private readonly ILogger _logger;
 
-        public TransactionOrchestrator(IClusterClient clusterClient, ScenarioConfiguration scenarioConfiguration, Range customerRange) : base()
+        public TransactionOrchestrator(IClusterClient clusterClient, ScenarioConfiguration scenarioConfiguration, Interval customerRange) : base()
         {
             this.orleansClient = clusterClient;
             this.streamProvider = orleansClient.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider);
@@ -62,17 +62,17 @@ namespace Transaction
             this.random = new Random();
             
             NumberGenerator sellerIdGenerator = this.config.customerConfig.sellerDistribution == Distribution.UNIFORM ?
-                            new UniformLongGenerator(this.config.customerConfig.sellerRange.Start.Value, this.config.customerConfig.sellerRange.End.Value) :
-                            new ZipfianGenerator(this.config.customerConfig.sellerRange.Start.Value, this.config.customerConfig.sellerRange.End.Value);
+                            new UniformLongGenerator(this.config.customerConfig.sellerRange.min, this.config.customerConfig.sellerRange.max) :
+                            new ZipfianGenerator(this.config.customerConfig.sellerRange.min, this.config.customerConfig.sellerRange.max);
 
             NumberGenerator customerIdGenerator = this.config.customerDistribution == Distribution.UNIFORM ?
-                                    new UniformLongGenerator(customerRange.Start.Value, customerRange.End.Value) :
-                                    new ZipfianGenerator(customerRange.Start.Value, customerRange.End.Value);
+                                    new UniformLongGenerator(customerRange.min, customerRange.max) :
+                                    new ZipfianGenerator(customerRange.min, customerRange.max);
             this.keyGeneratorPerWorkloadType = new()
             {
-                [WorkloadType.PRICE_UPDATE] = sellerIdGenerator,
-                [WorkloadType.DELETE_PRODUCT] = sellerIdGenerator,
-                [WorkloadType.CUSTOMER_SESSION] = customerIdGenerator
+                [TransactionType.PRICE_UPDATE] = sellerIdGenerator,
+                [TransactionType.DELETE_PRODUCT] = sellerIdGenerator,
+                [TransactionType.CUSTOMER_SESSION] = customerIdGenerator
             };
 
             this.sellerStatusCache = new();
@@ -162,6 +162,19 @@ namespace Transaction
             return Task.CompletedTask;
         }
 
+        private TransactionType PickTransactionFromDistribution()
+        {
+            int x = random.Next(0, 100);
+            foreach(var entry in this.config.transactionDistribution)
+            {
+                if(entry.Value <= x)
+                {
+                    return entry.Key;
+                }
+            }
+            throw new Exception("Cannot find a transaction to select!");
+        }
+
         /**
          * Synthetic. real data set may be different...
          * 
@@ -173,9 +186,7 @@ namespace Transaction
             {
                 this._logger.LogWarning("Thread ID {0} Submit transaction called", threadId);
 
-                int idx = random.Next(0, this.config.weight.Length);
-
-                WorkloadType tx = this.config.weight[idx];
+                TransactionType tx = PickTransactionFromDistribution();
 
                 this._logger.LogWarning("Thread ID {0} Transaction type {0}", threadId, tx.ToString());
 
@@ -184,7 +195,7 @@ namespace Transaction
                 switch (tx)
                 {
                     //customer worker
-                    case WorkloadType.CUSTOMER_SESSION:
+                    case TransactionType.CUSTOMER_SESSION:
                     {
                         grainID = this.keyGeneratorPerWorkloadType[tx].NextValue();
                         // but make sure there is no active session for the customer. if so, pick another customer
@@ -212,7 +223,7 @@ namespace Transaction
                         break;
                     }
                     // seller worker
-                    case WorkloadType.PRICE_UPDATE:
+                    case TransactionType.PRICE_UPDATE:
                     {
                         grainID = this.keyGeneratorPerWorkloadType[tx].NextValue();
                         var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConfiguration.SellerStreamId, grainID.ToString());
@@ -220,7 +231,7 @@ namespace Transaction
                         return;
                     }
                     // seller
-                    case WorkloadType.DELETE_PRODUCT:
+                    case TransactionType.DELETE_PRODUCT:
                     {
                         grainID = this.keyGeneratorPerWorkloadType[tx].NextValue();
                         var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConfiguration.SellerStreamId, grainID.ToString());
@@ -228,7 +239,7 @@ namespace Transaction
                         return;
                     }
                     // delivery worker
-                    case WorkloadType.UPDATE_DELIVERY:
+                    case TransactionType.UPDATE_DELIVERY:
                     {
                         var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConfiguration.DeliveryStreamId, 0.ToString());
                         _ = streamOutgoing.OnNextAsync(0);

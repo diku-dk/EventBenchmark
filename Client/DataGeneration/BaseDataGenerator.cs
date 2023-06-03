@@ -6,6 +6,7 @@ using System.Text;
 using Confluent.Kafka;
 using Bogus;
 using Bogus.Extensions.Brazil;
+using Common.Entity;
 
 namespace Client.DataGeneration
 {

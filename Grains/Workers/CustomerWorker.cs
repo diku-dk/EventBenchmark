@@ -10,7 +10,6 @@ using Common.Configuration;
 using Common.Http;
 using Common.Scenario.Customer;
 using Common.Entity;
-using Common.State;
 using Common.Streaming;
 using Common.YCSB;
 using GrainInterfaces.Workers;
@@ -18,6 +17,7 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Orleans;
 using Orleans.Streams;
+using Common.Event;
 
 namespace Grains.Workers
 {
@@ -242,8 +242,8 @@ namespace Grains.Workers
             var stream = response.Content.ReadAsStream();
             StreamReader reader = new StreamReader(stream);
             string productRet = reader.ReadToEnd();
-            CartState state = JsonConvert.DeserializeObject<CartState>(productRet);
-            if (state.status == Status.OPEN)
+            Cart state = JsonConvert.DeserializeObject<Cart>(productRet);
+            if (state.status == CartStatus.OPEN)
             {
                 this.status = CustomerWorkerStatus.IDLE;
                 this._logger.LogWarning("Timer in customer {0} reporting status update: {1}", this.customerId, this.status);
@@ -281,7 +281,7 @@ namespace Grains.Workers
         private async Task<bool> Checkout()
         {
             // define whether client should send a checkout request
-            if (this.config.checkoutDistribution[random.Next(0, this.config.checkoutDistribution.Length)] == 0)
+            if (random.Next(0, 100) > this.config.checkoutProbability)
             {
                 this.status = CustomerWorkerStatus.CHECKOUT_NOT_SENT;
                 this._logger.LogWarning("Customer {0} decided to not send a checkout.", this.customerId);
@@ -324,7 +324,7 @@ namespace Grains.Workers
                             return new HttpResponseMessage(HttpStatusCode.InternalServerError);
                         }
 
-                        var qty = random.Next(this.config.minMaxQtyRange.Start.Value, this.config.minMaxQtyRange.End.Value);
+                        var qty = random.Next(this.config.minMaxQtyRange.Start.Value, this.config.minMaxQtyRange.End.Value+1);
 
                         // var productRet = await response.Content.ReadAsStringAsync();
                         var stream = response.Content.ReadAsStream();
@@ -439,15 +439,15 @@ namespace Grains.Workers
         {
             Product product = JsonConvert.DeserializeObject<Product>(productPayload);
             // build a basket item
-            BasketItem basketItem = new()
-            {
-                ProductId = product.id,
-                SellerId = product.seller_id,
-                // ProductName = product.name,
-                UnitPrice = product.price,
-                Quantity = quantity,
-                FreightValue = 0.0m // not modeling freight value in this version
-            };
+            CartItem basketItem = new CartItem(
+            product.seller_id,
+                 product.product_id,
+               product.name,
+                 product.price,
+                  0.0m, // not modeling freight value in this version
+                 quantity,
+               Array.Empty<decimal>()
+            );
             var payload = JsonConvert.SerializeObject(basketItem);
             return HttpUtils.BuildPayload(payload);
         }
@@ -460,24 +460,24 @@ namespace Grains.Workers
             // TODO define voucher from distribution
 
             // build
-            CustomerCheckout basketCheckout = new()
-            {
-                CustomerId = customer.id,
-                FirstName = customer.first_name,
-                LastName = customer.last_name,
-                City = customer.city,
-                Street = customer.address,
-                Complement = customer.complement,
-                State = customer.state,
-                ZipCode = customer.zip_code_prefix,
-                PaymentType = PaymentType.CREDIT_CARD.ToString(),
-                Installments = random.Next(1,11),
-                CardNumber = customer.card_number,
-                CardHolderName = customer.card_holder_name,
-                CardExpiration = customer.card_expiration,
-                CardSecurityNumber = customer.card_security_number,
-                CardBrand = customer.card_type
-            };
+            CustomerCheckout basketCheckout = new CustomerCheckout(
+                customer.id,
+                customer.first_name,
+                customer.last_name,
+                customer.city,
+                customer.address,
+                customer.complement,
+                customer.state,
+                customer.zip_code,
+                PaymentType.CREDIT_CARD.ToString(),
+                customer.card_number,
+                customer.card_holder_name,
+                customer.card_expiration,
+                customer.card_security_number,
+                customer.card_type,
+                random.Next(1, 11)
+            );
+
             var payload = JsonConvert.SerializeObject(basketCheckout);
             return HttpUtils.BuildPayload(payload);
         }

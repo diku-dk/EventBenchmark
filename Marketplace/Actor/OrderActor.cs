@@ -3,7 +3,6 @@ using Common.Entity;
 using Orleans;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using Orleans.Runtime;
 using System.Linq;
 using System.Text;
 using Marketplace.Infra;
@@ -11,7 +10,6 @@ using Newtonsoft.Json;
 using Marketplace.Message;
 using Marketplace.Interfaces;
 using Microsoft.Extensions.Logging;
-using System.Collections.ObjectModel;
 using Orleans.Concurrency;
 
 namespace Marketplace.Actor
@@ -19,9 +17,13 @@ namespace Marketplace.Actor
     [Reentrant]
     public class OrderActor : Grain, IOrderActor
     {
+        // partitions
         private int nStockPartitions;
+        private int nCustomerPartitions;
         private int nOrderPartitions;
         private int nPaymentPartitions;
+        private int nShipmentPartitions;
+
         private long orderActorId;
         // it represents all orders in this partition
         private long nextOrderId;
@@ -52,10 +54,13 @@ namespace Marketplace.Actor
         {
             this.orderActorId = this.GetPrimaryKeyLong();
             var mgmt = GrainFactory.GetGrain<IMetadataGrain>(0);
-            var dict = await mgmt.GetActorSettings(new List<string>() { "StockActor", "OrderActor", "PaymentActor" });
+            var dict = await mgmt.GetActorSettings(new List<string>() { "StockActor", "CustomerActor", "OrderActor", "PaymentActor", "ShipmentActor" });
             this.nStockPartitions = dict["StockActor"];
+            this.nCustomerPartitions = dict["CustomerActor"];
             this.nOrderPartitions = dict["OrderActor"];
             this.nPaymentPartitions = dict["PaymentActor"];
+            this.nShipmentPartitions = dict["ShipmentActor"];
+
             this._logger.LogWarning("Order grain {0} activated: #stock grains {1} #order grains {2} #payment grains {3} ", this.orderActorId, nStockPartitions, nOrderPartitions, nPaymentPartitions);
         }
 
@@ -80,43 +85,45 @@ namespace Marketplace.Actor
 
             foreach (var item in checkout.items)
             {
-                long partition = (item.Key % nStockPartitions);
+                long partition = (item.ProductId % nStockPartitions);
                 var stockActor = GrainFactory.GetGrain<IStockActor>(partition);
-                statusResp.Add(stockActor.AttemptReservation(item.Key, item.Value.Quantity));
+                statusResp.Add(stockActor.AttemptReservation(item.ProductId, item.Quantity));
             }
 
             await Task.WhenAll(statusResp);
 
-            bool abort = false;
-            int idx = 0;
-            foreach (var item in checkout.items)
-            {
-                if (statusResp[idx].Result != ItemStatus.IN_STOCK)
-                {
-                    abort = true;
-                    break;
-                }
-            }
+            bool abort = statusResp.Where(c => c.Result != ItemStatus.IN_STOCK).Count() > 0;
 
             List<Task> tasks = new(checkout.items.Count);
 
+            // only cancel the ones who have had stock decreased!
+            List<long> unavailableItems = new();
             if (abort)
             {
+                int idx = 0;
                 this._logger.LogWarning("Order part {0} -- Checkout process aborted for customer {0}", this.orderActorId, checkout.customerCheckout.CustomerId);
                 foreach (var item in checkout.items)
                 {
-                    long partition = (item.Key % nStockPartitions);
+                    long partition = (item.ProductId % nStockPartitions);
                     var stockActor = GrainFactory.GetGrain<IStockActor>(partition);
-                    tasks.Add(stockActor.CancelReservation(item.Key, item.Value.Quantity));
+                    if (statusResp[idx].Result != ItemStatus.IN_STOCK)
+                    {
+                        unavailableItems.Add(item.ProductId);
+                        tasks.Add(stockActor.CancelReservation(item.ProductId, item.Quantity));
+                    } else
+                    {
+                        tasks.Add(stockActor.noOp());
+                    }
+                    idx++;
                 }
             }
             else
             {
                 foreach (var item in checkout.items)
                 {
-                    long partition = (item.Key % nStockPartitions);
+                    long partition = (item.ProductId % nStockPartitions);
                     var stockActor = GrainFactory.GetGrain<IStockActor>(partition);
-                    tasks.Add(stockActor.ConfirmReservation(item.Key, item.Value.Quantity));
+                    tasks.Add(stockActor.ConfirmReservation(item.ProductId, item.Quantity));
                 }
             }
 
@@ -135,16 +142,16 @@ namespace Marketplace.Actor
                 {
                     id = orderId,
                     customer_id = checkout.customerCheckout.CustomerId,
-                    status = OrderStatus.CANCELED.ToString(),
-                    purchase_timestamp = checkout.createdAt,
+                    status = OrderStatus.CANCELED,
+                    purchase_date = checkout.createdAt,
                     created_at = System.DateTime.Now,
                     data = JsonConvert.SerializeObject(checkout),
                 };
                 this.orders.Add(orderId, failedOrder);
 
-                long paymentActorId = failedOrder.id % nPaymentPartitions;
-                await GrainFactory.GetGrain<IPaymentActor>(paymentActorId).ProcessFailedOrder(checkout.customerCheckout.CustomerId, orderId);
-                this._logger.LogWarning("Order part {0} -- Checkout process failed for customer {1} -- Order id is {2}", this.orderActorId, checkout.customerCheckout.CustomerId, orderId);
+                await ProcessFailedOrder(checkout.customerCheckout.CustomerId, orderId, unavailableItems);
+                this._logger.LogWarning("Order part {0} -- Checkout process failed for customer {1} -- Order id is {2}",
+                    this.orderActorId, checkout.customerCheckout.CustomerId, orderId);
 
                 return;
                 // assuming most succeed, overhead is not too high
@@ -152,13 +159,13 @@ namespace Marketplace.Actor
 
             // calculate total freight_value
             decimal total_freight = 0;
-            foreach (var item in checkout.items.Values)
+            foreach (var item in checkout.items)
             {
                 total_freight += item.FreightValue;
             }
 
             decimal total_amount = 0;
-            foreach (var item in checkout.items.Values)
+            foreach (var item in checkout.items)
             {
                 total_amount += (item.UnitPrice * item.Quantity);
             }
@@ -188,9 +195,9 @@ namespace Marketplace.Actor
                 // olist have seller acting in the approval process
                 // here we approve automatically
                 // besides, invoice is a request for payment, so it makes sense to use this status now
-                status = OrderStatus.INVOICED.ToString(),
+                status = OrderStatus.INVOICED,
                 created_at = System.DateTime.Now,
-                purchase_timestamp = checkout.createdAt,
+                purchase_date = checkout.createdAt,
                 total_amount = total_amount,
                 total_items = total_items,
                 total_freight = total_freight,
@@ -203,7 +210,7 @@ namespace Marketplace.Actor
 
             List<OrderItem> orderItems = new(checkout.items.Count);
             int id = 0;
-            foreach (var item in checkout.items.Values)
+            foreach (var item in checkout.items)
             {
                 orderItems.Add(
                     new()
@@ -221,27 +228,28 @@ namespace Marketplace.Actor
                 id++;
             }
 
-            items.Add(orderId, orderItems);
+            this.items.Add(orderId, orderItems);
 
             // initialize order history
-            history.Add(orderId, new List<OrderHistory>() { new OrderHistory()
+            this.history.Add(orderId, new List<OrderHistory>() { new OrderHistory()
             {
-                id = nextHistoryId,
+                id = this.nextHistoryId,
                 created_at = newOrder.created_at, // redundant, but it is what it is...
-                status = OrderStatus.INVOICED.ToString(),
+                status = OrderStatus.INVOICED,
 
             } });
 
             Invoice invoice = new Invoice( checkout.customerCheckout, newOrder, orderItems);
 
             // increment
-            nextOrderId++;
-            nextHistoryId++;
+            this.nextOrderId++;
+            this.nextHistoryId++;
 
-            this._logger.LogWarning("Order part {0} -- Checkout process succeeded for customer {1} -- Order id is {2}", this.orderActorId, checkout.customerCheckout.CustomerId, orderId);
+            this._logger.LogWarning("Order part {0} -- Checkout process succeeded for customer {1} -- Order id is {2}",
+                this.orderActorId, checkout.customerCheckout.CustomerId, orderId);
             
             long paymentActor = newOrder.id % nPaymentPartitions;
-            await GrainFactory.GetGrain<IPaymentActor>(paymentActor).ProcessPayment(invoice);
+            await this.GrainFactory.GetGrain<IPaymentActor>(paymentActor).ProcessPayment(invoice);
  
             return;
 
@@ -268,8 +276,8 @@ namespace Marketplace.Actor
 
             // on every update, update the field updated_at in the order
             this.orders[orderId].updated_at = now;
-            string oldStatus = this.orders[orderId].status;
-            this.orders[orderId].status = status.ToString();
+            var oldStatus = this.orders[orderId].status;
+            this.orders[orderId].status = status;
 
             // on shipped status, update delivered_carrier_date and estimated_delivery_date. add the entry
             if (status == OrderStatus.SHIPPED)
@@ -295,7 +303,7 @@ namespace Marketplace.Actor
             {
                 id = this.nextHistoryId,
                 created_at = now,
-                status = status.ToString()
+                status = status
             };
 
             this.history[orderId].Add(orderHistory);
@@ -316,6 +324,25 @@ namespace Marketplace.Actor
                 res = this.orders.Select(o => o.Value).Where(p => p.customer_id == customerId).ToList();
             return Task.FromResult(res);
         }
+
+        public async Task ProcessFailedOrder(long customerId, long orderId, List<long> unavailableItems)
+        {
+            IOrderActor orderActor = GrainFactory.GetGrain<IOrderActor>(orderId % nOrderPartitions);
+            ICustomerActor custActor = GrainFactory.GetGrain<ICustomerActor>(customerId % nCustomerPartitions);
+            IShipmentActor shipmentActor = GrainFactory.GetGrain<IShipmentActor>(orderId % nShipmentPartitions);
+            IPaymentActor payActor = GrainFactory.GetGrain<IPaymentActor>(orderId % nPaymentPartitions);
+            List<Task> tasks = new(4);
+
+            tasks.Add(orderActor.UpdateOrderStatus(orderId, OrderStatus.PAYMENT_FAILED));
+            tasks.Add(orderActor.noOp());
+            tasks.Add(payActor.noOp());
+            tasks.Add(custActor.NotifyFailedPayment(customerId, null));
+            tasks.Add(shipmentActor.noOp());
+
+            await Task.WhenAll(tasks);
+        }
+
+
     }
 }
 

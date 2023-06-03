@@ -13,14 +13,15 @@ namespace Common.Entity
      * together, and only later they are individually updated in shipment actor.
 	 */
     public class OrderHistory
-	{
-		// PK. 
-		public long id { get; set; }
+    {
+        // PK. 
+        public long id { get; set; }
         // FK can be ommitted if document-oriented model (as a nested object) is adopted
         public long order_id { get; set; }
 
         public DateTime created_at { get; set; }
-        public string status { get; set; }
+
+        public OrderStatus status { get; set; }
 
     }
 }

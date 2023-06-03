@@ -1,8 +1,8 @@
 ﻿using System;
 namespace Common.Entity
 {
-	public class StockItem
-	{
+    public class StockItem
+    {
         public long product_id { get; set; }
 
         public long seller_id { get; set; }
@@ -15,12 +15,12 @@ namespace Common.Entity
 
         public int ytd { get; set; }
 
+        public bool active { get; set; }
+
         public DateTime created_at { get; set; }
+
         public DateTime updated_at { get; set; }
 
-        public bool active { get; set; } = true;
-
-        public string data { get; set; }
+        public string data { get; set; } = "";
     }
 }
-

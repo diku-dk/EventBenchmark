@@ -1,6 +1,6 @@
 ﻿namespace Common.Scenario
 {
-    public enum WorkloadType
+    public enum TransactionType
     {
         // create a customer session
         CUSTOMER_SESSION, // end up with a checkout, abandoned cart ~~> out of stock, payment rejected

@@ -53,9 +53,9 @@ namespace Marketplace.Actor
             return Task.FromResult( (IList<Product>) this.products.Values.Select(q => q).Where(q => q.seller_id == sellerId).ToList());
         }
 
-        public Task<ProductCheck> CheckCorrectness(BasketItem item)
+        public Task<ProductStatus> CheckCorrectness(CartItem item)
         {
-            ProductCheck check;
+            ProductStatus check;
             if (this.products[item.ProductId].active)
             {
                 if (this.products[item.ProductId].price != item.UnitPrice)

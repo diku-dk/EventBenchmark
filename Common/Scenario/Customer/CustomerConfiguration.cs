@@ -15,19 +15,19 @@ namespace Common.Scenario.Customer
 
         public Distribution sellerDistribution;
 
-        public Range sellerRange;
+        public Interval sellerRange;
 
         // probability of a customer to checkout the cart
-        public int[] checkoutDistribution = new int[] { 1 };
+        public int checkoutProbability = 50;
 
         // products, carts
         public Dictionary<string, string> urls;
 
-        public Range minMaxQtyRange;
+        public Interval minMaxQtyRange;
 
         public int delayBeforeStart = 0;
 
-        public Range delayBetweenRequestsRange;
+        public Interval delayBetweenRequestsRange;
 
     }
 }

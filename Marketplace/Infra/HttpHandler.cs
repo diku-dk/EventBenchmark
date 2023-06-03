@@ -2,14 +2,12 @@
 using System.Net;
 using System.IO;
 using Orleans;
-using Marketplace.Actor;
 using System;
 using Common.Entity;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
-using System.Reflection;
+using Common.Event;
 using System.Text;
-using System.Net.Http;
 using Marketplace.Interfaces;
 using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
@@ -123,7 +121,6 @@ namespace Marketplace.Infra
                     {
                         string id = ctx.Request.Url.Segments[2];
                         id = id.Replace("/","");
-                        Console.WriteLine("POST -> Cart id is {0}", id);
                         StreamReader stream = new StreamReader(req.InputStream);
                         string x = stream.ReadToEnd();
                         var obj = JsonConvert.DeserializeObject<CustomerCheckout>(x);
@@ -135,10 +132,9 @@ namespace Marketplace.Infra
                 case "PUT":
                     {
                         string id = ctx.Request.Url.Segments[2];
-                        Console.WriteLine("PUT -> Cart id is {0}", id);
                         StreamReader stream = new StreamReader(req.InputStream);
                         string x = stream.ReadToEnd();
-                        var obj = JsonConvert.DeserializeObject<BasketItem>(x);
+                        var obj = JsonConvert.DeserializeObject<CartItem>(x);
                         await orleansClient.GetGrain<ICartActor>(Convert.ToInt64(id)).AddProduct(obj);
                         resp.StatusCode = 200;
                         resp.Close();

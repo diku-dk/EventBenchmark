@@ -23,7 +23,7 @@ namespace Marketplace.Interfaces
         // seller worker calls it
         public Task UpdateProductPrice(long productId, decimal newPrice);
 
-        public Task<ProductCheck> CheckCorrectness(BasketItem item);
+        public Task<ProductStatus> CheckCorrectness(CartItem item);
 
         public Task<bool> AddProduct(Product product);
     }

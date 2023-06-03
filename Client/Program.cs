@@ -12,12 +12,23 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.IO;
+using Microsoft.Extensions.Logging;
 
 namespace Client
 {
 
+    /**
+     * Main method based on 
+     * http://sergeybykov.github.io/orleans/1.5/Documentation/Deployment-and-Operations/Docker-Deployment.html
+     */
     public class Program
     {
+        private static ILogger logger = LoggerFactory.Create(
+                        b => b
+                            .AddConsole()
+                            .AddFilter(level => level >= LogLevel.Information))
+                            .CreateLogger("Main");
 
         private static readonly IngestionConfiguration defaultIngestionConfig = new()
         {
@@ -43,16 +54,10 @@ namespace Client
 
         private static readonly ScenarioConfiguration defaultScenarioConfig = new()
         {
-            weight = new WorkloadType[] {
-                WorkloadType.CUSTOMER_SESSION,
-                WorkloadType.CUSTOMER_SESSION,
-                // WorkloadType.CUSTOMER_SESSION,
-                /*
-                WorkloadType.PRICE_UPDATE,
-                WorkloadType.DELETE_PRODUCT,
-                */
-                // WorkloadType.UPDATE_DELIVERY,
-                WorkloadType.UPDATE_DELIVERY,
+            transactionDistribution = new Dictionary<TransactionType, int>()
+            {
+                [TransactionType.CUSTOMER_SESSION] = 70,
+                [TransactionType.UPDATE_DELIVERY] = 100
             },
             mapTableToUrl = mapTableToUrl,
             customerConfig = new()
@@ -63,18 +68,19 @@ namespace Client
                 // set dynamically by master orchestrator
                 // sellerRange = new Range(1, 10),
                 urls = mapTableToUrl,
-                minMaxQtyRange = new Range(1, 11),
-                delayBetweenRequestsRange = new Range(1, 1000),
-                delayBeforeStart = 0
+                minMaxQtyRange = new Interval(1, 10),
+                delayBetweenRequestsRange = new Interval(1, 1000),
+                delayBeforeStart = 0,
+                checkoutProbability = 50
             },
             sellerConfig = new() {
                 keyDistribution = Common.Configuration.Distribution.UNIFORM,
                 urls = mapTableToUrl,
-                delayBetweenRequestsRange = new Range(1, 1000)
+                delayBetweenRequestsRange = new Interval(1, 1000)
             },
             submissionType = SubmissionEnum.QUANTITY,
             submissionValue = 5,// 1,
-            period = TimeSpan.FromSeconds(600), // 10 min
+            executionTime = 60000, // 1 min
             waitBetweenSubmissions = 10000, // 60000, // 60 seconds
             customerDistribution = Common.Configuration.Distribution.UNIFORM,
         };
@@ -97,59 +103,165 @@ namespace Client
             }
             */
 
-            Console.WriteLine("start testing conversion type");
+            logger.LogInformation("start testing conversion type");
 
             using (var duckDBConnection = new DuckDBConnection("DataSource=file.db"))
             {
                 List<Product> products = DuckDbUtils.SelectAll<Product>(duckDBConnection, "products");
                 foreach(var product in products)
-                    Console.WriteLine(JsonConvert.SerializeObject(product));
+                    logger.LogInformation(JsonConvert.SerializeObject(product));
             }
         }
 
-        private static readonly bool mock = false;
-
         /**
-         * Main method based on 
-         * http://sergeybykov.github.io/orleans/1.5/Documentation/Deployment-and-Operations/Docker-Deployment.html
+         * 1 - process directory of config files in the args. if not, select the default config files
+         * 2 - parse config files
+         * 3 - if files parsed are correct, then start orleans
          */
-        public static async Task Main(string[] args)
+        public static MasterConfiguration BuildMasterConfig(string[] args)
         {
-            Console.WriteLine("Initializing Orleans client...");
-            var client = await OrleansClientFactory.Connect();
-            if (client == null) return;
-            Console.WriteLine("Orleans client initialized!");
+            
+            logger.LogInformation("Initializing benchmark driver...");
 
-            HttpServer httpServer = null;
-            if (mock) {
-                Console.WriteLine("Initializing Mock Http server...");
-                httpServer = new HttpServer(new HttpHandler());
-                Task httpServerTask = Task.Run(httpServer.Run);
+            string initDir = Directory.GetCurrentDirectory();
+            string configFilesDir;
+            if (args is not null && args.Length > 0){
+                configFilesDir = args[0];
+                logger.LogInformation("Directory of configuration files passsed as parameter: {0}", configFilesDir);
+                Environment.CurrentDirectory = (configFilesDir);
+            } else
+            {
+                configFilesDir = Directory.GetCurrentDirectory();
+            }
+
+            if (!File.Exists("workflow_config.json"))
+            {
+                throw new Exception("Workflow configuration file cannot be loaded from " + configFilesDir);
+            }
+            if (!File.Exists("data_load_config.json"))
+            {
+                throw new Exception("Data load configuration file cannot be loaded from "+ configFilesDir);
+            }
+            if (!File.Exists("ingestion_config.json"))
+            {
+                throw new Exception("Ingestion configuration file cannot be loaded from " + configFilesDir);
+            }
+            if (!File.Exists("scenario_config.json"))
+            {
+                throw new Exception("Scenario configuration file cannot be loaded from " + configFilesDir);
+            }
+
+            /** =============== Workflow config file ================= */
+            logger.LogInformation("Init reading workflow configuration file...");
+            WorkflowConfig workflowConfig;
+            using (StreamReader r = new StreamReader("workflow_config.json"))
+            {
+                string json = r.ReadToEnd();
+                workflowConfig = JsonConvert.DeserializeObject<WorkflowConfig>(json);
+            }
+            logger.LogInformation("Workflow configuration file read succesfully");
+
+            /** =============== Data load config file ================= */
+            
+            SyntheticDataSourceConfiguration dataLoadConfig = null;
+            if (workflowConfig.dataLoad)
+            {
+                logger.LogInformation("Init reading data load configuration file...");
+                using (StreamReader r = new StreamReader("data_load_config.json"))
+                {
+                    string json = r.ReadToEnd();
+                    dataLoadConfig = JsonConvert.DeserializeObject<SyntheticDataSourceConfiguration>(json);
+                }
+                logger.LogInformation("Data load configuration file read succesfully");
+            }
+
+            /** =============== Ingestion config file ================= */
+            IngestionConfiguration ingestionConfig = null;
+            if (workflowConfig.ingestion)
+            {
+                logger.LogInformation("Init reading ingestion configuration file...");
+                using (StreamReader r = new StreamReader("ingestion_config.json"))
+                {
+                    string json = r.ReadToEnd();
+                    ingestionConfig = JsonConvert.DeserializeObject<IngestionConfiguration>(json);
+                }
+                logger.LogInformation("Ingestion configuration file read succesfully");
+            }
+
+            /** =============== Scenario config file ================= */
+            ScenarioConfiguration scenarioConfig = null;
+            if (workflowConfig.transactionSubmission)
+            {
+                logger.LogInformation("Init reading scenario configuration file...");
+                using (StreamReader r = new StreamReader("scenario_config.json"))
+                {
+                    string json = r.ReadToEnd();
+                    scenarioConfig = JsonConvert.DeserializeObject<ScenarioConfiguration>(json);
+                }
+                logger.LogInformation("Scenario file read succesfully");
             }
 
             MasterConfiguration masterConfiguration = new()
             {
-                orleansClient = client,
-                streamEnabled = false,
-                load = true,
-                healthCheck = false,
-                ingestion = true,
-                transaction = true,
-                cleanup = false,
-                scenarioConfig = defaultScenarioConfig,
-                ingestionConfig = defaultIngestionConfig,
-                syntheticConfig = new SyntheticDataSourceConfiguration()
+                workflowConfig = workflowConfig,
+                scenarioConfig = scenarioConfig,
+                ingestionConfig = ingestionConfig,
+                syntheticDataConfig = dataLoadConfig
                 // olistConfig = new DataGeneration.Real.OlistDataSourceConfiguration()
             };
+            return masterConfiguration;
+        }
 
-            MasterOrchestrator orchestrator = new MasterOrchestrator(masterConfiguration);
+        private static readonly bool mock = false;
+
+        /*
+         * 
+         */
+        public static async Task Main(string[] args)
+        {
+
+            var masterConfiguration = BuildMasterConfig(args);
+            /*
+             1st phase
+
+             Let all services get db connection from app settings (adapt all dbcontext) OK
+             Adapt driver/workers to inputs OK
+
+             Deploy driver in VM
+
+             Test dapr services receiving transactions [can be few to start and then keep adding] 
+             — cart, stock, order
+
+             Spawn driver to generate requests to dapr
+             — leave customer reaction for later
+             Check for errors
+
+             2nd phase
+
+             Prepare environment
+             Deploy all dapr services
+            */
+
+            logger.LogInformation("Initializing Orleans client...");
+            var client = await OrleansClientFactory.Connect();
+            if (client == null) return;
+            logger.LogInformation("Orleans client initialized!");
+
+            HttpServer httpServer = null;
+            if (mock) {
+                logger.LogInformation("Initializing Mock Http server...");
+                httpServer = new HttpServer(new DebugHttpHandler());
+                Task httpServerTask = Task.Run(httpServer.Run);
+            }
+
+            MasterOrchestrator orchestrator = new MasterOrchestrator(client, masterConfiguration);
             await orchestrator.Run();
 
-            Console.WriteLine("Master orchestrator finished!");
+            logger.LogInformation("Master orchestrator finished!");
 
             await client.Close();
 
-            Console.WriteLine("Orleans client finalized!");
+            logger.LogInformation("Orleans client finalized!");
 
             if (mock)
             {

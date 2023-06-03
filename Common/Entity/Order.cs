@@ -8,16 +8,16 @@ namespace Common.Entity
      * The total attribute is also added to sum the value of all products in the order.
      */
     public class Order
-	{
+    {
         // PK
         public long id { get; set; }
 
         // FK
         public long customer_id { get; set; }
 
-        public string status { get; set; }
+        public OrderStatus status { get; set; }
 
-        public DateTime purchase_timestamp { get; set; }
+        public DateTime purchase_date { get; set; }
 
         // public string approved_at { get; set; }
 
@@ -32,6 +32,7 @@ namespace Common.Entity
 
         // dev
         public int count_items { get; set; }
+
         public DateTime created_at { get; set; }
         public DateTime updated_at { get; set; }
 
@@ -41,11 +42,9 @@ namespace Common.Entity
         public decimal total_invoice { get; set; }
         public decimal total_items { get; set; }
 
-        public string data { get; set; }
-
         public Order()
         {
-            this.status = OrderStatus.CREATED.ToString();
+            this.status = OrderStatus.CREATED;
         }
 
     }

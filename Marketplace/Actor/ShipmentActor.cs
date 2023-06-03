@@ -77,6 +77,8 @@ namespace Marketplace.Actor
                         .OrderByDescending(g => g.Count())
                         .SelectMany(x => x).ToList();
 
+            var now = DateTime.Now;
+
             // create the shipment
             Shipment shipment = new()
             {
@@ -85,8 +87,8 @@ namespace Marketplace.Actor
                 customer_id = invoice.order.customer_id,
                 package_count = items.Count,
                 total_freight_value = items.Sum(i => i.freight_value),
-                request_date = invoice.order.purchase_timestamp,
-                status = PackageStatus.created.ToString(),
+                request_date = now,
+                status = ShipmentStatus.approved,
                 first_name = invoice.customer.FirstName,
                 last_name = invoice.customer.LastName,
                 street = invoice.customer.Street,
@@ -106,7 +108,7 @@ namespace Marketplace.Actor
                     package_id = package_id,
                     status = PackageStatus.shipped.ToString(),
                     freight_value = item.freight_value,
-                    shipping_date = DateTime.Now,
+                    shipping_date = now,
                     seller_id = item.seller_id,
                     product_id = item.product_id,
                     quantity = item.quantity
@@ -160,6 +162,8 @@ namespace Marketplace.Actor
          * Changes must be reflected in all microservices.
          * A set of deliveries to be updated as a transaction. Producing multiple messages.
          * Think about the trransactional guarantees we need.
+         * Similar scenario in github: 
+         * https://stackoverflow.com/questions/64132868/how-do-i-satisfy-business-requirements-across-microservices-with-immediate-consi
          */
         public async Task UpdateShipment() // seller id
         {
@@ -215,6 +219,7 @@ namespace Marketplace.Actor
          */
         private List<Task> UpdatePackageDelivery(List<Package> sellerPackages)
         {
+            // will always have at least one due to the where clause in the aggregate query above
             long shipment_id = sellerPackages.ElementAt(0).shipment_id;
             long seller_id = sellerPackages.ElementAt(0).seller_id;
 
@@ -248,16 +253,15 @@ namespace Marketplace.Actor
                 this._logger.LogWarning("Shipment grain {0} -- Delivery concluded for shipment id {1}", this.shipmentActorId, shipment_id);
                 // send message to order in the first delivery
                 tasks.Add(orderActor.UpdateOrderStatus(this.shipments[shipment_id].order_id, OrderStatus.DELIVERED));
-                this.shipments[shipment_id].status = ShipmentStatus.concluded.ToString();
+                this.shipments[shipment_id].status = ShipmentStatus.concluded;
             } else
             {
-                this._logger.LogWarning("Shipment grain {0} -- Delivery not concluded yet for shipment id {1}: count {2} of total {3}",
+                this._logger.LogWarning("Shipment grain {0} -- Delivery not yet concluded for shipment id {1}: count {2} of total {3}",
                     this.shipmentActorId, shipment_id, countDelivered + sellerPackages.Count(), this.shipments[shipment_id].package_count);
                 // the need to send this message, one drawback of determinism 
                 tasks.Add(orderActor.noOp());
             }
 
-            // await Task.WhenAll(tasks);
             return tasks;
         }
 

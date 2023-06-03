@@ -20,7 +20,8 @@ namespace Marketplace.Actor
         private int nOrderPartitions;
         // private Dictionary<long, string> notifications; // or customer log
         // type, json (differs depending on the type). Types: invoiced?, payment, shipment, delivery
-        // for package delivery: shipment_id, package_id, 
+        // for package delivery: shipment_id, package_id,
+        // get notification history
         private readonly ILogger<CustomerActor> _logger;
 
         public CustomerActor(ILogger<CustomerActor> _logger)
@@ -94,6 +95,16 @@ namespace Marketplace.Actor
         {
             this.customers[customerId].pending_deliveries_count += numDeliveries;
             return Task.CompletedTask;
+        }
+
+        /*
+         * What actor is calling this method?
+         */
+        public async Task NotifyProductUnavailability(long customerId, List<long> itemIds)
+        {
+            // TODO send a http request to the driver or publish into a stream, so the http handler can listen to it and reply the driver.
+            await GrainFactory.GetGrain<ICartActor>(customerId).NotifyProductUnavailability(itemIds);
+            // throw new NotImplementedException();
         }
     }
 }

@@ -1,5 +1,4 @@
 ﻿using System;
-using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 using System.Net;
 using System.Reflection.Emit;
@@ -18,7 +17,7 @@ namespace Common.Entity
         // a shipment onbject is created as approved
         // originally approved only when packages are
         // created by sellers. but in the benchmark we
-        // create them automatically as  part of business logic
+        // create them automatically as part of business logic
         approved,
         // when at least one package is delivered
         delivery_in_progress,
