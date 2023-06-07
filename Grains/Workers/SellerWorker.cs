@@ -6,7 +6,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using Common.Configuration;
 using Common.Http;
-using Common.Entity;
+using Common.Entities;
 using Common.Scenario.Seller;
 using Common.Streaming;
 using Common.YCSB;
@@ -58,7 +58,6 @@ namespace Grains.Workers
 
         public Task Init(SellerConfiguration sellerConfig, List<Product> products)
         {
-
             this._logger.LogWarning("Init -> Seller worker {0} with #{1} product(s).", this.sellerId, products.Count);
             this.config = sellerConfig;
             this.products = products;
@@ -159,7 +158,7 @@ namespace Grains.Workers
             HttpResponseMessage response = await Task.Run(async () =>
             {
                 // [query string](https://en.wikipedia.org/wiki/Query_string)
-                return await HttpUtils.client.GetAsync(config.urls["products"] + "?seller_id=" + this.sellerId);
+                return await HttpUtils.client.GetAsync(config.urls["products"] + "/sellers/" + this.sellerId);
             });
             // deserialize response
             response.EnsureSuccessStatusCode();
@@ -176,7 +175,7 @@ namespace Grains.Workers
             // 1 - simulate seller browsing own main page (that will bring the product list)
             List<Product> products = await GetOwnProducts();
 
-            int delay = this.random.Next(this.config.delayBetweenRequestsRange.Start.Value, this.config.delayBetweenRequestsRange.End.Value + 1);
+            int delay = this.random.Next(this.config.delayBetweenRequestsRange.min, this.config.delayBetweenRequestsRange.max + 1);
             await Task.Delay(delay);
             
             // 2 - from the products retrieved, select one or more and submit the updates
@@ -187,7 +186,7 @@ namespace Grains.Workers
             var productsToUpdate = GetProductsToUpdate(products, numberProductsToAdjustPrice);
 
             // define perc to raise
-            int percToAdjust = random.Next(config.adjustRange.Start.Value, config.adjustRange.End.Value);
+            int percToAdjust = random.Next(config.adjustRange.min, config.adjustRange.max);
 
             // 3 - update product objects
             foreach (var product in productsToUpdate)

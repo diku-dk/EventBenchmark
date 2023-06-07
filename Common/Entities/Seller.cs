@@ -1,13 +1,6 @@
 ﻿using System;
-namespace Common.Entity
+namespace Common.Entities
 {
-    /**
-     * Seller information is assembled based on two sources:
-     * (i) Olist dev public API: https://dev.olist.com/docs/retrieving-seller-informations
-     * (ii) Olist public data set: https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce?select=olist_sellers_dataset.csv
-     * The additional attributes added as part of this benchmark are:
-     * street, complement, order_count
-     */
     public class Seller
     {
 

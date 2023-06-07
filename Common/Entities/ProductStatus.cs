@@ -1,5 +1,5 @@
 ﻿using System;
-namespace Common.Entity
+namespace Common.Entities
 {
     public class ProductStatus
     {

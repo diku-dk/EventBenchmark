@@ -14,6 +14,8 @@ using Common.YCSB;
 using Microsoft.Extensions.Logging;
 using Client.Infra;
 using System.Threading;
+using System.Collections;
+using System.Linq;
 
 namespace Transaction
 {
@@ -52,6 +54,8 @@ namespace Transaction
 
         private readonly ConcurrentDictionary<long, CustomerWorkerStatus> customerStatusCache;
 
+        private readonly List<KeyValuePair<TransactionType, int>> sortedTxDist;
+
         private readonly ILogger _logger;
 
         public TransactionOrchestrator(IClusterClient clusterClient, ScenarioConfiguration scenarioConfiguration, Interval customerRange) : base()
@@ -77,6 +81,9 @@ namespace Transaction
 
             this.sellerStatusCache = new();
             this.customerStatusCache = new();
+
+            this.sortedTxDist = config.transactionDistribution.ToList();
+            this.sortedTxDist.Sort((pair1, pair2) => pair1.Value.CompareTo(pair2.Value));
 
             this._logger = LoggerProxy.GetInstance();
         }
@@ -164,10 +171,10 @@ namespace Transaction
 
         private TransactionType PickTransactionFromDistribution()
         {
-            int x = random.Next(0, 100);
-            foreach(var entry in this.config.transactionDistribution)
+            int x = random.Next(0, 101);
+            foreach(var entry in sortedTxDist)
             {
-                if(entry.Value <= x)
+                if(x <= entry.Value)
                 {
                     return entry.Key;
                 }

@@ -58,6 +58,9 @@ namespace Client.Ingestion
             Console.WriteLine("Ingestion process has terminated.");
         }
 
+        // private static readonly JsonSerializerSettings settings = new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore };
+     
+
         private void Produce(DuckDBDataReader queryResult)
         {
             JObject obj = new JObject();
@@ -68,9 +71,9 @@ namespace Client.Ingestion
                 {
                     var column = queryResult.GetName(ordinal);
                     var val = queryResult.GetValue(ordinal);
-                    obj[column] = val.ToString();
+                    obj[column] = JToken.FromObject(val);
                 }
-
+                
                 string strObj = JsonConvert.SerializeObject(obj);
                 this.tuples.Add(strObj);
             }

@@ -1,8 +1,8 @@
 ﻿{
     // from lowest to highest. last entry must be 100
     "transactionDistribution": {
-        "CUSTOMER_SESSION": 70,
-        "UPDATE_DELIVERY": 100
+        "CUSTOMER_SESSION": 100// 70,
+        // "UPDATE_DELIVERY": 100
     },
     // not inside customer config because customer
     // worker does not need to know that
@@ -10,36 +10,37 @@
     "executionTime": 60000, // 1 minute by default
     "waitBetweenSubmissions": 10000,
     "submissionType": "QUANTITY",
-    "submissionValue" :  5,
+    "submissionValue" :  1, // 5
     // mandatory entry points
     "mapTableToUrl": {
-        "products": "http://127.0.0.1:8001/products",
-        "carts": "http://127.0.0.1:8001/carts",
-        "sellers": "http://127.0.0.1:8001/sellers",
-        "customers": "http://127.0.0.1:8001/customers",
-        "shipments": "http://127.0.0.1:8001/shipments"
+        "products": "http://127.0.0.1:5008",
+        "carts": "http://127.0.0.1:5001",
+        "sellers": "http://127.0.0.1:5006",
+        "customers": "http://127.0.0.1:5007",
+        "shipments": "http://127.0.0.1:5005"
     },
     "customerConfig": {
-        "maxNumberKeysToBrowse": 10,
-        "maxNumberKeysToAddToCart": 10,
-        "sellerDistribution": "UNIFORM", // NORMAL, UNIFORM, ZIPFIAN
-        "minMaxQtyRange": {
-            "min": 1,
-            "max": 10
-        },
-        "delayBetweenRequestsRange": {
-            "min": 1,
-            "max": 1000
-        },
-        "delayBeforemin": 0,
-        "checkoutProbability": 50
+      "maxNumberKeysToBrowse": 10,
+      "maxNumberKeysToAddToCart": 10,
+      "sellerDistribution": "UNIFORM", // NORMAL, UNIFORM, ZIPFIAN
+      "minMaxQtyRange": {
+        "min": 1,
+        "max": 10
+      },
+      "delayBetweenRequestsRange": {
+        "min": 1,
+        "max": 1000
+      },
+      "delayBeforeStart": 0,
+      "checkoutProbability": 100,
+      "cleanCartOnInit": true
     },
     "sellerConfig": {
         "keyDistribution": "UNIFORM",
         "delayBetweenRequestsRange": {
             "min": 1,
             "max": 1000
-        }
+      }
     }
 }
 

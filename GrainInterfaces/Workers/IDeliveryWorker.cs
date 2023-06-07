@@ -1,5 +1,4 @@
 ﻿using System;
-using Common.Entity;
 using Common.Scenario.Seller;
 using Orleans;
 using System.Collections.Generic;

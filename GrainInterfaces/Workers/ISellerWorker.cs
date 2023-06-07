@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Threading.Tasks;
-using Common.Entity;
+using Common.Entities;
 using Common.Scenario.Seller;
 using Orleans;
 using Orleans.Concurrency;

@@ -6,7 +6,7 @@ using Common.Http;
 using Common.Ingestion;
 using Common.Ingestion.Config;
 using Common.Scenario;
-using Common.Entity;
+using Common.Entities;
 using DuckDB.NET.Data;
 using Newtonsoft.Json;
 using System;
@@ -14,6 +14,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.IO;
 using Microsoft.Extensions.Logging;
+using System.Linq;
 
 namespace Client
 {
@@ -157,6 +158,7 @@ namespace Client
             using (StreamReader r = new StreamReader("workflow_config.json"))
             {
                 string json = r.ReadToEnd();
+                logger.LogInformation("workflow_config.json contents:\n {0}", json);
                 workflowConfig = JsonConvert.DeserializeObject<WorkflowConfig>(json);
             }
             logger.LogInformation("Workflow configuration file read succesfully");
@@ -170,6 +172,7 @@ namespace Client
                 using (StreamReader r = new StreamReader("data_load_config.json"))
                 {
                     string json = r.ReadToEnd();
+                    logger.LogInformation("data_load_config.json contents:\n {0}", json);
                     dataLoadConfig = JsonConvert.DeserializeObject<SyntheticDataSourceConfiguration>(json);
                 }
                 logger.LogInformation("Data load configuration file read succesfully");
@@ -183,6 +186,7 @@ namespace Client
                 using (StreamReader r = new StreamReader("ingestion_config.json"))
                 {
                     string json = r.ReadToEnd();
+                    logger.LogInformation("ingestion_config.json contents:\n {0}", json);
                     ingestionConfig = JsonConvert.DeserializeObject<IngestionConfiguration>(json);
                 }
                 logger.LogInformation("Ingestion configuration file read succesfully");
@@ -196,9 +200,17 @@ namespace Client
                 using (StreamReader r = new StreamReader("scenario_config.json"))
                 {
                     string json = r.ReadToEnd();
+                    logger.LogInformation("scenario_config.json contents:\n {0}", json);
                     scenarioConfig = JsonConvert.DeserializeObject<ScenarioConfiguration>(json);
                 }
                 logger.LogInformation("Scenario file read succesfully");
+
+                int total = scenarioConfig.transactionDistribution.Values.Sum();
+                if(total != 100)
+                {
+                    throw new Exception("Total distribution must sum to 100, not " + total);
+                }
+
             }
 
             MasterConfiguration masterConfiguration = new()
@@ -227,18 +239,19 @@ namespace Client
              Let all services get db connection from app settings (adapt all dbcontext) OK
              Adapt driver/workers to inputs OK
 
-             Deploy driver in VM
-
-             Test dapr services receiving transactions [can be few to start and then keep adding] 
-             — cart, stock, order
+             Review workers.. their input/output/reactions
 
              Spawn driver to generate requests to dapr
+             - let dapr services receiving transactions [can be few to start and then keep adding]
+                — cart, stock, order
              — leave customer reaction for later
-             Check for errors
+             - check for errors
 
              2nd phase
 
-             Prepare environment
+             Prepare environments
+             Deploy driver in VM
+             Start postgres ku cloud
              Deploy all dapr services
             */
 
@@ -254,7 +267,7 @@ namespace Client
                 Task httpServerTask = Task.Run(httpServer.Run);
             }
 
-            MasterOrchestrator orchestrator = new MasterOrchestrator(client, masterConfiguration);
+            MasterOrchestrator orchestrator = new MasterOrchestrator(client, masterConfiguration, logger);
             await orchestrator.Run();
 
             logger.LogInformation("Master orchestrator finished!");

@@ -1,9 +1,10 @@
 ﻿{
-    "healthCheck": true,
-    "dataLoad": true,
-    "ingestion": true,
-    "transactionSubmission": true,
-    "pubsubEnabled": false,
-    "cleanup": false
+  "healthCheck": true,
+  "healthCheckEndpoint": "/health",
+  "dataLoad": true,
+  "ingestion": true,
+  "transactionSubmission": true,
+  "pubsubEnabled": false,
+  "cleanup": false
 }
 

@@ -15,9 +15,9 @@ current_dir=$(pwd)
 #echo $x
 
 osascript -e 'tell app "Terminal"
-    do script "cd '$current_dir'/Silo && dotnet run --project Silo"
+    do script "cd '$current_dir' && dotnet run --project Silo"
 end tell'
 
 osascript -e 'tell app "Terminal"
-    do script "cd '$current_dir'/Client && dotnet run --project Client"
+    do script "cd '$current_dir' && dotnet run --project Client"
 end tell'

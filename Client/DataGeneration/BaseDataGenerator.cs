@@ -6,7 +6,7 @@ using System.Text;
 using Confluent.Kafka;
 using Bogus;
 using Bogus.Extensions.Brazil;
-using Common.Entity;
+using Common.Entities;
 
 namespace Client.DataGeneration
 {
@@ -28,8 +28,8 @@ namespace Client.DataGeneration
         protected readonly Dictionary<string, string> mapTableToCreateStmt = new()
         {
             ["sellers"] = "CREATE OR REPLACE TABLE sellers (id INTEGER, name VARCHAR, company_name VARCHAR, email VARCHAR, phone VARCHAR, mobile_phone VARCHAR, cpf VARCHAR, cnpj VARCHAR, address VARCHAR, complement VARCHAR, city VARCHAR, state VARCHAR, zip_code_prefix VARCHAR, order_count INTEGER);",
-            ["products"] = "CREATE OR REPLACE TABLE products (id INTEGER, seller_id INTEGER, name VARCHAR, sku VARCHAR, category_name VARCHAR, description VARCHAR, price REAL, updated_at VARCHAR, active BOOLEAN, status VARCHAR);",
-            ["stock_items"] = "CREATE OR REPLACE TABLE stock_items (product_id INTEGER, seller_id INTEGER, qty_available INTEGER, qty_reserved INTEGER, order_count INTEGER, ytd INTEGER, data VARCHAR);",
+            ["products"] = "CREATE OR REPLACE TABLE products (seller_id INTEGER, product_id INTEGER, name VARCHAR, sku VARCHAR, category VARCHAR, description VARCHAR, price REAL, created_at datetime, updated_at datetime, active BOOLEAN, status VARCHAR);",
+            ["stock_items"] = "CREATE OR REPLACE TABLE stock_items (seller_id INTEGER, product_id INTEGER, qty_available INTEGER, qty_reserved INTEGER, order_count INTEGER, ytd INTEGER, data VARCHAR);",
             ["customers"] = "CREATE OR REPLACE TABLE customers (id INTEGER, first_name VARCHAR, last_name VARCHAR, address VARCHAR, complement VARCHAR, birth_date VARCHAR, " +
                             "zip_code_prefix VARCHAR, city VARCHAR, state VARCHAR, " +
                             "card_number VARCHAR, card_security_number VARCHAR, card_expiration VARCHAR, card_holder_name VARCHAR, card_type VARCHAR, " +
@@ -38,9 +38,9 @@ namespace Client.DataGeneration
 
         protected readonly string baseSellerQuery = "INSERT INTO sellers(id, name, company_name, email, phone, mobile_phone, cpf, cnpj, address, complement, city, state, zip_code_prefix, order_count) VALUES ";
 
-        protected readonly string baseProductQuery = "INSERT INTO products (id, seller_id, name, sku, category_name, description, price, updated_at, active, status) VALUES ";
+        protected readonly string baseProductQuery = "INSERT INTO products (seller_id, product_id, name, sku, category, description, price, active, status) VALUES ";
 
-        protected readonly string baseStockQuery = "INSERT INTO stock_items (product_id, seller_id, qty_available, qty_reserved, order_count, ytd, data) VALUES ";
+        protected readonly string baseStockQuery = "INSERT INTO stock_items (seller_id, product_id, qty_available, qty_reserved, order_count, ytd, data) VALUES ";
 
         protected readonly string baseCustomerQuery = "INSERT INTO customers (id, first_name, last_name, address, complement, birth_date, " +
                     "zip_code_prefix, city, state, " +
@@ -49,15 +49,15 @@ namespace Client.DataGeneration
 
         protected void GenerateStockItem(DuckDbCommand command, int productId, int sellerId)
         {
-            var quantity = Numeric(4, true);
-            var ytd = Numeric(2, false);
+            var quantity = Numeric(3, false);
+            var ytd = Numeric(1, false);
             var order_count = Numeric(2, false);
-            var data = faker.Lorem.Sentence(); // RandomString(50, alphanumeric);
+            var data = faker.Lorem.Sentence();
 
             // issue insert statement
             var sb = new StringBuilder(baseStockQuery);
-            sb.Append('(').Append(productId).Append(',');
-            sb.Append(sellerId).Append(',');
+            sb.Append('(').Append(sellerId).Append(',');
+            sb.Append(productId).Append(',');
             sb.Append(quantity).Append(',');
             sb.Append(0).Append(',');
             sb.Append(order_count).Append(',');
@@ -74,37 +74,32 @@ namespace Client.DataGeneration
 
         protected void GenerateCustomer(DuckDbCommand command, int customerId, string[] geo)
         {
-            var firstName = RemoveBadCharacter( faker.Name.FirstName() ); // RandomString(16, alpha);
-            var lastName = RemoveBadCharacter( faker.Name.LastName() ); // RandomString(16, alpha);
-            var address = RemoveBadCharacter(faker.Address.StreetName()); // RandomString(20, alphanumeric);
-            var complement = RemoveBadCharacter(faker.Address.StreetSuffix()); // RandomString(20, alphanumeric);
+            var firstName = RemoveBadCharacter( faker.Name.FirstName() );
+            var lastName = RemoveBadCharacter( faker.Name.LastName() );
+            var address = RemoveBadCharacter(faker.Address.StreetName());
+            var complement = RemoveBadCharacter(faker.Address.StreetSuffix());
             var birth_date = GenerateBirthdate();
 
             var city = geo[0];
             var state = geo[1];
             var zip = geo[2];
 
-            var cardNumber = faker.Finance.CreditCardNumber(); //  RandomString(16, numbers);
-            var cardSecurityNumber = faker.Finance.CreditCardCvv(); //RandomString(3, numbers);
+            var cardNumber = faker.Finance.CreditCardNumber();
+            var cardSecurityNumber = faker.Finance.CreditCardCvv();
             var cardExpiration = RandomString(4, numbers);
             string cardHolderName;
             if (random.Next(1, 11) < 8)//70% change
             {
-                var middleName = RemoveBadCharacter( faker.Name.LastName() ); // RandomString(16, alpha);
+                var middleName = RemoveBadCharacter( faker.Name.LastName() );
                 cardHolderName = firstName + " " + middleName + " " + lastName;
             }
             else
             {
-                cardHolderName = RemoveBadCharacter(faker.Name.FullName()); // RandomString(16, alpha);
+                cardHolderName = RemoveBadCharacter(faker.Name.FullName());
             }
             var cardType = cardValues.GetValue(random.Next(1, cardValues.Length)).ToString();
 
-            var success_payment_count = Numeric(2, false);
-            var failed_payment_count = Numeric(2, false);
-            var C_DELIVERY_CNT = Numeric(2, false);
-            var C_DATA = faker.Lorem.Paragraph(); // RandomString(500, alphanumeric);
-
-            var abandonedCartsNum = Numeric(2, false);
+            var C_DATA = faker.Lorem.Paragraph();
 
             var sb = new StringBuilder(baseCustomerQuery);
             sb.Append('(').Append(customerId).Append(',');
@@ -121,10 +116,10 @@ namespace Client.DataGeneration
             sb.Append('\'').Append(cardExpiration).Append("',");
             sb.Append('\'').Append(cardHolderName).Append("',");
             sb.Append('\'').Append(cardType).Append("',");
-            sb.Append(success_payment_count).Append(',');
-            sb.Append(failed_payment_count).Append(',');
-            sb.Append(C_DELIVERY_CNT).Append(',');
-            sb.Append(abandonedCartsNum).Append(',');
+            sb.Append(0).Append(','); // success_payment_count
+            sb.Append(0).Append(','); // failed_payment_count
+            sb.Append(0).Append(','); // delivery_count
+            sb.Append(0).Append(','); // abandoned carts
             sb.Append('\'').Append(C_DATA).Append("');");
 
             Console.WriteLine(sb.ToString());
@@ -136,17 +131,17 @@ namespace Client.DataGeneration
 
         protected void GenerateSeller(DuckDbCommand command, long sellerId, string city, string state, string zip)
         {
-            string name = RemoveBadCharacter(faker.Name.FullName()); // RandomString(10, alpha);
-            string company_name = RemoveBadCharacter(faker.Company.CompanyName()); // RandomString(10, alpha);
+            string name = RemoveBadCharacter(faker.Name.FullName());
+            string company_name = RemoveBadCharacter(faker.Company.CompanyName());
             string email = GenerateRandomEmail();
             string phone = GeneratePhoneNumber();
             string mobile_phone = GeneratePhoneNumber();
 
-            string cpf = faker.Person.Cpf(); // GenerateCpf();
-            string cnpj = faker.Company.Cnpj(); // GenerateCnpj();
+            string cpf = faker.Person.Cpf();
+            string cnpj = faker.Company.Cnpj();
 
-            var address = RemoveBadCharacter(faker.Address.StreetAddress()); // RandomString(20, alphanumeric);
-            var complement = RemoveBadCharacter(faker.Address.SecondaryAddress()); // RandomString(20, alphanumeric);
+            var address = RemoveBadCharacter(faker.Address.StreetAddress());
+            var complement = RemoveBadCharacter(faker.Address.SecondaryAddress());
 
             var order_count = Numeric(1, false);
 
@@ -175,22 +170,23 @@ namespace Client.DataGeneration
 
         protected void GenerateProduct(DuckDbCommand command, long productId, long sellerId, string category)
         {
-            var name = faker.Commerce.ProductName(); // RandomString(24, alphanumeric);
+            var name = faker.Commerce.ProductName();
             // e.g., "PRDQQ1UCPOFRHWAA"
             var sku = RandomString(16, alphanumericupper);
-            var price = Numeric(5, 2, true); // decimal.Parse( faker.Commerce.Price() ); // 
-            var description = RemoveBadCharacter( faker.Commerce.ProductDescription() );  // faker.Lorem.Paragraph(); // RandomString(50, alphanumeric);
+            var price = Numeric(4, 2, false);
+            var description = RemoveBadCharacter( faker.Commerce.ProductDescription() );
             var status = "approved";
             var sb = new StringBuilder(baseProductQuery);
 
-            sb.Append('(').Append(productId).Append(',');
-            sb.Append(sellerId).Append(',');
+            DateTime now = DateTime.Now;
+
+            sb.Append('(').Append(sellerId).Append(',');
+            sb.Append(productId).Append(',');
             sb.Append('\'').Append(name).Append("',");
             sb.Append('\'').Append(sku).Append("',");
             sb.Append('\'').Append(category).Append("',");
             sb.Append('\'').Append(description).Append("',");
             sb.Append(price).Append(',');
-            sb.Append('\'').Append(DateTime.Now.ToLongDateString()).Append("',");
             sb.Append("TRUE").Append(',');
             sb.Append('\'').Append(status).Append("');");
 
@@ -267,7 +263,6 @@ namespace Client.DataGeneration
         private string GeneratePhoneNumber()
         {
             return faker.Phone.PhoneNumber();
-            // return this.random.Next(10000000, 99999999).ToString();
         }
 
         private string GenerateBirthdate()

@@ -12,7 +12,7 @@ using Orleans.Streams;
 using Common.Http;
 using System.Net.Http;
 using System.Text.RegularExpressions;
-using Common.Entity;
+using Common.Entities;
 using Newtonsoft.Json;
 using System.Collections.Generic;
 

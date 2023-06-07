@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 using Common.Configuration;
 using Common.Http;
 using Common.Scenario.Customer;
-using Common.Entity;
+using Common.Entities;
 using Common.Streaming;
 using Common.YCSB;
 using GrainInterfaces.Workers;
@@ -96,11 +96,14 @@ namespace Grains.Workers
             this._logger.LogWarning("Customer worker {0} Init", this.customerId);
             this.config = config;
             this.sellerIdGenerator = this.config.sellerDistribution == Distribution.UNIFORM ?
-                new UniformLongGenerator(this.config.sellerRange.Start.Value, this.config.sellerRange.End.Value) :
-                new ZipfianGenerator(this.config.sellerRange.Start.Value, this.config.sellerRange.End.Value);
+                new UniformLongGenerator(this.config.sellerRange.min, this.config.sellerRange.max) :
+                new ZipfianGenerator(this.config.sellerRange.min, this.config.sellerRange.max);
             this.productUrl = this.config.urls["products"];
             this.cartUrl = this.config.urls["carts"];
             this.customer = await GetCustomer(this.config.urls["customers"], customerId);
+
+            if(config.cleanCartOnInit)
+                CleanCart();
         }
 
         private async Task<Customer> GetCustomer(string customerUrl, long customerId)
@@ -181,14 +184,14 @@ namespace Grains.Workers
 
             int numberOfKeysToBrowse = random.Next(1, this.config.maxNumberKeysToBrowse + 1);
 
-            this._logger.LogWarning("Customer {0} has this number of keys to browse: {1}", customerId, numberOfKeysToBrowse);
+            this._logger.LogWarning("Customer {0} has the following number of keys to browse: {1}", customerId, numberOfKeysToBrowse);
 
             var keyMap = await DefineKeysToBrowseAsync(numberOfKeysToBrowse);
 
             this._logger.LogWarning("Customer {0} will start browsing", this.customerId);
 
             // browsing
-            Browse(keyMap);
+            await Browse(keyMap);
 
             this._logger.LogWarning("Customer " + customerId + " finished browsing!");
 
@@ -197,15 +200,15 @@ namespace Grains.Workers
                 random.Next(1, Math.Min(numberOfKeysToBrowse, this.config.maxNumberKeysToAddToCart) + 1);
 
             // adding to cart
-            var task = new TaskCompletionSource();
-            AddToCart(DefineKeysToCheckout(keyMap.ToList(), numberOfKeysToCheckout), task);
-
-            await task.Task;
-            // taskcompletion to avoid the subsequent lines to continue
-            if (task.Task.IsCanceled)
+            try
             {
-                InformFailedCheckout();
-                return; // no need to continue
+                await AddToCart(DefineKeysToCheckout(keyMap.ToList(), numberOfKeysToCheckout));
+            }
+            catch (Exception e)
+            {
+                this._logger.LogError(e.Message);
+                await InformFailedCheckout();
+                return; // no need to continue  
             }
 
             // get cart
@@ -226,7 +229,7 @@ namespace Grains.Workers
             } else
             {
                 // fail and deciding not to send treated in the same way
-                InformFailedCheckout();
+                await InformFailedCheckout();
             }
 
             return;
@@ -254,11 +257,12 @@ namespace Grains.Workers
 
         private IDisposable timer;
 
-        private async void InformFailedCheckout()
+        private async Task InformFailedCheckout()
         {
             this.status = CustomerWorkerStatus.CHECKOUT_FAILED;
 
-            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, cartUrl);
+            // just cleaning cart state for next browsing
+            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, cartUrl + "/" + customerId + "/seal");
             HttpUtils.client.Send(message);
 
             await txStream.OnNextAsync(new CustomerStatusUpdate(this.customerId, this.status));
@@ -274,6 +278,16 @@ namespace Grains.Workers
             await Task.Run(() =>
             {
                 HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, cartUrl + "/" + this.customerId);
+                return HttpUtils.client.Send(message);
+            });
+        }
+
+        private async void CleanCart()
+        {
+            _logger.LogWarning("Customer {0} cleaning own cart.", this.customerId);
+            await Task.Run(() =>
+            {
+                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Delete, cartUrl + "/" + this.customerId);
                 return HttpUtils.client.Send(message);
             });
         }
@@ -299,17 +313,18 @@ namespace Grains.Workers
                 return HttpUtils.client.Send(message);
             });
 
-
             return resp != null && resp.IsSuccessStatusCode;
 
         }
 
-        private async void AddToCart(ISet<long> keyMap, TaskCompletionSource task)
+        private async Task AddToCart(ISet<long> keyMap)
         {
             HttpResponseMessage response;
+            //List<Task> tasks = new();
             foreach (var productId in keyMap)
             {
-                this._logger.LogWarning("Customer {0} adding product {1} to cart", this.customerId, productId);
+                this._logger.LogWarning("Customer {0} start adding product {1} to cart", this.customerId, productId);
+                // tasks.Add (
                 await Task.Run(() =>
                 {
                     try
@@ -320,22 +335,25 @@ namespace Grains.Workers
                         // add to cart
                         if (response.Content.Headers.ContentLength == 0)
                         {
-                            this._logger.LogWarning("Response content for product {0} is empty! {1}", productId);
-                            return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+                            this._logger.LogWarning("Response content for product {0} is empty!", productId);
+                            return response;
                         }
 
-                        var qty = random.Next(this.config.minMaxQtyRange.Start.Value, this.config.minMaxQtyRange.End.Value+1);
+                        this._logger.LogWarning("Customer {0} product {1} retrieved", this.customerId, productId);
+
+                        var qty = random.Next(this.config.minMaxQtyRange.min, this.config.minMaxQtyRange.max + 1);
 
                         // var productRet = await response.Content.ReadAsStringAsync();
                         var stream = response.Content.ReadAsStream();
-                      
+
                         StreamReader reader = new StreamReader(stream);
                         string productRet = reader.ReadToEnd();
                         var payload = BuildCartItem(productRet, qty);
 
-                        HttpRequestMessage message2 = new HttpRequestMessage(HttpMethod.Put, cartUrl + "/" + customerId);
+                        HttpRequestMessage message2 = new HttpRequestMessage(HttpMethod.Patch, cartUrl + "/" + customerId + "/add");
                         message2.Content = payload;
 
+                        this._logger.LogWarning("Customer {0} sending product {1} payload to cart", this.customerId, productId);
                         response = HttpUtils.client.Send(message2);
 
                         return response;
@@ -343,7 +361,6 @@ namespace Grains.Workers
                     catch (Exception e)
                     {
                         this._logger.LogWarning("Exception Message: {0} Customer {1} Url {2} Key {3}", e.Message, customerId, productUrl, productId);
-                        task.SetCanceled();
                         if (e is HttpRequestException)
                         {
                             HttpRequestException e_ = (HttpRequestException)e;
@@ -353,23 +370,25 @@ namespace Grains.Workers
                     }
 
                 });
+                    // );
 
-                int delay = this.random.Next(this.config.delayBetweenRequestsRange.Start.Value, this.config.delayBetweenRequestsRange.End.Value + 1);
+                int delay = this.random.Next(this.config.delayBetweenRequestsRange.min, this.config.delayBetweenRequestsRange.max + 1);
                 // artificial delay after adding the product
                 await Task.Delay(delay);
 
             }
 
-            task.SetResult();
+            // await Task.WhenAll(tasks);
+
         }
 
-        private async void Browse(ISet<long> keyMap)
+        private async Task Browse(ISet<long> keyMap)
         {
             int delay;
             foreach (var productId in keyMap)
             {
                 this._logger.LogWarning("Customer {0} browsing product {1}", this.customerId, productId);
-                delay = this.random.Next(this.config.delayBetweenRequestsRange.Start.Value, this.config.delayBetweenRequestsRange.End.Value + 1);
+                delay = this.random.Next(this.config.delayBetweenRequestsRange.min, this.config.delayBetweenRequestsRange.max + 1);
                 await Task.Run(async () =>
                 {
                     try
@@ -394,6 +413,7 @@ namespace Grains.Workers
             {
                 case "abandoned-cart": { await this.ReactToAbandonedCart(data.payload); break; }
                 case "payment-rejected": { await this.ReactToPaymentRejected(data.payload); break; }
+                    // TODO merge the 3 below...
                 case "out-of-stock": { await this.ReactToOutOfStock(data.payload); break; }
                 case "price-update": { await this.ReactToPriceUpdate(data.payload); break; }
                 case "product-unavailable": { await this.ReactToProductUnavailable(data.payload); break; }
@@ -440,13 +460,13 @@ namespace Grains.Workers
             Product product = JsonConvert.DeserializeObject<Product>(productPayload);
             // build a basket item
             CartItem basketItem = new CartItem(
-            product.seller_id,
-                 product.product_id,
-               product.name,
-                 product.price,
-                  0.0m, // not modeling freight value in this version
-                 quantity,
-               Array.Empty<decimal>()
+                    product.seller_id,
+                    product.product_id,
+                    product.name,
+                    product.price,
+                    0.0m, // not modeling freight value in this version
+                    quantity,
+                    Array.Empty<decimal>()
             );
             var payload = JsonConvert.SerializeObject(basketItem);
             return HttpUtils.BuildPayload(payload);

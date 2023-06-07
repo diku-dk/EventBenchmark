@@ -33,4 +33,11 @@ Otherwise the default configuration is assumed:
 Configuration files. as input. these define the load, ingestion process, and workload characteristics.
 
 ## Development 
-Run `dotnet run --project Silo` in the project's root directory to initialize the Orleans server. Afterwards, run `dotnet run --project Client` to initialize the Orleans client, which will spawn the workload prescribed. Make sure the target application (including all necessary microservices) are up and running before initializing the benchmark driver (i.e., the Silo and Client projects).
+Run `dotnet run --project Silo` in the project's root directory to initialize the Orleans server.
+Afterwards, run `dotnet run --project Client` to initialize the Orleans client, which will spawn the workload prescribed.
+Make sure the target application (including all necessary microservices) are up and running before initializing the benchmark driver (i.e., the Silo and Client projects).
+
+## Useful links
+https://stackoverflow.com/questions/44374074/copy-files-to-output-directory-using-csproj-dotnetcore
+
+https://stackoverflow.com/questions/4421633/who-is-listening-on-a-given-tcp-port-on-mac-os-x

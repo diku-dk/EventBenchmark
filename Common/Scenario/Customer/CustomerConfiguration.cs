@@ -20,8 +20,8 @@ namespace Common.Scenario.Customer
         // probability of a customer to checkout the cart
         public int checkoutProbability = 50;
 
-        // products, carts
-        public Dictionary<string, string> urls;
+        // products, carts, and customers
+        public IDictionary<string, string> urls = new Dictionary<string, string>();
 
         public Interval minMaxQtyRange;
 
@@ -29,5 +29,6 @@ namespace Common.Scenario.Customer
 
         public Interval delayBetweenRequestsRange;
 
+        public bool cleanCartOnInit;
     }
 }

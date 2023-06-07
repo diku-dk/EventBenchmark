@@ -16,7 +16,7 @@ using Common.Ingestion;
 using Common.Ingestion.Config;
 using Common.Scenario;
 using Common.Scenario.Customer;
-using Common.Entity;
+using Common.Entities;
 using Common.Scenario.Seller;
 using Common.Streaming;
 using Confluent.Kafka;
@@ -43,14 +43,17 @@ namespace Client
         // streams
         private readonly IStreamProvider streamProvider;
 
+        private readonly ILogger logger;
+
         // synchronization with possible many ingestion orchestrator
         // CountdownEvent ingestionProcess;
 
-        public MasterOrchestrator(IClusterClient orleansClient, MasterConfiguration masterConfig)
+        public MasterOrchestrator(IClusterClient orleansClient, MasterConfiguration masterConfig, ILogger logger)
 		{
             this.orleansClient = orleansClient;
             this.masterConfig = masterConfig;
             this.streamProvider = orleansClient.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider);
+            this.logger = logger;
         }
 
         /*
@@ -67,6 +70,42 @@ namespace Client
          */
         public async Task Run()
         {
+            if (this.masterConfig.workflowConfig.healthCheck)
+            {
+                string healthCheckEndpoint = this.masterConfig.workflowConfig.healthCheckEndpoint;
+                // for each table and associated url, perform a GET request to check if return is OK
+                // health check. is the microservice online?
+                var responses = new List<Task<HttpResponseMessage>>();
+                foreach (var tableUrl in masterConfig.ingestionConfig.mapTableToUrl)
+                {
+                    var urlHealth = tableUrl.Value + healthCheckEndpoint;
+                    logger.LogInformation("Contacting {0} healthcheck on {1}", tableUrl.Key, urlHealth);
+                    HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, urlHealth);
+                    responses.Add(HttpUtils.client.SendAsync(message));
+                }
+
+                try
+                {
+                    await Task.WhenAll(responses);
+                } catch(Exception e)
+                {
+                    logger.LogError("Error on contacting healthcheck: {0}", e.Message);
+                    return;
+                }
+
+                int idx = 0;
+                foreach (var tableUrl in masterConfig.ingestionConfig.mapTableToUrl)
+                {
+                    if (!responses[idx].Result.IsSuccessStatusCode)
+                    {
+                        logger.LogInformation("Healthcheck failed for {0} in URL {1}", tableUrl.Key, tableUrl.Value);
+                        return;
+                    }
+                    idx++;
+                }
+                logger.LogInformation("Healthcheck process succeeded");
+            }
+
             if (this.masterConfig.workflowConfig.dataLoad)
             {
                 if(this.masterConfig.syntheticDataConfig != null)
@@ -86,32 +125,6 @@ namespace Client
                 }
             }
 
-            if (this.masterConfig.workflowConfig.healthCheck)
-            {
-                // for each table and associated url, perform a GET request to check if return is OK
-                // health check. is the microservice online?
-                var responses = new List<Task<HttpResponseMessage>>();
-                foreach (var tableUrl in masterConfig.ingestionConfig.mapTableToUrl)
-                {
-                    HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, tableUrl.Value);
-                    responses.Add(HttpUtils.client.SendAsync(message));
-                }
-
-                await Task.WhenAll(responses);
-
-                int idx = 0;
-                foreach (var tableUrl in masterConfig.ingestionConfig.mapTableToUrl)
-                {
-                    if (!responses[idx].Result.IsSuccessStatusCode)
-                    {
-                        Console.WriteLine("Healthcheck failed for {0}", tableUrl.Value);
-                        return;
-                    }
-                    idx++;
-                }
-
-            }
-
             if (this.masterConfig.workflowConfig.ingestion)
             {
 
@@ -125,7 +138,7 @@ namespace Client
                 // make sure is online to receive stream
                 await ingestionOrchestrator.Init(ingestionConfig);
 
-                Console.WriteLine("Ingestion orchestrator grain will start.");
+                logger.LogInformation("Ingestion orchestrator grain will start.");
 
                 IAsyncStream<int> ingestionStream = streamProvider.GetStream<int>(StreamingConfiguration.IngestionStreamId, 0.ToString());
 
@@ -141,13 +154,13 @@ namespace Client
 
                 await subscription.UnsubscribeAsync();
 
-                Console.WriteLine("Ingestion orchestrator grain finished.");
+                logger.LogInformation("Ingestion orchestrator grain finished.");
                 */
             }
 
             if (this.masterConfig.workflowConfig.transactionSubmission)
             {
-
+                // customer session distriburtion 100 in 0 in transaction submssion
                 this.masterConfig.scenarioConfig.customerConfig.urls = masterConfig.scenarioConfig.mapTableToUrl;
                 CustomerConfiguration customerConfig = masterConfig.scenarioConfig.customerConfig;
 
@@ -199,7 +212,7 @@ namespace Client
                     // setup kafka consumer. setup forwarding events to proper grains (e.g., customers)
                     // https://github.com/YijianLiu1210/BDS-Programming-Assignment/blob/main/OrleansWorld/Client/Stream/StreamClient.cs
 
-                    Console.WriteLine("Streaming will be set up.");
+                    logger.LogInformation("Streaming will be set up.");
 
                     foreach (var entry in this.masterConfig.scenarioConfig.mapTopicToStreamGuid)
                     {
@@ -213,7 +226,7 @@ namespace Client
                         kafkaWorkers.Add(kafkaConsumer);
                     }
 
-                    Console.WriteLine("Streaming set up finished.");
+                    logger.LogInformation("Streaming set up finished.");
                 }
 
                 // defined dynamically

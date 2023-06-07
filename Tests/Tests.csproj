@@ -20,10 +20,10 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.Orleans.TestingHost" Version="3.7.0" />
+    <PackageReference Include="Microsoft.Orleans.Core" Version="3.7.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Marketplace\Marketplace.csproj" />
     <ProjectReference Include="..\Common\Common.csproj" />
   </ItemGroup>
 </Project>

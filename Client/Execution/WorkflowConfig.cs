@@ -7,6 +7,8 @@ namespace Client.Execution
         // check whether the microservices are all active before starting the workflow
         public bool healthCheck = true;
 
+        public string healthCheckEndpoint = "/health";
+
         // step
         public bool dataLoad = true;
 
