@@ -90,7 +90,7 @@ namespace Grains.Workers
             HttpResponseMessage response = await Task.Run(() =>
             {
                 HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch,
-                    shipmentUrl + "/update");
+                    shipmentUrl + "/updateShipment");
                 return HttpUtils.client.Send(message);
             });
 

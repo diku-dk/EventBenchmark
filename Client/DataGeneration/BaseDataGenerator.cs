@@ -16,7 +16,6 @@ namespace Client.DataGeneration
         protected const string alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
         protected const string alphanumericupper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         protected const string alphanumeric = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-
         protected readonly Random random = new Random();
 
         protected static DateTime minDate = new DateTime(1940, 1, 1);
@@ -32,7 +31,7 @@ namespace Client.DataGeneration
             ["stock_items"] = "CREATE OR REPLACE TABLE stock_items (seller_id INTEGER, product_id INTEGER, qty_available INTEGER, qty_reserved INTEGER, order_count INTEGER, ytd INTEGER, data VARCHAR);",
             ["customers"] = "CREATE OR REPLACE TABLE customers (id INTEGER, first_name VARCHAR, last_name VARCHAR, address VARCHAR, complement VARCHAR, birth_date VARCHAR, " +
                             "zip_code_prefix VARCHAR, city VARCHAR, state VARCHAR, " +
-                            "card_number VARCHAR, card_security_number VARCHAR, card_expiration VARCHAR, card_holder_name VARCHAR, card_type VARCHAR, " +
+                            "card_number VARCHAR, card_security_number VARCHAR, card_expiration datetime, card_holder_name VARCHAR, card_type VARCHAR, " +
                             "success_payment_count INTEGER, failed_payment_count INTEGER, delivery_count INTEGER, abandoned_cart_count INTEGER, data VARCHAR);"
         };
 
@@ -51,7 +50,6 @@ namespace Client.DataGeneration
         {
             var quantity = Numeric(3, false);
             var ytd = Numeric(1, false);
-            var order_count = Numeric(2, false);
             var data = faker.Lorem.Sentence();
 
             // issue insert statement
@@ -60,7 +58,7 @@ namespace Client.DataGeneration
             sb.Append(productId).Append(',');
             sb.Append(quantity).Append(',');
             sb.Append(0).Append(',');
-            sb.Append(order_count).Append(',');
+            sb.Append(0).Append(',');
             sb.Append(ytd).Append(',');
             sb.Append('\'').Append(data).Append("');");
 
@@ -86,7 +84,7 @@ namespace Client.DataGeneration
 
             var cardNumber = faker.Finance.CreditCardNumber();
             var cardSecurityNumber = faker.Finance.CreditCardCvv();
-            var cardExpiration = RandomString(4, numbers);
+            var cardExpiration = GenerateFutureDate();
             string cardHolderName;
             if (random.Next(1, 11) < 8)//70% change
             {
@@ -268,6 +266,11 @@ namespace Client.DataGeneration
         private string GenerateBirthdate()
         {
             return faker.Person.DateOfBirth.ToShortDateString();
+        }
+
+        private DateTime GenerateFutureDate()
+        {
+            return DateTime.Today.AddMilliseconds(random.Next(1, int.MaxValue));
         }
 
     }

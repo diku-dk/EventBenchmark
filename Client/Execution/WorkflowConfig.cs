@@ -25,6 +25,8 @@ namespace Client.Execution
 
         // submit requests to clean data created as part of the transaction submission e.g., orders, payments, shipments, carts, etc
         public bool cleanup = false;
+
+        public string cleanupEndpoint = "/cleanup";
     }
 }
 

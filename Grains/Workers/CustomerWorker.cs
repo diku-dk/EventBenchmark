@@ -53,6 +53,11 @@ namespace Grains.Workers
 
         private readonly ILogger<CustomerWorker> _logger;
 
+
+        private IDisposable updateStatusTaskTimer;
+        private int dueTime = 1000;
+        private int period = 2000;
+
         public override async Task OnActivateAsync()
         {
             this.customerId = this.GetPrimaryKeyLong();
@@ -102,8 +107,7 @@ namespace Grains.Workers
             this.cartUrl = this.config.urls["carts"];
             this.customer = await GetCustomer(this.config.urls["customers"], customerId);
 
-            if(config.cleanCartOnInit)
-                CleanCart();
+            if(config.cleanCartOnInit) CleanCart();
         }
 
         private async Task<Customer> GetCustomer(string customerUrl, long customerId)
@@ -224,7 +228,8 @@ namespace Grains.Workers
                 // the timer is disposed if the grain is deactivated
                 // but unlikely to be deactivated after 1000
                 // to be sure, we would need a background scheduler. an external task could also do the job...
-                this.timer = RegisterTimer(UpdateStatusAsync, null, TimeSpan.FromMilliseconds(1000), TimeSpan.FromMilliseconds(2000));
+                this.updateStatusTaskTimer = RegisterTimer(UpdateStatusAsync, new ScheduleOptions(dueTime, period),
+                    TimeSpan.FromMilliseconds(dueTime), TimeSpan.FromMilliseconds(period));
          
             } else
             {
@@ -235,10 +240,13 @@ namespace Grains.Workers
             return;
         }
 
+        private record ScheduleOptions(int dueTime, int period);
+
         // pull-based. wait for cart to be open again
         private async Task UpdateStatusAsync(object arg)
         {
-            this._logger.LogWarning("Timer fired for customer {0}", this.customerId);
+            ScheduleOptions options = (ScheduleOptions)arg;
+            this._logger.LogWarning("Timer fired for customer {0} dueTime {1} period {2}", this.customerId, options.dueTime, options.period);
             // only send the message if the cart actor status is open, otherwise it will receive exception
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, this.cartUrl + "/" + this.customerId);
             var response = HttpUtils.client.Send(message);
@@ -251,11 +259,16 @@ namespace Grains.Workers
                 this.status = CustomerWorkerStatus.IDLE;
                 this._logger.LogWarning("Timer in customer {0} reporting status update: {1}", this.customerId, this.status);
                 await txStream.OnNextAsync(new CustomerStatusUpdate(this.customerId, this.status));
-                this.timer.Dispose();
+                this.updateStatusTaskTimer.Dispose();
+            } else
+            {
+                this._logger.LogWarning("Timer in customer {0} observed no status update: {1}. Exponential backoff will be applied.", this.customerId, this.status);
+                this.updateStatusTaskTimer.Dispose();
+                object newOptions = (object)new ScheduleOptions(options.period, options.period * 2);
+                this.updateStatusTaskTimer = RegisterTimer(UpdateStatusAsync, newOptions,
+                    TimeSpan.FromMilliseconds(options.period), TimeSpan.FromMilliseconds(options.period * 2));
             }
-        }  
-
-        private IDisposable timer;
+        }
 
         private async Task InformFailedCheckout()
         {
@@ -284,7 +297,7 @@ namespace Grains.Workers
 
         private async void CleanCart()
         {
-            _logger.LogWarning("Customer {0} cleaning own cart.", this.customerId);
+            this._logger.LogWarning("Customer {0} cleaning own cart.", this.customerId);
             await Task.Run(() =>
             {
                 HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Delete, cartUrl + "/" + this.customerId);
@@ -305,16 +318,28 @@ namespace Grains.Workers
             this._logger.LogWarning("Customer {0} decided to send a checkout.", this.customerId);
 
             // inform checkout intent. optional feature
-
+            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, cartUrl + "/" + this.customerId + "/checkout");
+            message.Content = BuildCheckoutPayload(this.customer);
             HttpResponseMessage resp = await Task.Run(() =>
             {
-                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, cartUrl + "/" + this.customerId + "/checkout");
-                message.Content = BuildCheckoutPayload(this.customer);
                 return HttpUtils.client.Send(message);
             });
 
-            return resp != null && resp.IsSuccessStatusCode;
+            if (resp == null) return false;
+            if (resp.IsSuccessStatusCode) return true;
 
+            // perhaps price divergence
+            // apply new prices and send again
+            if(resp.StatusCode == HttpStatusCode.MethodNotAllowed)
+            {
+                resp = await Task.Run(() =>
+                {
+                    return HttpUtils.client.Send(message);
+                });
+            }
+
+            // very unlikely to have another price update (considering the distribution is low)
+            return resp != null && resp.IsSuccessStatusCode;
         }
 
         private async Task AddToCart(ISet<long> keyMap)
@@ -455,9 +480,24 @@ namespace Grains.Workers
             return Task.CompletedTask;
         }
 
-        private static StringContent BuildCartItem(string productPayload, int quantity)
+        private StringContent BuildCartItem(string productPayload, int quantity)
         {
+
             Product product = JsonConvert.DeserializeObject<Product>(productPayload);
+
+            // define voucher from distribution
+            var vouchers = Array.Empty<decimal>();
+            int probVoucher = this.random.Next(0, 101);
+            if(probVoucher <= this.config.voucherProbability)
+            {
+                int numVouchers = this.random.Next(1, this.config.maxNumberVouchers + 1);
+                vouchers = new decimal[numVouchers];
+                for(int i = 0; i < numVouchers; i++)
+                {
+                    vouchers[i] = this.random.Next(1, 10);
+                }
+            }
+            
             // build a basket item
             CartItem basketItem = new CartItem(
                     product.seller_id,
@@ -466,7 +506,7 @@ namespace Grains.Workers
                     product.price,
                     0.0m, // not modeling freight value in this version
                     quantity,
-                    Array.Empty<decimal>()
+                    vouchers
             );
             var payload = JsonConvert.SerializeObject(basketItem);
             return HttpUtils.BuildPayload(payload);
@@ -475,9 +515,9 @@ namespace Grains.Workers
         private StringContent BuildCheckoutPayload(Customer customer)
         {
 
-            // TODO define payment type from distribution
-            // TODO define installments from distribution
-            // TODO define voucher from distribution
+            // define payment type randomly
+            var typeIdx = random.Next(1, 4);
+            PaymentType type = typeIdx > 2 ? PaymentType.CREDIT_CARD : typeIdx > 1 ? PaymentType.DEBIT_CARD : PaymentType.BOLETO;
 
             // build
             CustomerCheckout basketCheckout = new CustomerCheckout(
@@ -489,13 +529,13 @@ namespace Grains.Workers
                 customer.complement,
                 customer.state,
                 customer.zip_code,
-                PaymentType.CREDIT_CARD.ToString(),
+                type.ToString(),
                 customer.card_number,
                 customer.card_holder_name,
                 customer.card_expiration,
                 customer.card_security_number,
                 customer.card_type,
-                random.Next(1, 11)
+                random.Next(1, 11) // installments
             );
 
             var payload = JsonConvert.SerializeObject(basketCheckout);

@@ -20,8 +20,9 @@ namespace Tests
         }
 
         [Fact]
-        public async Task BrowseAndCheckout()
+        public Task BrowseAndCheckout()
         {
+            return false;
         }
     }
 }

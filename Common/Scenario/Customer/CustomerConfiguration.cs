@@ -30,5 +30,9 @@ namespace Common.Scenario.Customer
         public Interval delayBetweenRequestsRange;
 
         public bool cleanCartOnInit;
+
+        public int voucherProbability = 10;
+
+        public int maxNumberVouchers = 10;
     }
 }

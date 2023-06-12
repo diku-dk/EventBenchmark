@@ -5,6 +5,6 @@
   "ingestion": true,
   "transactionSubmission": true,
   "pubsubEnabled": false,
-  "cleanup": false
+  "cleanup": false,
+  "cleanupEndpoint":  "/cleanup"
 }
-

@@ -8,7 +8,7 @@
     // worker does not need to know that
     "customerDistribution": "UNIFORM",
     "executionTime": 60000, // 1 minute by default
-    "waitBetweenSubmissions": 10000,
+    "waitBetweenSubmissions": 30000,
     "submissionType": "QUANTITY",
     "submissionValue" :  1, // 5
     // mandatory entry points
@@ -33,14 +33,16 @@
       },
       "delayBeforeStart": 0,
       "checkoutProbability": 100,
-      "cleanCartOnInit": true
+      "cleanCartOnInit": true,
+      "voucherProbability": 5,
+      "maxNumberVouchers": 10
     },
     "sellerConfig": {
         "keyDistribution": "UNIFORM",
         "delayBetweenRequestsRange": {
             "min": 1,
             "max": 1000
-      }
+        }
     }
 }
 

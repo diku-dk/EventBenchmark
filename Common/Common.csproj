@@ -17,7 +17,6 @@
     <None Remove="Newtonsoft.Json" />
     <None Remove="Scenario\Seller\" />
     <None Remove="Infra\" />
-    <None Remove="Entity\" />
     <None Remove="Event\" />
     <None Remove="Entity\CartStatus.config" />
     <None Remove="Entities\" />
@@ -31,7 +30,6 @@
     <Folder Include="Serdes\" />
     <Folder Include="Scenario\Seller\" />
     <Folder Include="Infra\" />
-    <Folder Include="Entity\" />
     <Folder Include="Event\" />
     <Folder Include="Entities\" />
   </ItemGroup>
