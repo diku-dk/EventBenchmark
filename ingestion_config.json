@@ -1,5 +1,5 @@
 ﻿{
-    "connectionString" : "Data Source=file.db", // optional if data source file is read
+    "connectionString" : "Data Source=file.db",
     "distributionStrategy": "SINGLE_WORKER", //optional
     "numberCpus": 2, // optional
     "mapTableToUrl": {

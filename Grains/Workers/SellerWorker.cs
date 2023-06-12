@@ -22,7 +22,7 @@ namespace Grains.Workers
     {
         private readonly Random random;
 
-        private SellerConfiguration config;
+        private SellerWorkerConfig config;
 
         private IStreamProvider streamProvider;
 
@@ -56,7 +56,7 @@ namespace Grains.Workers
 
         private static readonly ProductComparer productComparer = new ProductComparer();
 
-        public Task Init(SellerConfiguration sellerConfig, List<Product> products)
+        public Task Init(SellerWorkerConfig sellerConfig, List<Product> products)
         {
             this._logger.LogWarning("Init -> Seller worker {0} with #{1} product(s).", this.sellerId, products.Count);
             this.config = sellerConfig;

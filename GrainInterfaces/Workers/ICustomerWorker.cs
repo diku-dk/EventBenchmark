@@ -7,7 +7,7 @@ namespace GrainInterfaces.Workers
 {
 	public interface ICustomerWorker : IGrainWithIntegerKey
 	{
-        public Task Init(CustomerConfiguration config);
+        public Task Init(CustomerWorkerConfig config);
 
     }
 }

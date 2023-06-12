@@ -61,7 +61,7 @@ namespace Client
                 [TransactionType.UPDATE_DELIVERY] = 100
             },
             mapTableToUrl = mapTableToUrl,
-            customerConfig = new()
+            customerWorkerConfig = new()
             {
                 maxNumberKeysToBrowse = 10,
                 maxNumberKeysToAddToCart = 10, // both the same for simplicity
@@ -74,7 +74,7 @@ namespace Client
                 delayBeforeStart = 0,
                 checkoutProbability = 50
             },
-            sellerConfig = new() {
+            sellerWorkerConfig = new() {
                 keyDistribution = Common.Configuration.Distribution.UNIFORM,
                 urls = mapTableToUrl,
                 delayBetweenRequestsRange = new Interval(1, 1000)

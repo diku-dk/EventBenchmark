@@ -22,7 +22,7 @@ namespace Tests
         [Fact]
         public Task BrowseAndCheckout()
         {
-            return false;
+            return Task.CompletedTask;
         }
     }
 }

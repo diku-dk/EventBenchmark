@@ -65,9 +65,9 @@ namespace Transaction
             this.config = scenarioConfiguration;
             this.random = new Random();
             
-            NumberGenerator sellerIdGenerator = this.config.customerConfig.sellerDistribution == Distribution.UNIFORM ?
-                            new UniformLongGenerator(this.config.customerConfig.sellerRange.min, this.config.customerConfig.sellerRange.max) :
-                            new ZipfianGenerator(this.config.customerConfig.sellerRange.min, this.config.customerConfig.sellerRange.max);
+            NumberGenerator sellerIdGenerator = this.config.customerWorkerConfig.sellerDistribution == Distribution.UNIFORM ?
+                            new UniformLongGenerator(this.config.customerWorkerConfig.sellerRange.min, this.config.customerWorkerConfig.sellerRange.max) :
+                            new ZipfianGenerator(this.config.customerWorkerConfig.sellerRange.min, this.config.customerWorkerConfig.sellerRange.max);
 
             NumberGenerator customerIdGenerator = this.config.customerDistribution == Distribution.UNIFORM ?
                                     new UniformLongGenerator(customerRange.min, customerRange.max) :
@@ -219,7 +219,7 @@ namespace Transaction
                         else
                         {
                             customerWorker = this.orleansClient.GetGrain<ICustomerWorker>(grainID);
-                            await customerWorker.Init(config.customerConfig);
+                            await customerWorker.Init(config.customerWorkerConfig);
                         }
 
                         this._logger.LogWarning("Customer worker {0} defined!", grainID);

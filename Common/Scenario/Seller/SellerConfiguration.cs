@@ -7,7 +7,7 @@ namespace Common.Scenario.Seller
     /**
      * The necessary data required by a seller worker to work properly
      */
-	public sealed class SellerConfiguration
+	public sealed class SellerWorkerConfig
 	{
         // to serve customer workers
         // the seller should know the dist of its own products

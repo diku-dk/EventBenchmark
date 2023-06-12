@@ -52,12 +52,11 @@ namespace Common.Scenario
             ["product-unavailable"] = StreamingConfiguration.CustomerReactStreamId,
         };
 
-        // customer config
-        public CustomerConfiguration customerConfig;
+        public CustomerWorkerConfig customerWorkerConfig;
 
-        // seller config
-        public SellerConfiguration sellerConfig;
+        public SellerWorkerConfig sellerWorkerConfig;
 
+        // customer key distribution
         public Distribution customerDistribution;
 
     }

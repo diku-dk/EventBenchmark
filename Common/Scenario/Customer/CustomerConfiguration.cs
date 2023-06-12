@@ -7,7 +7,7 @@ namespace Common.Scenario.Customer
     /**
      * The necessary data required by a customer worker to work properly
      */
-    public sealed class CustomerConfiguration
+    public sealed class CustomerWorkerConfig
 	{
         public int maxNumberKeysToBrowse;
 

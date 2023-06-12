@@ -19,7 +19,7 @@
         "customers": "http://127.0.0.1:5007",
         "shipments": "http://127.0.0.1:5005"
     },
-    "customerConfig": {
+    "customerWorkerConfig": {
       "maxNumberKeysToBrowse": 10,
       "maxNumberKeysToAddToCart": 10,
       "sellerDistribution": "UNIFORM", // NORMAL, UNIFORM, ZIPFIAN
@@ -37,7 +37,7 @@
       "voucherProbability": 5,
       "maxNumberVouchers": 10
     },
-    "sellerConfig": {
+    "sellerWorkerConfig": {
         "keyDistribution": "UNIFORM",
         "delayBetweenRequestsRange": {
             "min": 1,

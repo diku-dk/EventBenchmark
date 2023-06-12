@@ -161,8 +161,8 @@ namespace Client
             if (this.masterConfig.workflowConfig.transactionSubmission)
             {
                 // customer session distriburtion 100 in 0 in transaction submssion
-                this.masterConfig.scenarioConfig.customerConfig.urls = masterConfig.scenarioConfig.mapTableToUrl;
-                CustomerConfiguration customerConfig = masterConfig.scenarioConfig.customerConfig;
+                this.masterConfig.scenarioConfig.customerWorkerConfig.urls = masterConfig.scenarioConfig.mapTableToUrl;
+                CustomerWorkerConfig customerConfig = masterConfig.scenarioConfig.customerWorkerConfig;
 
                 if (!customerConfig.urls.ContainsKey("products"))
                 {
@@ -189,7 +189,7 @@ namespace Client
                 // update customer config
                 long numSellers = DuckDbUtils.Count(connection, "sellers");
                 // defined dynamically
-                this.masterConfig.scenarioConfig.customerConfig.sellerRange = new Interval(1, (int) numSellers);
+                this.masterConfig.scenarioConfig.customerWorkerConfig.sellerRange = new Interval(1, (int) numSellers);
 
                 // make sure to activate all sellers so all can respond to customers when required
                 // another solution is making them read from the microservice itself...
@@ -199,7 +199,7 @@ namespace Client
                 {
                     List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
                     sellerWorker = this.orleansClient.GetGrain<ISellerWorker>(i);
-                    tasks.Add( sellerWorker.Init(this.masterConfig.scenarioConfig.sellerConfig, products) );
+                    tasks.Add( sellerWorker.Init(this.masterConfig.scenarioConfig.sellerWorkerConfig, products) );
                 }
                 await Task.WhenAll(tasks);
 

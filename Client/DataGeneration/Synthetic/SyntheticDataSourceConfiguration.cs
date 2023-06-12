@@ -19,14 +19,6 @@ namespace Client.DataGeneration
 
         public bool createSchema = true;
 
-        public string fileDir = Environment.GetEnvironmentVariable("HOME") + "/workspace/EventBenchmark/Client/DataGeneration/Synthetic";
-
-        public Dictionary<string, string> mapTableToFileName = new()
-        {
-            ["categories"] = "product_category_name_translation.csv",
-            ["geolocation"] = "olist_geolocation_dataset.csv"
-        };
-
     }
 }
 

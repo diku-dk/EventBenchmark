@@ -31,7 +31,7 @@ namespace Grains.Workers
     {
         private readonly Random random;
 
-        private CustomerConfiguration config;
+        private CustomerWorkerConfig config;
 
         private NumberGenerator sellerIdGenerator;
 
@@ -96,7 +96,7 @@ namespace Grains.Workers
             this.status = CustomerWorkerStatus.IDLE;
         }
 
-        public async Task Init(CustomerConfiguration config)
+        public async Task Init(CustomerWorkerConfig config)
         {
             this._logger.LogWarning("Customer worker {0} Init", this.customerId);
             this.config = config;

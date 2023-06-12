@@ -9,7 +9,7 @@ namespace GrainInterfaces.Workers
 {
 	public interface ISellerWorker : IGrainWithIntegerKey
 	{
-        public Task Init(SellerConfiguration sellerConfig, List<Product> products);
+        public Task Init(SellerWorkerConfig sellerConfig, List<Product> products);
 
         [AlwaysInterleave]
         public Task<long> GetProductId();

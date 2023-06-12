@@ -100,7 +100,7 @@ namespace Client.DataGeneration.Real
                 geo[1] = queryResult.GetString(2);
                 geo[2] = queryResult.GetString(2);
 
-                GenerateCustomer(command, customerId, geo);
+                GenerateCustomer(command, customerId, new Geolocation(geo[0], geo[1], geo[2]));
 
             }
         }
@@ -149,8 +149,9 @@ namespace Client.DataGeneration.Real
                 string zip = queryResult.GetString(2);
                 string city = RemoveBadCharacter( queryResult.GetString(3) );
                 string state = queryResult.GetString(4);
+                var geolocation = new Geolocation(city, state, zip);
 
-                GenerateSeller(command, sellerID, city, state, zip);
+                GenerateSeller(command, sellerID, geolocation);
             }
 
         }

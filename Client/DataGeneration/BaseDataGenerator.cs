@@ -70,17 +70,19 @@ namespace Client.DataGeneration
 
         protected Array cardValues = Enum.GetValues(typeof(CardBrand));
 
-        protected void GenerateCustomer(DuckDbCommand command, int customerId, string[] geo)
+        protected void GenerateCustomer(DuckDbCommand command, int customerId)
+        {
+            var geolocation = new Geolocation(faker.Address.City(), faker.Address.State(), faker.Address.ZipCode());
+            GenerateCustomer(command, customerId, geolocation);
+        }
+
+        protected void GenerateCustomer(DuckDbCommand command, int customerId, Geolocation geolocation)
         {
             var firstName = RemoveBadCharacter( faker.Name.FirstName() );
             var lastName = RemoveBadCharacter( faker.Name.LastName() );
             var address = RemoveBadCharacter(faker.Address.StreetName());
             var complement = RemoveBadCharacter(faker.Address.StreetSuffix());
             var birth_date = GenerateBirthdate();
-
-            var city = geo[0];
-            var state = geo[1];
-            var zip = geo[2];
 
             var cardNumber = faker.Finance.CreditCardNumber();
             var cardSecurityNumber = faker.Finance.CreditCardCvv();
@@ -106,9 +108,9 @@ namespace Client.DataGeneration
             sb.Append('\'').Append(address).Append("',");
             sb.Append('\'').Append(complement).Append("',");
             sb.Append('\'').Append(birth_date).Append("',");
-            sb.Append('\'').Append(zip).Append("',");
-            sb.Append('\'').Append(city).Append("',");
-            sb.Append('\'').Append(state).Append("',");
+            sb.Append('\'').Append(geolocation.zipcode).Append("',");
+            sb.Append('\'').Append(geolocation.city).Append("',");
+            sb.Append('\'').Append(geolocation.state).Append("',");
             sb.Append('\'').Append(cardNumber).Append("',");
             sb.Append('\'').Append(cardSecurityNumber).Append("',");
             sb.Append('\'').Append(cardExpiration).Append("',");
@@ -127,7 +129,13 @@ namespace Client.DataGeneration
 
         }
 
-        protected void GenerateSeller(DuckDbCommand command, long sellerId, string city, string state, string zip)
+        protected void GenerateSeller(DuckDbCommand command, long sellerId)
+        {
+            var geolocation = new Geolocation(faker.Address.City(), faker.Address.State(), faker.Address.ZipCode());
+            GenerateSeller(command, sellerId, geolocation);
+        }
+
+        protected void GenerateSeller(DuckDbCommand command, long sellerId, Geolocation geolocation)
         {
             string name = RemoveBadCharacter(faker.Name.FullName());
             string company_name = RemoveBadCharacter(faker.Company.CompanyName());
@@ -155,15 +163,20 @@ namespace Client.DataGeneration
             sb.Append('\'').Append(cnpj).Append("',");
             sb.Append('\'').Append(address).Append("',");
             sb.Append('\'').Append(complement).Append("',");
-            sb.Append('\'').Append(city).Append("',");
-            sb.Append('\'').Append(state).Append("',");
-            sb.Append('\'').Append(zip).Append("',");
+            sb.Append('\'').Append(geolocation.city).Append("',");
+            sb.Append('\'').Append(geolocation.state).Append("',");
+            sb.Append('\'').Append(geolocation.zipcode).Append("',");
             sb.Append(order_count).Append(");");
             
             Console.WriteLine(sb.ToString());
 
             command.CommandText = sb.ToString();
             command.ExecuteNonQuery();
+        }
+
+        protected void GenerateProduct(DuckDbCommand command, long productId, long sellerId)
+        {
+            this.GenerateProduct(command, productId, sellerId, faker.Commerce.Categories(1)[0]);
         }
 
         protected void GenerateProduct(DuckDbCommand command, long productId, long sellerId, string category)
