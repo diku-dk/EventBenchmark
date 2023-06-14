@@ -4,7 +4,6 @@
   "dataLoad": true,
   "ingestion": true,
   "transactionSubmission": true,
-  "pubsubEnabled": false,
   "cleanup": false,
   "cleanupEndpoint":  "/cleanup"
 }

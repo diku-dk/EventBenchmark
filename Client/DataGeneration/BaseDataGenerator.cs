@@ -31,7 +31,7 @@ namespace Client.DataGeneration
             ["stock_items"] = "CREATE OR REPLACE TABLE stock_items (seller_id INTEGER, product_id INTEGER, qty_available INTEGER, qty_reserved INTEGER, order_count INTEGER, ytd INTEGER, data VARCHAR);",
             ["customers"] = "CREATE OR REPLACE TABLE customers (id INTEGER, first_name VARCHAR, last_name VARCHAR, address VARCHAR, complement VARCHAR, birth_date VARCHAR, " +
                             "zip_code_prefix VARCHAR, city VARCHAR, state VARCHAR, " +
-                            "card_number VARCHAR, card_security_number VARCHAR, card_expiration datetime, card_holder_name VARCHAR, card_type VARCHAR, " +
+                            "card_number VARCHAR, card_security_number VARCHAR, card_expiration VARCHAR, card_holder_name VARCHAR, card_type VARCHAR, " +
                             "success_payment_count INTEGER, failed_payment_count INTEGER, delivery_count INTEGER, abandoned_cart_count INTEGER, data VARCHAR);"
         };
 
@@ -70,9 +70,14 @@ namespace Client.DataGeneration
 
         protected Array cardValues = Enum.GetValues(typeof(CardBrand));
 
+        private Geolocation Geolocation()
+        {
+            return new Geolocation(RemoveBadCharacter(faker.Address.City()), RemoveBadCharacter(faker.Address.State()), RemoveBadCharacter(faker.Address.ZipCode())); ;
+        }
+
         protected void GenerateCustomer(DuckDbCommand command, int customerId)
         {
-            var geolocation = new Geolocation(faker.Address.City(), faker.Address.State(), faker.Address.ZipCode());
+            var geolocation = Geolocation();
             GenerateCustomer(command, customerId, geolocation);
         }
 
@@ -87,8 +92,9 @@ namespace Client.DataGeneration
             var cardNumber = faker.Finance.CreditCardNumber();
             var cardSecurityNumber = faker.Finance.CreditCardCvv();
             var cardExpiration = GenerateFutureDate();
+            string expDate = cardExpiration.ToString("MMyy");
             string cardHolderName;
-            if (random.Next(1, 11) < 8)//70% change
+            if (random.Next(1, 11) < 8)//70% chance same person
             {
                 var middleName = RemoveBadCharacter( faker.Name.LastName() );
                 cardHolderName = firstName + " " + middleName + " " + lastName;
@@ -99,7 +105,7 @@ namespace Client.DataGeneration
             }
             var cardType = cardValues.GetValue(random.Next(1, cardValues.Length)).ToString();
 
-            var C_DATA = faker.Lorem.Paragraph();
+            var C_DATA = RemoveBadCharacter(faker.Lorem.Sentence());
 
             var sb = new StringBuilder(baseCustomerQuery);
             sb.Append('(').Append(customerId).Append(',');
@@ -113,7 +119,7 @@ namespace Client.DataGeneration
             sb.Append('\'').Append(geolocation.state).Append("',");
             sb.Append('\'').Append(cardNumber).Append("',");
             sb.Append('\'').Append(cardSecurityNumber).Append("',");
-            sb.Append('\'').Append(cardExpiration).Append("',");
+            sb.Append('\'').Append(expDate).Append("',");
             sb.Append('\'').Append(cardHolderName).Append("',");
             sb.Append('\'').Append(cardType).Append("',");
             sb.Append(0).Append(','); // success_payment_count
@@ -131,7 +137,7 @@ namespace Client.DataGeneration
 
         protected void GenerateSeller(DuckDbCommand command, long sellerId)
         {
-            var geolocation = new Geolocation(faker.Address.City(), faker.Address.State(), faker.Address.ZipCode());
+            var geolocation = Geolocation();
             GenerateSeller(command, sellerId, geolocation);
         }
 

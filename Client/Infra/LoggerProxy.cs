@@ -9,21 +9,21 @@ namespace Client.Infra
     public class LoggerProxy
 	{
         // Static variable that must be initialized at run time.
-        static readonly ILogger _logger;
+        static readonly ILoggerFactory loggerFactory;
 
         // Static constructor is called at most one time, before any
         // instance constructor is invoked or member is accessed.
         static LoggerProxy()
         {
-            using var loggerFactory = LoggerFactory.Create(loggingBuilder => loggingBuilder
-                                                    .SetMinimumLevel(LogLevel.Warning)
+            loggerFactory = LoggerFactory.Create(loggingBuilder => loggingBuilder
+                                                    .SetMinimumLevel(LogLevel.Information)
                                                     .AddConsole());
-            _logger = loggerFactory.CreateLogger("DefaultClientLogger");
+            
         }
 
-        public static ILogger GetInstance()
+        public static ILogger GetInstance(string categoryName)
         {
-            return _logger;
+            return loggerFactory.CreateLogger("DefaultClientLogger");
         }
     }
 }

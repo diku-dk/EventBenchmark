@@ -1,7 +1,6 @@
 ﻿using System;
-using Common.Configuration;
-using Common.Scenario.Customer;
-using Common.YCSB;
+using Common.Workload.Customer;
+using Common.Distribution.YCSB;
 using System.Threading.Tasks;
 using GrainInterfaces.Workers;
 using Common.Streaming;
@@ -49,8 +48,8 @@ namespace Grains.Workers
         public override async Task OnActivateAsync()
         {
             this.actorId = this.GetPrimaryKeyLong();
-            this.streamProvider = this.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider);
-            var workloadStream = streamProvider.GetStream<int>(StreamingConfiguration.DeliveryStreamId, actorId.ToString());
+            this.streamProvider = this.GetStreamProvider(StreamingConfig.DefaultStreamProvider);
+            var workloadStream = streamProvider.GetStream<int>(StreamingConfig.DeliveryStreamId, actorId.ToString());
             var subscriptionHandles_ = await workloadStream.GetAllSubscriptionHandles();
             if (subscriptionHandles_.Count > 0)
             {

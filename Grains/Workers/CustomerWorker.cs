@@ -6,18 +6,18 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
-using Common.Configuration;
 using Common.Http;
-using Common.Scenario.Customer;
+using Common.Workload.Customer;
 using Common.Entities;
 using Common.Streaming;
-using Common.YCSB;
+using Common.Distribution.YCSB;
 using GrainInterfaces.Workers;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Orleans;
 using Orleans.Streams;
 using Common.Event;
+using Common.Distribution;
 
 namespace Grains.Workers
 {
@@ -53,16 +53,11 @@ namespace Grains.Workers
 
         private readonly ILogger<CustomerWorker> _logger;
 
-
-        private IDisposable updateStatusTaskTimer;
-        private int dueTime = 1000;
-        private int period = 2000;
-
         public override async Task OnActivateAsync()
         {
             this.customerId = this.GetPrimaryKeyLong();
-            this.streamProvider = this.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider);
-            this.stream = streamProvider.GetStream<Event>(StreamingConfiguration.CustomerReactStreamId, this.customerId.ToString());
+            this.streamProvider = this.GetStreamProvider(StreamingConfig.DefaultStreamProvider);
+            this.stream = streamProvider.GetStream<Event>(StreamingConfig.CustomerReactStreamId, this.customerId.ToString());
             var subscriptionHandles = await stream.GetAllSubscriptionHandles();
             if (subscriptionHandles.Count > 0)
             {
@@ -73,7 +68,7 @@ namespace Grains.Workers
             }
             await stream.SubscribeAsync<Event>(ProcessEventAsync);
 
-            var workloadStream = streamProvider.GetStream<int>(StreamingConfiguration.CustomerStreamId, this.customerId.ToString());
+            var workloadStream = streamProvider.GetStream<int>(StreamingConfig.CustomerStreamId, this.customerId.ToString());
             var subscriptionHandles_ = await workloadStream.GetAllSubscriptionHandles();
             if (subscriptionHandles_.Count > 0)
             {
@@ -85,7 +80,7 @@ namespace Grains.Workers
             await workloadStream.SubscribeAsync<int>(Run);
 
             // to notify transaction orchestrator about status update
-            this.txStream = streamProvider.GetStream<CustomerStatusUpdate>(StreamingConfiguration.CustomerStreamId, StreamingConfiguration.TransactionStreamNameSpace);
+            this.txStream = streamProvider.GetStream<CustomerStatusUpdate>(StreamingConfig.CustomerStreamId, StreamingConfig.TransactionStreamNameSpace);
 
         }
 
@@ -100,14 +95,12 @@ namespace Grains.Workers
         {
             this._logger.LogWarning("Customer worker {0} Init", this.customerId);
             this.config = config;
-            this.sellerIdGenerator = this.config.sellerDistribution == Distribution.UNIFORM ?
+            this.sellerIdGenerator = this.config.sellerDistribution == DistributionType.UNIFORM ?
                 new UniformLongGenerator(this.config.sellerRange.min, this.config.sellerRange.max) :
                 new ZipfianGenerator(this.config.sellerRange.min, this.config.sellerRange.max);
             this.productUrl = this.config.urls["products"];
             this.cartUrl = this.config.urls["carts"];
             this.customer = await GetCustomer(this.config.urls["customers"], customerId);
-
-            if(config.cleanCartOnInit) CleanCart();
         }
 
         private async Task<Customer> GetCustomer(string customerUrl, long customerId)
@@ -175,15 +168,6 @@ namespace Grains.Workers
                 return;
             }
 
-            if (this.config.delayBeforeStart > 0)
-            {
-                this._logger.LogWarning("Customer {0} delay before start: {1}", this.customerId, this.config.delayBeforeStart);
-                await Task.Delay(this.config.delayBeforeStart);
-            } else
-            {
-                this._logger.LogWarning("Customer {0} NO delay before start!", this.customerId);
-            }
-
             this.status = CustomerWorkerStatus.BROWSING;
 
             int numberOfKeysToBrowse = random.Next(1, this.config.maxNumberKeysToBrowse + 1);
@@ -211,6 +195,7 @@ namespace Grains.Workers
             catch (Exception e)
             {
                 this._logger.LogError(e.Message);
+                this.status = CustomerWorkerStatus.CHECKOUT_FAILED;
                 await InformFailedCheckout();
                 return; // no need to continue  
             }
@@ -221,16 +206,9 @@ namespace Grains.Workers
             // checkout
             if(await Checkout())
             {
-                
                 this.status = CustomerWorkerStatus.CHECKOUT_SENT;
                 this._logger.LogWarning("Customer {0} sent the checkout successfully", customerId);
-
-                // the timer is disposed if the grain is deactivated
-                // but unlikely to be deactivated after 1000
-                // to be sure, we would need a background scheduler. an external task could also do the job...
-                this.updateStatusTaskTimer = RegisterTimer(UpdateStatusAsync, new ScheduleOptions(dueTime, period),
-                    TimeSpan.FromMilliseconds(dueTime), TimeSpan.FromMilliseconds(period));
-         
+                await UpdateStatusAsync();
             } else
             {
                 // fail and deciding not to send treated in the same way
@@ -240,40 +218,14 @@ namespace Grains.Workers
             return;
         }
 
-        private record ScheduleOptions(int dueTime, int period);
-
-        // pull-based. wait for cart to be open again
-        private async Task UpdateStatusAsync(object arg)
+        private async Task UpdateStatusAsync()
         {
-            ScheduleOptions options = (ScheduleOptions)arg;
-            this._logger.LogWarning("Timer fired for customer {0} dueTime {1} period {2}", this.customerId, options.dueTime, options.period);
-            // only send the message if the cart actor status is open, otherwise it will receive exception
-            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, this.cartUrl + "/" + this.customerId);
-            var response = HttpUtils.client.Send(message);
-            var stream = response.Content.ReadAsStream();
-            StreamReader reader = new StreamReader(stream);
-            string productRet = reader.ReadToEnd();
-            Cart state = JsonConvert.DeserializeObject<Cart>(productRet);
-            if (state.status == CartStatus.OPEN)
-            {
-                this.status = CustomerWorkerStatus.IDLE;
-                this._logger.LogWarning("Timer in customer {0} reporting status update: {1}", this.customerId, this.status);
-                await txStream.OnNextAsync(new CustomerStatusUpdate(this.customerId, this.status));
-                this.updateStatusTaskTimer.Dispose();
-            } else
-            {
-                this._logger.LogWarning("Timer in customer {0} observed no status update: {1}. Exponential backoff will be applied.", this.customerId, this.status);
-                this.updateStatusTaskTimer.Dispose();
-                object newOptions = (object)new ScheduleOptions(options.period, options.period * 2);
-                this.updateStatusTaskTimer = RegisterTimer(UpdateStatusAsync, newOptions,
-                    TimeSpan.FromMilliseconds(options.period), TimeSpan.FromMilliseconds(options.period * 2));
-            }
+            this.status = CustomerWorkerStatus.IDLE;
+            await txStream.OnNextAsync(new CustomerStatusUpdate(this.customerId, this.status)); 
         }
 
         private async Task InformFailedCheckout()
         {
-            this.status = CustomerWorkerStatus.CHECKOUT_FAILED;
-
             // just cleaning cart state for next browsing
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, cartUrl + "/" + customerId + "/seal");
             HttpUtils.client.Send(message);
@@ -291,16 +243,6 @@ namespace Grains.Workers
             await Task.Run(() =>
             {
                 HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, cartUrl + "/" + this.customerId);
-                return HttpUtils.client.Send(message);
-            });
-        }
-
-        private async void CleanCart()
-        {
-            this._logger.LogWarning("Customer {0} cleaning own cart.", this.customerId);
-            await Task.Run(() =>
-            {
-                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Delete, cartUrl + "/" + this.customerId);
                 return HttpUtils.client.Send(message);
             });
         }
@@ -325,7 +267,11 @@ namespace Grains.Workers
                 return HttpUtils.client.Send(message);
             });
 
-            if (resp == null) return false;
+            if (resp == null)
+            {
+                this.status = CustomerWorkerStatus.CHECKOUT_FAILED;
+                return false;
+            }
             if (resp.IsSuccessStatusCode) return true;
 
             // perhaps price divergence
@@ -338,8 +284,14 @@ namespace Grains.Workers
                 });
             }
 
+            if (resp == null || !resp.IsSuccessStatusCode)
+            {
+                this.status = CustomerWorkerStatus.CHECKOUT_FAILED;
+                return false;
+            }
+
             // very unlikely to have another price update (considering the distribution is low)
-            return resp != null && resp.IsSuccessStatusCode;
+            return true;
         }
 
         private async Task AddToCart(ISet<long> keyMap)
@@ -349,7 +301,6 @@ namespace Grains.Workers
             foreach (var productId in keyMap)
             {
                 this._logger.LogWarning("Customer {0} start adding product {1} to cart", this.customerId, productId);
-                // tasks.Add (
                 await Task.Run(() =>
                 {
                     try
@@ -395,7 +346,6 @@ namespace Grains.Workers
                     }
 
                 });
-                    // );
 
                 int delay = this.random.Next(this.config.delayBetweenRequestsRange.min, this.config.delayBetweenRequestsRange.max + 1);
                 // artificial delay after adding the product
@@ -440,8 +390,8 @@ namespace Grains.Workers
                 case "payment-rejected": { await this.ReactToPaymentRejected(data.payload); break; }
                     // TODO merge the 3 below...
                 case "out-of-stock": { await this.ReactToOutOfStock(data.payload); break; }
-                case "price-update": { await this.ReactToPriceUpdate(data.payload); break; }
-                case "product-unavailable": { await this.ReactToProductUnavailable(data.payload); break; }
+                //case "price-update": { await this.ReactToPriceUpdate(data.payload); break; }
+                //case "product-unavailable": { await this.ReactToProductUnavailable(data.payload); break; }
                 default: { _logger.LogWarning("Topic: " + data.topic + " has no associated reaction in customer grain " + customerId); break; }
             }
             return;

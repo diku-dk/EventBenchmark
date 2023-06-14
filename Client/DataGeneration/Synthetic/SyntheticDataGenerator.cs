@@ -22,9 +22,9 @@ namespace Client.DataGeneration
     public class SyntheticDataGenerator : BaseDataGenerator
     {
 
-        private readonly SyntheticDataSourceConfiguration config;
+        private readonly SyntheticDataSourceConfig config;
 
-        public SyntheticDataGenerator(SyntheticDataSourceConfiguration config) : base()
+        public SyntheticDataGenerator(SyntheticDataSourceConfig config) : base()
         {
             this.config = config;
         }

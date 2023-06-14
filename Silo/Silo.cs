@@ -22,8 +22,8 @@ var builder = new HostBuilder()
         siloBuilder
             .UseLocalhostClustering()
             //.UseDevelopmentClustering(primarySiloEndpoint)
-            .AddMemoryGrainStorage(StreamingConfiguration.DefaultStreamStorage)
-            .AddSimpleMessageStreamProvider(StreamingConfiguration.DefaultStreamProvider, options =>
+            .AddMemoryGrainStorage(StreamingConfig.DefaultStreamStorage)
+            .AddSimpleMessageStreamProvider(StreamingConfig.DefaultStreamProvider, options =>
             {
                 options.PubSubType = Orleans.Streams.StreamPubSubType.ExplicitGrainBasedOnly;
                 options.FireAndForgetDelivery = false;

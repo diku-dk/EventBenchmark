@@ -13,12 +13,13 @@
     <None Remove="Confluent.Kafka" />
     <None Remove="Streaming\Kafka\" />
     <None Remove="MessagePack" />
-    <None Remove="Server\" />
     <None Remove="Newtonsoft.Json" />
-    <None Remove="Transaction\" />
     <None Remove="DataGeneration\" />
     <None Remove="Ingestion\" />
     <None Remove="DataGeneration\Real\" />
+    <None Remove="Http\" />
+    <None Remove="Streaming\Redis\" />
+    <None Remove="Ingestion\Config\" />
   </ItemGroup>
 
   <ItemGroup>
@@ -26,9 +27,10 @@
     <PackageReference Include="Microsoft.Orleans.Core" Version="3.7.0" />
     <PackageReference Include="Confluent.Kafka" Version="2.0.2" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="DuckDB.NET.Data.Full" Version="0.7.1" />
-    <PackageReference Include="Dapper" Version="2.0.123" />
+    <PackageReference Include="Dapper" Version="2.0.138" />
     <PackageReference Include="Bogus" Version="34.0.2" />
+    <PackageReference Include="DuckDB.NET.Data.Full" Version="0.7.1" />
+    <PackageReference Include="StackExchange.Redis" Version="2.6.116" />
   </ItemGroup>
 
   <ItemGroup>
@@ -46,10 +48,11 @@
     <Folder Include="Infra\" />
     <Folder Include="Streaming\" />
     <Folder Include="Streaming\Kafka\" />
-    <Folder Include="Server\" />
-    <Folder Include="Transaction\" />
     <Folder Include="DataGeneration\" />
     <Folder Include="Ingestion\" />
     <Folder Include="DataGeneration\Real\" />
+    <Folder Include="Http\" />
+    <Folder Include="Streaming\Redis\" />
+    <Folder Include="Ingestion\Config\" />
   </ItemGroup>
 </Project>

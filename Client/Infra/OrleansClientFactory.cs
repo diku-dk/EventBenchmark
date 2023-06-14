@@ -31,7 +31,7 @@ namespace Client.Infra
                                 )
                                 .AddClusterConnectionLostHandler((x, y) =>
                                 {
-                                    LoggerProxy.GetInstance().LogCritical("Connection to cluster has been lost");
+                                    LoggerProxy.GetInstance("ClusterConnectionLostHandler").LogCritical("Connection to cluster has been lost");
                                     _siloFailedTask.SetResult();
                                 })
                                 .ConfigureLogging(logging =>
@@ -40,7 +40,7 @@ namespace Client.Infra
                                     logging.AddConsole();
                                     logging.SetMinimumLevel(LogLevel.Warning);
                                 })
-                                .AddSimpleMessageStreamProvider(StreamingConfiguration.DefaultStreamProvider, options =>
+                                .AddSimpleMessageStreamProvider(StreamingConfig.DefaultStreamProvider, options =>
                                 {
                                     options.PubSubType = Orleans.Streams.StreamPubSubType.ExplicitGrainBasedOnly;
                                     options.FireAndForgetDelivery = false;

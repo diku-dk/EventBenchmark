@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using Common.Ingestion.Config;
 using Orleans;
 
 namespace Client.DataGeneration.Real

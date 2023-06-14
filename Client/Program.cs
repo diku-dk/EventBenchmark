@@ -1,11 +1,9 @@
 ﻿using Client.DataGeneration;
-using Client.Execution;
+using Client.Workflow;
 using Client.Infra;
-using Client.Server;
 using Common.Http;
 using Common.Ingestion;
-using Common.Ingestion.Config;
-using Common.Scenario;
+using Common.Workload;
 using Common.Entities;
 using DuckDB.NET.Data;
 using Newtonsoft.Json;
@@ -15,6 +13,11 @@ using System.Threading.Tasks;
 using System.IO;
 using Microsoft.Extensions.Logging;
 using System.Linq;
+using Client.Http;
+using Client.Ingestion.Config;
+using Client.Workload;
+using StackExchange.Redis;
+using Microsoft.Extensions.Hosting;
 
 namespace Client
 {
@@ -25,101 +28,22 @@ namespace Client
      */
     public class Program
     {
-        private static ILogger logger = LoggerFactory.Create(
-                        b => b
-                            .AddConsole()
-                            .AddFilter(level => level >= LogLevel.Information))
-                            .CreateLogger("Main");
-
-        private static readonly IngestionConfiguration defaultIngestionConfig = new()
-        {
-            distributionStrategy = IngestionDistributionStrategy.SINGLE_WORKER,
-            numberCpus = 2,
-            mapTableToUrl = new Dictionary<string, string>()
-            {
-                ["sellers"] = "http://127.0.0.1:8001/sellers",
-                ["customers"] = "http://127.0.0.1:8001/customers",
-                ["stock_items"] = "http://127.0.0.1:8001/stock_items",
-                ["products"] = "http://127.0.0.1:8001/products",
-            }
-        };
-
-        private static Dictionary<string, string> mapTableToUrl = new Dictionary<string, string>()
-        {
-            ["products"] = "http://127.0.0.1:8001/products",
-            ["carts"] = "http://127.0.0.1:8001/carts",
-            ["sellers"] = "http://127.0.0.1:8001/sellers",
-            ["customers"] = "http://127.0.0.1:8001/customers",
-            ["shipments"] = "http://127.0.0.1:8001/shipments",
-        };
-
-        private static readonly ScenarioConfiguration defaultScenarioConfig = new()
-        {
-            transactionDistribution = new Dictionary<TransactionType, int>()
-            {
-                [TransactionType.CUSTOMER_SESSION] = 70,
-                [TransactionType.UPDATE_DELIVERY] = 100
-            },
-            mapTableToUrl = mapTableToUrl,
-            customerWorkerConfig = new()
-            {
-                maxNumberKeysToBrowse = 10,
-                maxNumberKeysToAddToCart = 10, // both the same for simplicity
-                sellerDistribution = Common.Configuration.Distribution.UNIFORM,
-                // set dynamically by master orchestrator
-                // sellerRange = new Range(1, 10),
-                urls = mapTableToUrl,
-                minMaxQtyRange = new Interval(1, 10),
-                delayBetweenRequestsRange = new Interval(1, 1000),
-                delayBeforeStart = 0,
-                checkoutProbability = 50
-            },
-            sellerWorkerConfig = new() {
-                keyDistribution = Common.Configuration.Distribution.UNIFORM,
-                urls = mapTableToUrl,
-                delayBetweenRequestsRange = new Interval(1, 1000)
-            },
-            submissionType = SubmissionEnum.QUANTITY,
-            submissionValue = 5,// 1,
-            executionTime = 60000, // 1 min
-            waitBetweenSubmissions = 10000, // 60000, // 60 seconds
-            customerDistribution = Common.Configuration.Distribution.UNIFORM,
-        };
+        private static ILogger logger = LoggerProxy.GetInstance("Program");
 
         public static void Main_(string[] args)
         {
+            ConnectionMultiplexer redis = ConnectionMultiplexer.Connect("localhost");
 
-            SyntheticDataGenerator syntheticDataGenerator = new SyntheticDataGenerator(new SyntheticDataSourceConfiguration());
-            syntheticDataGenerator.Generate();
-
-            /*
-            using (var duckDBConnection = new DuckDBConnection("DataSource=file.db"))
-            {
-                duckDBConnection.Open();
-                var command = duckDBConnection.CreateCommand();
-                command.CommandText = "select rowid, * from customers LIMIT 10;";
-                var executeNonQuery = command.ExecuteNonQuery();
-                var reader = command.ExecuteReader();
-                DuckDbUtils.PrintQueryResults(reader);
-            }
-            */
-
-            logger.LogInformation("start testing conversion type");
-
-            using (var duckDBConnection = new DuckDBConnection("DataSource=file.db"))
-            {
-                List<Product> products = DuckDbUtils.SelectAll<Product>(duckDBConnection, "products");
-                foreach(var product in products)
-                    logger.LogInformation(JsonConvert.SerializeObject(product));
-            }
         }
+
+        public record MasterConfig(WorkflowConfig workflowConfig, SyntheticDataSourceConfig syntheticDataConfig, IngestionConfig ingestionConfig, WorkloadConfig workloadConfig);
 
         /**
          * 1 - process directory of config files in the args. if not, select the default config files
          * 2 - parse config files
          * 3 - if files parsed are correct, then start orleans
          */
-        public static MasterConfiguration BuildMasterConfig(string[] args)
+        public static MasterConfig BuildMasterConfig(string[] args)
         {
             
             logger.LogInformation("Initializing benchmark driver...");
@@ -147,9 +71,9 @@ namespace Client
             {
                 throw new Exception("Ingestion configuration file cannot be loaded from " + configFilesDir);
             }
-            if (!File.Exists("scenario_config.json"))
+            if (!File.Exists("workload_config.json"))
             {
-                throw new Exception("Scenario configuration file cannot be loaded from " + configFilesDir);
+                throw new Exception("Workload configuration file cannot be loaded from " + configFilesDir);
             }
 
             /** =============== Workflow config file ================= */
@@ -165,7 +89,7 @@ namespace Client
 
             /** =============== Data load config file ================= */
             
-            SyntheticDataSourceConfiguration dataLoadConfig = null;
+            SyntheticDataSourceConfig dataLoadConfig = null;
             if (workflowConfig.dataLoad)
             {
                 logger.LogInformation("Init reading data load configuration file...");
@@ -173,13 +97,13 @@ namespace Client
                 {
                     string json = r.ReadToEnd();
                     logger.LogInformation("data_load_config.json contents:\n {0}", json);
-                    dataLoadConfig = JsonConvert.DeserializeObject<SyntheticDataSourceConfiguration>(json);
+                    dataLoadConfig = JsonConvert.DeserializeObject<SyntheticDataSourceConfig>(json);
                 }
                 logger.LogInformation("Data load configuration file read succesfully");
             }
 
             /** =============== Ingestion config file ================= */
-            IngestionConfiguration ingestionConfig = null;
+            IngestionConfig ingestionConfig = null;
             if (workflowConfig.ingestion)
             {
                 logger.LogInformation("Init reading ingestion configuration file...");
@@ -187,40 +111,49 @@ namespace Client
                 {
                     string json = r.ReadToEnd();
                     logger.LogInformation("ingestion_config.json contents:\n {0}", json);
-                    ingestionConfig = JsonConvert.DeserializeObject<IngestionConfiguration>(json);
+                    ingestionConfig = JsonConvert.DeserializeObject<IngestionConfig>(json);
                 }
                 logger.LogInformation("Ingestion configuration file read succesfully");
             }
 
-            /** =============== Scenario config file ================= */
-            ScenarioConfiguration scenarioConfig = null;
+            /** =============== Workload config file ================= */
+            WorkloadConfig workloadConfig = null;
             if (workflowConfig.transactionSubmission)
             {
                 logger.LogInformation("Init reading scenario configuration file...");
-                using (StreamReader r = new StreamReader("scenario_config.json"))
+                using (StreamReader r = new StreamReader("workload_config.json"))
                 {
                     string json = r.ReadToEnd();
                     logger.LogInformation("scenario_config.json contents:\n {0}", json);
-                    scenarioConfig = JsonConvert.DeserializeObject<ScenarioConfiguration>(json);
+                    workloadConfig = JsonConvert.DeserializeObject<WorkloadConfig>(json);
                 }
                 logger.LogInformation("Scenario file read succesfully");
 
-                int total = scenarioConfig.transactionDistribution.Values.Sum();
-                if(total != 100)
+                var list = workloadConfig.transactionDistribution.ToList();
+                int lastPerc = 0;
+                foreach(var entry in list)
                 {
-                    throw new Exception("Total distribution must sum to 100, not " + total);
+                    if (entry.Value < lastPerc) throw new Exception("Transaction distribution is incorrectly configured.");
+                    lastPerc = entry.Value;
+                }
+                if(list.Last().Value != 100) throw new Exception("Transaction distribution is incorrectly configured.");
+
+                /**
+                 * The relation between prescribed concurrency level and minimum number of customers
+                 * varies according to the distribution of transactions. The code below is a (very)
+                 * safe threshold.
+                 */
+                if (dataLoadConfig.numCustomers < workloadConfig.concurrencyLevel)
+                {
+                    throw new Exception("Total number of customers must be higher than concurrency level");
                 }
 
             }
 
-            MasterConfiguration masterConfiguration = new()
-            {
-                workflowConfig = workflowConfig,
-                scenarioConfig = scenarioConfig,
-                ingestionConfig = ingestionConfig,
-                syntheticDataConfig = dataLoadConfig
+            MasterConfig masterConfiguration = new MasterConfig(            
+                workflowConfig,dataLoadConfig, ingestionConfig, workloadConfig
                 // olistConfig = new DataGeneration.Real.OlistDataSourceConfiguration()
-            };
+            );
             return masterConfiguration;
         }
 
@@ -232,28 +165,7 @@ namespace Client
         public static async Task Main(string[] args)
         {
 
-            var masterConfiguration = BuildMasterConfig(args);
-            /*
-             1st phase
-
-             Let all services get db connection from app settings (adapt all dbcontext) OK
-             Adapt driver/workers to inputs OK
-
-             Review workers.. their input/output/reactions
-
-             Spawn driver to generate requests to dapr
-             - let dapr services receiving transactions [can be few to start and then keep adding]
-                — cart, stock, order
-             — leave customer reaction for later
-             - check for errors
-
-             2nd phase
-
-             Prepare environments
-             Deploy driver in VM
-             Start postgres ku cloud
-             Deploy all dapr services
-            */
+            var masterConfig = BuildMasterConfig(args);
 
             logger.LogInformation("Initializing Orleans client...");
             var client = await OrleansClientFactory.Connect();
@@ -267,10 +179,10 @@ namespace Client
                 Task httpServerTask = Task.Run(httpServer.Run);
             }
 
-            MasterOrchestrator orchestrator = new MasterOrchestrator(client, masterConfiguration, logger);
+            WorkflowOrchestrator orchestrator = new WorkflowOrchestrator(client, masterConfig.workflowConfig, masterConfig.syntheticDataConfig, masterConfig.ingestionConfig, masterConfig.workloadConfig);
             await orchestrator.Run();
 
-            logger.LogInformation("Master orchestrator finished!");
+            logger.LogInformation("Workflow orchestrator finished!");
 
             await client.Close();
 

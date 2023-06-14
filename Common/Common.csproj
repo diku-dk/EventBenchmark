@@ -7,10 +7,8 @@
 
   <ItemGroup>
     <None Remove="YCSB\" />
-    <None Remove="Http\" />
     <None Remove="Configuration\" />
     <None Remove="Streaming\" />
-    <None Remove="Workload\" />
     <None Remove="Workload\YCSB\" />
     <None Remove="Scenario\Customer\" />
     <None Remove="Serdes\" />
@@ -20,18 +18,22 @@
     <None Remove="Event\" />
     <None Remove="Entity\CartStatus.config" />
     <None Remove="Entities\" />
+    <None Remove="Http\" />
+    <None Remove="Ingestion\" />
+    <None Remove="Ingestion\DTO\" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="Http\" />
     <Folder Include="Streaming\" />
-    <Folder Include="Workload\" />
-    <Folder Include="Workload\YCSB\" />
-    <Folder Include="Scenario\Customer\" />
+    <Folder Include="Distribution\YCSB\" />
+    <Folder Include="Workload\Customer\" />
     <Folder Include="Serdes\" />
-    <Folder Include="Scenario\Seller\" />
+    <Folder Include="Workload\Seller\" />
     <Folder Include="Infra\" />
     <Folder Include="Event\" />
     <Folder Include="Entities\" />
+    <Folder Include="Http\" />
+    <Folder Include="Ingestion\" />
+    <Folder Include="Ingestion\DTO\" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />

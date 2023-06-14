@@ -41,3 +41,6 @@ Make sure the target application (including all necessary microservices) are up 
 https://stackoverflow.com/questions/44374074/copy-files-to-output-directory-using-csproj-dotnetcore
 
 https://stackoverflow.com/questions/4421633/who-is-listening-on-a-given-tcp-port-on-mac-os-x
+
+## Interesting links
+https://stackoverflow.com/questions/41017164/setting-a-specific-grain-to-have-max-n-instances-per-silo

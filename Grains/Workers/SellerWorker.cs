@@ -4,17 +4,17 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
-using Common.Configuration;
 using Common.Http;
 using Common.Entities;
-using Common.Scenario.Seller;
+using Common.Workload.Seller;
 using Common.Streaming;
-using Common.YCSB;
+using Common.Distribution.YCSB;
 using GrainInterfaces.Workers;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Orleans;
 using Orleans.Streams;
+using Common.Distribution;
 
 namespace Grains.Workers
 {
@@ -67,7 +67,7 @@ namespace Grains.Workers
 
             this._logger.LogWarning("Init -> Seller worker {0} first {1} last {2}.", this.sellerId, this.products.ElementAt(0).product_id, lastId);
              
-            this.productIdGenerator = this.config.keyDistribution == Distribution.UNIFORM ?
+            this.productIdGenerator = this.config.keyDistribution == DistributionType.UNIFORM ?
                  new UniformLongGenerator(this.products[0].product_id, lastId) :
                  new ZipfianGenerator(this.products[0].product_id, lastId);
 
@@ -77,8 +77,8 @@ namespace Grains.Workers
         public override async Task OnActivateAsync()
         {
             this.sellerId = this.GetPrimaryKeyLong();
-            this.streamProvider = this.GetStreamProvider(StreamingConfiguration.DefaultStreamProvider);
-            this.stream = streamProvider.GetStream<Event>(StreamingConfiguration.SellerReactStreamId, this.sellerId.ToString());
+            this.streamProvider = this.GetStreamProvider(StreamingConfig.DefaultStreamProvider);
+            this.stream = streamProvider.GetStream<Event>(StreamingConfig.SellerReactStreamId, this.sellerId.ToString());
             var subscriptionHandles = await stream.GetAllSubscriptionHandles();
             if (subscriptionHandles.Count > 0)
             {
@@ -89,7 +89,7 @@ namespace Grains.Workers
             }
             await this.stream.SubscribeAsync<Event>(ReactToLowStock);
 
-            var workloadStream = streamProvider.GetStream<int>(StreamingConfiguration.SellerStreamId, this.sellerId.ToString());
+            var workloadStream = streamProvider.GetStream<int>(StreamingConfig.SellerStreamId, this.sellerId.ToString());
             var subscriptionHandles_ = await workloadStream.GetAllSubscriptionHandles();
             if (subscriptionHandles_.Count > 0)
             {
@@ -103,27 +103,17 @@ namespace Grains.Workers
 
         private async Task Run(int operation, StreamSequenceToken token)
         {
-            if (this.config.delayBeforeStart > 0)
-            {
-                this._logger.LogWarning("Seller {0} delay before start: {1}", this.sellerId, this.config.delayBeforeStart);
-                await Task.Delay(this.config.delayBeforeStart);
-            }
-            else
-            {
-                this._logger.LogWarning("Seller {0} NO delay before start!", this.sellerId);
-            }
-
             if (operation < 1)
             {
-                UpdatePrice();
+                await UpdatePrice();
                 return;
             }
-            DeleteProduct();
+            await DeleteProduct();
         }
 
         // driver will call
         // potentially could lookup by string
-        private async void DeleteProduct()
+        private async Task DeleteProduct()
         {
             if(this.deletedProducts.Count == products.Count)
             {
@@ -167,7 +157,7 @@ namespace Grains.Workers
         }
 
         // driver will call
-        private async void UpdatePrice()
+        private async Task UpdatePrice()
         {
             // to simulate how a seller would interact with the platform
             this._logger.LogWarning("Seller {0} has started UpdatePrice", this.sellerId);
