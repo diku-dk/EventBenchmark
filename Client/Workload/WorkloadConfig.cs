@@ -3,9 +3,10 @@ using System.Collections.Generic;
 using Common.Workload;
 using Common.Workload.Customer;
 using Common.Workload.Seller;
-using Common.Streaming;
+using Client.Streaming;
 using Common.Distribution.YCSB;
 using Common.Distribution;
+using Common.Streaming;
 
 namespace Client.Workload
 {
@@ -36,13 +37,13 @@ namespace Client.Workload
         public readonly Dictionary<string, Guid> mapTopicToStreamGuid = new()
         {
             // seller
-            ["low-stock-warning"] = StreamingConfig.SellerReactStreamId,
+            ["low-stock-warning"] = StreamingConstants.SellerReactStreamId,
             // customer
-            ["abandoned-cart"] = StreamingConfig.CustomerReactStreamId,
-            ["payment-rejected"] = StreamingConfig.CustomerReactStreamId,
-            ["out-of-stock"] = StreamingConfig.CustomerReactStreamId,
-            ["price-update"] = StreamingConfig.CustomerReactStreamId,
-            ["product-unavailable"] = StreamingConfig.CustomerReactStreamId,
+            ["abandoned-cart"] = StreamingConstants.CustomerReactStreamId,
+            ["payment-rejected"] = StreamingConstants.CustomerReactStreamId,
+            ["out-of-stock"] = StreamingConstants.CustomerReactStreamId,
+            ["price-update"] = StreamingConstants.CustomerReactStreamId,
+            ["product-unavailable"] = StreamingConstants.CustomerReactStreamId,
         };
 
         public StreamingConfig streamingConfig { get; set; }

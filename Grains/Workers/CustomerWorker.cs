@@ -16,8 +16,8 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Orleans;
 using Orleans.Streams;
-using Common.Event;
 using Common.Distribution;
+using Common.Requests;
 
 namespace Grains.Workers
 {
@@ -56,8 +56,8 @@ namespace Grains.Workers
         public override async Task OnActivateAsync()
         {
             this.customerId = this.GetPrimaryKeyLong();
-            this.streamProvider = this.GetStreamProvider(StreamingConfig.DefaultStreamProvider);
-            this.stream = streamProvider.GetStream<Event>(StreamingConfig.CustomerReactStreamId, this.customerId.ToString());
+            this.streamProvider = this.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
+            this.stream = streamProvider.GetStream<Event>(StreamingConstants.CustomerReactStreamId, this.customerId.ToString());
             var subscriptionHandles = await stream.GetAllSubscriptionHandles();
             if (subscriptionHandles.Count > 0)
             {
@@ -68,7 +68,7 @@ namespace Grains.Workers
             }
             await stream.SubscribeAsync<Event>(ProcessEventAsync);
 
-            var workloadStream = streamProvider.GetStream<int>(StreamingConfig.CustomerStreamId, this.customerId.ToString());
+            var workloadStream = streamProvider.GetStream<int>(StreamingConstants.CustomerStreamId, this.customerId.ToString());
             var subscriptionHandles_ = await workloadStream.GetAllSubscriptionHandles();
             if (subscriptionHandles_.Count > 0)
             {
@@ -80,7 +80,7 @@ namespace Grains.Workers
             await workloadStream.SubscribeAsync<int>(Run);
 
             // to notify transaction orchestrator about status update
-            this.txStream = streamProvider.GetStream<CustomerStatusUpdate>(StreamingConfig.CustomerStreamId, StreamingConfig.TransactionStreamNameSpace);
+            this.txStream = streamProvider.GetStream<CustomerStatusUpdate>(StreamingConstants.CustomerStreamId, StreamingConstants.TransactionStreamNameSpace);
 
         }
 
@@ -95,7 +95,9 @@ namespace Grains.Workers
         {
             this._logger.LogWarning("Customer worker {0} Init", this.customerId);
             this.config = config;
-            this.sellerIdGenerator = this.config.sellerDistribution == DistributionType.UNIFORM ?
+            this.sellerIdGenerator = this.config.sellerDistribution == DistributionType.NON_UNIFORM ?
+                new NonUniformDistribution( (int)(this.config.sellerRange.max * 0.3), this.config.sellerRange.min, this.config.sellerRange.max) :
+                this.config.sellerDistribution == DistributionType.UNIFORM ?
                 new UniformLongGenerator(this.config.sellerRange.min, this.config.sellerRange.max) :
                 new ZipfianGenerator(this.config.sellerRange.min, this.config.sellerRange.max);
             this.productUrl = this.config.urls["products"];
@@ -119,9 +121,9 @@ namespace Grains.Workers
         /**
          * From the list of browsed keys, picks randomly the keys to checkout
          */
-        private ISet<long> DefineKeysToCheckout(List<long> browsedKeys, int numberOfKeysToCheckout)
+        private ISet<(long sellerId, long productId)> DefineKeysToCheckout(List<(long sellerId, long productId)> browsedKeys, int numberOfKeysToCheckout)
         {
-            ISet<long> set = new HashSet<long>(numberOfKeysToCheckout);
+            ISet<(long sellerId, long productId)> set = new HashSet<(long sellerId, long productId)>(numberOfKeysToCheckout);
             while (set.Count < numberOfKeysToCheckout)
             {
                 set.Add(browsedKeys[random.Next(0, browsedKeys.Count)]);
@@ -129,42 +131,42 @@ namespace Grains.Workers
             return set;
         }
 
-        private async Task<ISet<long>> DefineKeysToBrowseAsync(int numberOfKeysToBrowse)
+        private async Task<ISet<(long sellerId,long productId)>> DefineKeysToBrowseAsync(int numberOfKeysToBrowse)
         {
-            ISet<long> keyMap = new HashSet<long>(numberOfKeysToBrowse);
+            ISet<(long sellerId, long productId)> keyMap = new HashSet<(long sellerId, long productId)>(numberOfKeysToBrowse);
             ISellerWorker sellerWorker;
             StringBuilder sb = new StringBuilder();
-            long grainId;
+            long sellerId;
             long productId;
             for (int i = 0; i < numberOfKeysToBrowse; i++)
             {
-                grainId = this.sellerIdGenerator.NextValue();
-                sellerWorker = GrainFactory.GetGrain<ISellerWorker>(grainId);
+                sellerId = this.sellerIdGenerator.NextValue();
+                sellerWorker = GrainFactory.GetGrain<ISellerWorker>(sellerId);
 
                 // we dont measure the performance of the benchmark, only the system. as long as we can submit enough workload we are fine
                 productId = await sellerWorker.GetProductId();
-                while (keyMap.Contains(productId))
+                while (keyMap.Contains((sellerId,productId)))
                 {
-                    grainId = this.sellerIdGenerator.NextValue();
-                    sellerWorker = GrainFactory.GetGrain<ISellerWorker>(grainId);
+                    sellerId = this.sellerIdGenerator.NextValue();
+                    sellerWorker = GrainFactory.GetGrain<ISellerWorker>(sellerId);
                     productId = await sellerWorker.GetProductId();
                 }
 
-                keyMap.Add(productId);
-                sb.Append(productId);
-                if (i < numberOfKeysToBrowse - 1) sb.Append(", ");
+                keyMap.Add((sellerId,productId));
+                sb.Append(sellerId).Append("-").Append(productId);
+                if (i < numberOfKeysToBrowse - 1) sb.Append(" | ");
             }
             this._logger.LogWarning("Customer {0} defined the keys to browse: {1}", this.customerId, sb.ToString());
             return keyMap;
         }
 
-        private async Task Run(int obj, StreamSequenceToken token)
+        private async Task Run(int tid, StreamSequenceToken token)
         {
             this._logger.LogWarning("Customer {0} started!", this.customerId);
 
             if(this.customer == null)
             {
-                this._logger.LogError("Customer object is not set in Customer Worker {0}. Cancelling browsing.", this.customerId);
+                this._logger.LogError("Customer object is not defined in Customer Worker {0}. Cancelling browsing...", this.customerId);
                 return;
             }
 
@@ -172,11 +174,11 @@ namespace Grains.Workers
 
             int numberOfKeysToBrowse = random.Next(1, this.config.maxNumberKeysToBrowse + 1);
 
-            this._logger.LogWarning("Customer {0} has the following number of keys to browse: {1}", customerId, numberOfKeysToBrowse);
+            this._logger.LogWarning("Customer {0} number of keys to browse: {1}", customerId, numberOfKeysToBrowse);
 
             var keyMap = await DefineKeysToBrowseAsync(numberOfKeysToBrowse);
 
-            this._logger.LogWarning("Customer {0} will start browsing", this.customerId);
+            this._logger.LogWarning("Customer {0} started browsing...", this.customerId);
 
             // browsing
             await Browse(keyMap);
@@ -204,7 +206,7 @@ namespace Grains.Workers
             GetCart();
 
             // checkout
-            if(await Checkout())
+            if(await Checkout(tid))
             {
                 this.status = CustomerWorkerStatus.CHECKOUT_SENT;
                 this._logger.LogWarning("Customer {0} sent the checkout successfully", customerId);
@@ -247,7 +249,7 @@ namespace Grains.Workers
             });
         }
 
-        private async Task<bool> Checkout()
+        private async Task<bool> Checkout(int tid)
         {
             // define whether client should send a checkout request
             if (random.Next(0, 100) > this.config.checkoutProbability)
@@ -261,7 +263,7 @@ namespace Grains.Workers
 
             // inform checkout intent. optional feature
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, cartUrl + "/" + this.customerId + "/checkout");
-            message.Content = BuildCheckoutPayload(this.customer);
+            message.Content = BuildCheckoutPayload(tid, this.customer);
             HttpResponseMessage resp = await Task.Run(() =>
             {
                 return HttpUtils.client.Send(message);
@@ -294,32 +296,30 @@ namespace Grains.Workers
             return true;
         }
 
-        private async Task AddToCart(ISet<long> keyMap)
+        private async Task AddToCart(ISet<(long sellerId, long productId)> keyMap)
         {
-            HttpResponseMessage response;
-            //List<Task> tasks = new();
-            foreach (var productId in keyMap)
+            foreach (var entry in keyMap)
             {
-                this._logger.LogWarning("Customer {0} start adding product {1} to cart", this.customerId, productId);
+                this._logger.LogWarning("Customer {0}: Adding seller {1} product {2} to cart", this.customerId, entry.sellerId, entry.productId);
                 await Task.Run(() =>
                 {
+                    HttpResponseMessage response;
                     try
                     {
-                        HttpRequestMessage message1 = new HttpRequestMessage(HttpMethod.Get, productUrl + "/" + productId);
+                        HttpRequestMessage message1 = new HttpRequestMessage(HttpMethod.Get, productUrl + "/" + entry.sellerId + "/" + entry.productId);
                         response = HttpUtils.client.Send(message1);
 
                         // add to cart
                         if (response.Content.Headers.ContentLength == 0)
                         {
-                            this._logger.LogWarning("Response content for product {0} is empty!", productId);
-                            return response;
+                            this._logger.LogWarning("Customer {0}: Response content for seller {1} product {2} is empty!", this.customerId, entry.sellerId, entry.productId);
+                            return;
                         }
 
-                        this._logger.LogWarning("Customer {0} product {1} retrieved", this.customerId, productId);
+                        this._logger.LogWarning("Customer {0}: seller {1} product {2} retrieved", this.customerId, entry.sellerId, entry.productId);
 
                         var qty = random.Next(this.config.minMaxQtyRange.min, this.config.minMaxQtyRange.max + 1);
 
-                        // var productRet = await response.Content.ReadAsStringAsync();
                         var stream = response.Content.ReadAsStream();
 
                         StreamReader reader = new StreamReader(stream);
@@ -329,20 +329,12 @@ namespace Grains.Workers
                         HttpRequestMessage message2 = new HttpRequestMessage(HttpMethod.Patch, cartUrl + "/" + customerId + "/add");
                         message2.Content = payload;
 
-                        this._logger.LogWarning("Customer {0} sending product {1} payload to cart", this.customerId, productId);
+                        this._logger.LogWarning("Customer {0}: Sending seller {1} product {2} payload to cart...", this.customerId, entry.sellerId, entry.productId);
                         response = HttpUtils.client.Send(message2);
-
-                        return response;
                     }
                     catch (Exception e)
                     {
-                        this._logger.LogWarning("Exception Message: {0} Customer {1} Url {2} Key {3}", e.Message, customerId, productUrl, productId);
-                        if (e is HttpRequestException)
-                        {
-                            HttpRequestException e_ = (HttpRequestException)e;
-                            return new HttpResponseMessage((HttpStatusCode)e_.StatusCode);
-                        }
-                        return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+                        this._logger.LogWarning("Customer {0} Url {1} Seller {2} Key {3}: Exception Message: {5} ",  customerId, productUrl, entry.sellerId, entry.productId, e.Message);
                     }
 
                 });
@@ -353,26 +345,24 @@ namespace Grains.Workers
 
             }
 
-            // await Task.WhenAll(tasks);
-
         }
 
-        private async Task Browse(ISet<long> keyMap)
+        private async Task Browse(ISet<(long sellerId, long productId)> keyMap)
         {
             int delay;
-            foreach (var productId in keyMap)
+            foreach (var entry in keyMap)
             {
-                this._logger.LogWarning("Customer {0} browsing product {1}", this.customerId, productId);
+                this._logger.LogWarning("Customer {0} browsing seller {1} product {2}", this.customerId, entry.sellerId, entry.productId);
                 delay = this.random.Next(this.config.delayBetweenRequestsRange.min, this.config.delayBetweenRequestsRange.max + 1);
                 await Task.Run(async () =>
                 {
                     try
                     {
-                        await HttpUtils.client.GetAsync(productUrl + "/" + productId); 
+                        await HttpUtils.client.GetAsync(productUrl + "/" + entry.sellerId + "/" + entry.productId); 
                     }
                     catch (Exception e)
                     {
-                        this._logger.LogWarning("Exception Message: {0} Customer {1} Url {2} Key {3}", e.Message, customerId, productUrl, productId);
+                        this._logger.LogWarning("Exception Message: {0} Customer {1} Url {2} Seller {3} Product {4}", e.Message, customerId, productUrl, entry.sellerId, entry.productId);
                     }
 
                 });
@@ -454,7 +444,7 @@ namespace Grains.Workers
                     product.product_id,
                     product.name,
                     product.price,
-                    0.0m, // not modeling freight value in this version
+                    product.freight_value,
                     quantity,
                     vouchers
             );
@@ -462,7 +452,7 @@ namespace Grains.Workers
             return HttpUtils.BuildPayload(payload);
         }
 
-        private StringContent BuildCheckoutPayload(Customer customer)
+        private StringContent BuildCheckoutPayload(int tid, Customer customer)
         {
 
             // define payment type randomly
@@ -485,7 +475,8 @@ namespace Grains.Workers
                 customer.card_expiration,
                 customer.card_security_number,
                 customer.card_type,
-                random.Next(1, 11) // installments
+                random.Next(1, 11), // installments
+                tid
             );
 
             var payload = JsonConvert.SerializeObject(basketCheckout);

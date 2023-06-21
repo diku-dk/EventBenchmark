@@ -9,7 +9,7 @@ namespace Client.Workload
 	public sealed class Shared
 	{
         public static readonly AutoResetEvent WaitHandle = new AutoResetEvent(false);
-        public static readonly BlockingCollection<TransactionType> Workload = new BlockingCollection<TransactionType>();
+        public static readonly BlockingCollection<TransactionIdentifier> Workload = new BlockingCollection<TransactionIdentifier>();
 
         public static readonly BlockingCollection<object> ResultQueue = new BlockingCollection<object>();
 

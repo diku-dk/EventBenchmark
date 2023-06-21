@@ -15,6 +15,9 @@ using Newtonsoft.Json;
 using Orleans;
 using Orleans.Streams;
 using Common.Distribution;
+using Common.Workload;
+using Common.Requests;
+using System.Text.RegularExpressions;
 
 namespace Grains.Workers
 {
@@ -36,6 +39,8 @@ namespace Grains.Workers
 
         // to support: (i) customer product retrieval and (ii) the delete operation, since it uses a search string
         private List<Product> products;
+
+        private IAsyncStream<int> txStream;
 
         private readonly ISet<long> deletedProducts;
 
@@ -63,13 +68,15 @@ namespace Grains.Workers
             this.products = products;
 
             this.products.Sort(productComparer);
-            long lastId = this.products.ElementAt(this.products.Count-1).product_id;
+            int firstId = (int)this.products[0].product_id;
+            int lastId = (int) this.products.ElementAt(this.products.Count-1).product_id;
 
             this._logger.LogWarning("Init -> Seller worker {0} first {1} last {2}.", this.sellerId, this.products.ElementAt(0).product_id, lastId);
-             
-            this.productIdGenerator = this.config.keyDistribution == DistributionType.UNIFORM ?
-                 new UniformLongGenerator(this.products[0].product_id, lastId) :
-                 new ZipfianGenerator(this.products[0].product_id, lastId);
+
+            this.productIdGenerator = this.config.keyDistribution == DistributionType.NON_UNIFORM ? new NonUniformDistribution((int)(((lastId - firstId) * 0.3) + firstId), firstId, lastId) :
+                this.config.keyDistribution == DistributionType.UNIFORM ?
+                 new UniformLongGenerator(firstId, lastId) :
+                 new ZipfianGenerator(firstId, lastId);
 
             return Task.CompletedTask;
         }
@@ -77,8 +84,8 @@ namespace Grains.Workers
         public override async Task OnActivateAsync()
         {
             this.sellerId = this.GetPrimaryKeyLong();
-            this.streamProvider = this.GetStreamProvider(StreamingConfig.DefaultStreamProvider);
-            this.stream = streamProvider.GetStream<Event>(StreamingConfig.SellerReactStreamId, this.sellerId.ToString());
+            this.streamProvider = this.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
+            this.stream = streamProvider.GetStream<Event>(StreamingConstants.SellerReactStreamId, this.sellerId.ToString());
             var subscriptionHandles = await stream.GetAllSubscriptionHandles();
             if (subscriptionHandles.Count > 0)
             {
@@ -89,7 +96,7 @@ namespace Grains.Workers
             }
             await this.stream.SubscribeAsync<Event>(ReactToLowStock);
 
-            var workloadStream = streamProvider.GetStream<int>(StreamingConfig.SellerStreamId, this.sellerId.ToString());
+            var workloadStream = streamProvider.GetStream<TransactionIdentifier>(StreamingConstants.SellerStreamId, this.sellerId.ToString());
             var subscriptionHandles_ = await workloadStream.GetAllSubscriptionHandles();
             if (subscriptionHandles_.Count > 0)
             {
@@ -98,24 +105,62 @@ namespace Grains.Workers
                     await subscriptionHandle.ResumeAsync(Run);
                 }
             }
-            await workloadStream.SubscribeAsync<int>(Run);
+            await workloadStream.SubscribeAsync<TransactionIdentifier>(Run);
+
+            this.txStream = streamProvider.GetStream<int>(StreamingConstants.SellerStreamId, StreamingConstants.TransactionStreamNameSpace);
         }
 
-        private async Task Run(int operation, StreamSequenceToken token)
+        private async Task Run(TransactionIdentifier txId, StreamSequenceToken token)
         {
-            if (operation < 1)
+            switch (txId.type)
             {
-                await UpdatePrice();
-                return;
+                case TransactionType.DASHBOARD:
+                {
+                    await BrowseDashboard(txId.tid);
+                    break;
+                }
+                case TransactionType.DELETE_PRODUCT:
+                {
+                    await DeleteProduct(txId.tid);
+                    break;
+                }
+                case TransactionType.PRICE_UPDATE:
+                {
+                    await UpdatePrice(txId.tid);
+                    break;
+                }
             }
-            await DeleteProduct();
         }
 
-        // driver will call
-        // potentially could lookup by string
-        private async Task DeleteProduct()
+        private async Task BrowseDashboard(int tid)
         {
-            if(this.deletedProducts.Count == products.Count)
+
+            await Task.Run(() =>
+            {
+                try
+                {
+                    this._logger.LogWarning("Seller {0}: Dashboard will be queried...", this.sellerId);
+                    HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, config.urls["sellers"] + "/" + this.sellerId);
+                    var response = HttpUtils.client.Send(message);
+                    response.EnsureSuccessStatusCode();
+                    this._logger.LogWarning("Seller {0}: Dashboard retrieved.", this.sellerId);
+                }
+                catch (Exception e)
+                {
+                    this._logger.LogError("Seller {0}: Dashboard could not be retrieved: {1}", this.sellerId, e.Message);
+                }
+                finally
+                {
+                    // let emitter aware this request has finished
+                    _ = txStream.OnNextAsync(tid);
+                }
+            });
+
+        }
+
+        private async Task DeleteProduct(int tid)
+        {
+            if(this.deletedProducts.Count() == this.products.Count())
             {
                 this._logger.LogWarning("All products already deleted by seller {0}", this.sellerId);
                 return;
@@ -128,17 +173,20 @@ namespace Grains.Workers
                 selectedProduct = this.productIdGenerator.NextValue();
             }
 
-            await Task.Run(async () =>
+            await Task.Run(() =>
             {
                 try
                 {
-                    var response = await HttpUtils.client.DeleteAsync(config.urls["products"] + "/" + selectedProduct);
+                    var obj = JsonConvert.SerializeObject(new DeleteProduct(sellerId, selectedProduct, tid));
+                    HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Delete, config.urls["products"]);
+                    message.Content = HttpUtils.BuildPayload(obj);
+                    var response = HttpUtils.client.Send(message);
                     response.EnsureSuccessStatusCode();
                     this.deletedProducts.Add(selectedProduct);
-                    this._logger.LogWarning("Product {0} deleted by seller {0}", selectedProduct, this.sellerId);
+                    this._logger.LogWarning("Seller {0}: Product {1} deleted.", this.sellerId, selectedProduct);
                 }
-                catch (Exception) {
-                    this._logger.LogError("Product {0} could not be deleted by seller {0}", selectedProduct, this.sellerId);
+                catch (Exception e) {
+                    this._logger.LogError("Seller {0}: Product {1} could not be deleted: {2}", this.sellerId, selectedProduct, e.Message);
                 }
             });
         }
@@ -148,7 +196,7 @@ namespace Grains.Workers
             HttpResponseMessage response = await Task.Run(async () =>
             {
                 // [query string](https://en.wikipedia.org/wiki/Query_string)
-                return await HttpUtils.client.GetAsync(config.urls["products"] + "/sellers/" + this.sellerId);
+                return await HttpUtils.client.GetAsync(config.urls["products"] + "/" + this.sellerId);
             });
             // deserialize response
             response.EnsureSuccessStatusCode();
@@ -156,51 +204,48 @@ namespace Grains.Workers
             return JsonConvert.DeserializeObject<List<Product>>(productsStr);
         }
 
-        // driver will call
-        private async Task UpdatePrice()
+        private async Task UpdatePrice(int tid)
         {
             // to simulate how a seller would interact with the platform
             this._logger.LogWarning("Seller {0} has started UpdatePrice", this.sellerId);
 
             // 1 - simulate seller browsing own main page (that will bring the product list)
-            List<Product> products = await GetOwnProducts();
+            var productsRetrieved = (await GetOwnProducts()).ToDictionary(k=>k.product_id,v=>v);
 
             int delay = this.random.Next(this.config.delayBetweenRequestsRange.min, this.config.delayBetweenRequestsRange.max + 1);
             await Task.Delay(delay);
-            
-            // 2 - from the products retrieved, select one or more and submit the updates
-            // could attach a session id to the updates, so it is possible to track the transaction session afterwards
-            int numberProductsToAdjustPrice = random.Next(1, products.Count+1);
 
-            // select from distribution and put in a map
-            var productsToUpdate = GetProductsToUpdate(products, numberProductsToAdjustPrice);
+            // 2 - select one to submit the update (based on distribution)
+            long selectedProduct = this.productIdGenerator.NextValue();
+
+            while (this.deletedProducts.Contains(selectedProduct))
+            {
+                selectedProduct = this.productIdGenerator.NextValue();
+            }
 
             // define perc to raise
             int percToAdjust = random.Next(config.adjustRange.min, config.adjustRange.max);
 
-            // 3 - update product objects
-            foreach (var product in productsToUpdate)
-            {
-                var currPrice = product.price;
-                product.price = currPrice + ( (currPrice * percToAdjust) / 100 );
-            }
-
-            // submit updates
-            string productsUpdated = JsonConvert.SerializeObject(products.ToList());
-            var task = await Task.Run(async () =>
+            // 3 - get new price
+            var currPrice = productsRetrieved[selectedProduct].price;
+            var newPrice = currPrice + ( (currPrice * percToAdjust) / 100 );
+            
+            // 4 - submit update
+            string serializedObject = JsonConvert.SerializeObject(new UpdatePrice(this.sellerId, selectedProduct, newPrice, tid));
+            var resp = await Task.Run(() =>
             {
                 // https://dev.olist.com/docs/editing-a-product
                 HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Patch, config.urls["products"]);
-                request.Content = HttpUtils.BuildPayload(productsUpdated);
-                return await HttpUtils.client.SendAsync(request);
+                request.Content = HttpUtils.BuildPayload(serializedObject);
+                return HttpUtils.client.Send(request);
             });
 
-            if (task.IsSuccessStatusCode)
+            if (resp.IsSuccessStatusCode)
             {
-                this._logger.LogWarning("Seller {0} has finished price update.", this.sellerId);
+                this._logger.LogWarning("Seller {0}: Finished product {1} price update.", this.sellerId, selectedProduct);
                 return;
             }
-            this._logger.LogError("Seller {0} failed to update prices.", this.sellerId);
+            this._logger.LogError("Seller {0} failed to update product {1} price.", this.sellerId, selectedProduct);
         }
 
         private sealed class ProductEqualityComparer : IEqualityComparer<Product>
@@ -217,20 +262,6 @@ namespace Grains.Workers
         }
 
         private static readonly ProductEqualityComparer productEqualityComparer = new ProductEqualityComparer();
-
-        private ISet<Product> GetProductsToUpdate(List<Product> products, int numberProducts)
-        {
-            ISet<Product> set = new HashSet<Product>(productEqualityComparer);
-
-            var map = products.GroupBy(p => p.product_id).ToDictionary(group => group.Key, group => group.First());
-
-            while(set.Count < numberProducts)
-            {
-                set.Add(map[this.productIdGenerator.NextValue()]);
-            }
-            return set;
-
-        }
 
         // app will send
         // low stock, marketplace offers this estimation

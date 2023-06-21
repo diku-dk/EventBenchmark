@@ -18,6 +18,7 @@ using Client.Ingestion.Config;
 using Client.Workload;
 using StackExchange.Redis;
 using Microsoft.Extensions.Hosting;
+using Client.Streaming.Redis;
 
 namespace Client
 {
@@ -30,10 +31,12 @@ namespace Client
     {
         private static ILogger logger = LoggerProxy.GetInstance("Program");
 
-        public static void Main_(string[] args)
+        public static void Main(string[] args)
         {
-            ConnectionMultiplexer redis = ConnectionMultiplexer.Connect("localhost");
-
+            var list = new List<string>();
+            list.Add("ReserveStock");
+            RedisUtils.TrimStreams(list);
+            // return Task.CompletedTask;
         }
 
         public record MasterConfig(WorkflowConfig workflowConfig, SyntheticDataSourceConfig syntheticDataConfig, IngestionConfig ingestionConfig, WorkloadConfig workloadConfig);
@@ -162,7 +165,7 @@ namespace Client
         /*
          * 
          */
-        public static async Task Main(string[] args)
+        public static async Task Main_(string[] args)
         {
 
             var masterConfig = BuildMasterConfig(args);

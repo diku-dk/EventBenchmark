@@ -61,7 +61,7 @@ namespace Client.Workflow
         public WorkflowOrchestrator(IClusterClient orleansClient, WorkflowConfig workflowConfig, SyntheticDataSourceConfig syntheticDataConfig, IngestionConfig ingestionConfig, WorkloadConfig workloadConfig)
 		{
             this.orleansClient = orleansClient;
-            this.streamProvider = orleansClient.GetStreamProvider(StreamingConfig.DefaultStreamProvider);
+            this.streamProvider = orleansClient.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
 
             this.workflowConfig = workflowConfig;
             this.syntheticDataConfig = syntheticDataConfig;
@@ -121,7 +121,7 @@ namespace Client.Workflow
 
                 // https://stackoverflow.com/questions/27102351/how-do-you-handle-failed-redis-connections
                 // https://stackoverflow.com/questions/47348341/servicestack-redis-service-availability
-                if (this.workflowConfig.transactionSubmission && !RedisConsumer.TestRedisConnection())
+                if (this.workflowConfig.transactionSubmission && !RedisUtils.TestRedisConnection())
                 {
                     logger.LogInformation("Healthcheck failed for Redis in URL {0}", "localhost");
                 }
@@ -239,14 +239,19 @@ namespace Client.Workflow
                 Task workloadTask = Task.Run(() => workloadOrchestrator.Run());
 
                 // listen for cluster client disconnect and stop the sleep if necessary... Task.WhenAny...
-                await Task.WhenAny(workloadTask, OrleansClientFactory._siloFailedTask.Task);
-
-                // workloadOrchestrator.Stop();
-               
-                // set up data collection for metrics
-                return;
+                await Task.WhenAny(workloadTask, OrleansClientFactory._siloFailedTask.Task);               
 
             }
+
+            if (this.workflowConfig.collection)
+            {
+
+                // set up data collection for metrics
+
+
+            }
+
+            return;
 
         }
 

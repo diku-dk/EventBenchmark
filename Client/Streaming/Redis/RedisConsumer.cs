@@ -19,10 +19,8 @@ namespace Client.Streaming.Redis
 	 * Details of XREAD API:
 	 * https://redis.io/docs/data-types/streams-tutorial/#listening-for-new-items-with-xread
 	 */
-    public sealed class RedisConsumer
+    public sealed class RedisUtils
     {
-
-        private readonly ConnectionMultiplexer redis;
         private static readonly ILogger logger = LoggerProxy.GetInstance("RedisConsumer");
 
         public static bool TestRedisConnection()
@@ -33,16 +31,30 @@ namespace Client.Streaming.Redis
             }
         }
 
+        public static void TrimStreams(List<string> streams)
+        {
+            using (var conn = ConnectionMultiplexer.Connect("localhost"))
+            {
+                var db = conn.GetDatabase();
+                foreach (var streamName in streams)
+                {
+                    var arguments = new List<object>
+                    {
+                        streamName,
+                        "MAXLEN",
+                        0
+                    };
+                    var res = db.Execute("XTRIM", arguments);
+                }
+            }
+        }
+
         public static Task Subscribe(string stream, CancellationToken cancellation, Action<Entry> handler, string connection = "localhost")
         {
-            return BlockingReader.Listen(connection, stream, cancellation, handler);
+            return Listen(connection, stream, cancellation, handler);
         }
-        
-    }
 
-    public static class BlockingReader
-    {
-        public static async Task Listen(
+        private static async Task Listen(
             string connection,
             string streamName,
             CancellationToken cancellation,
@@ -113,11 +125,11 @@ namespace Client.Streaming.Redis
                 Console.WriteLine($"Stopped consuming from stream {streamName}");
             }
         }
+
     }
 
     public record Entry(RedisValue StreamName, RedisValue Id, Pair[] Values);
 
     public record Pair(RedisValue Name, RedisValue Value);
-
 
 }

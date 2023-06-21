@@ -4,6 +4,8 @@
   "dataLoad": true,
   "ingestion": true,
   "transactionSubmission": true,
+  "collection": false,
+  "collectionUrl": "http://localhost:9090/api/v1",
   "cleanup": false,
   "cleanupEndpoint":  "/cleanup"
 }

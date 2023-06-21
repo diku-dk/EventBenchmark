@@ -1,4 +1,4 @@
-﻿namespace Common.Event
+﻿namespace Common.Requests
 {
     /**
      * A sub-type of customer.
@@ -45,7 +45,8 @@
         string CardBrand,
 
         // if no credit card, must be 1
-        int Installments
+        int Installments,
 
+        int instanceId
     );
 }

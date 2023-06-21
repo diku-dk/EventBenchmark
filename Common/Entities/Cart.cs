@@ -13,17 +13,13 @@ namespace Common.Entities
 
         public IList<CartItem> items { get; set; } = new List<CartItem>();
 
-        //public DateTime? createdAt { get; set; }
-
-        public string instanceId { get; set; } = "";
+        public int instanceId { get; set; }
 
         // to return
         public List<ProductStatus> divergencies { get; set; } = new();
 
         // for dapr
         public Cart() { }
-
-        public Cart(long customerId) { this.customerId = customerId; }
 
         public override string ToString()
         {

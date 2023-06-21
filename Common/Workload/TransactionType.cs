@@ -5,10 +5,10 @@
         // create a customer session
         CUSTOMER_SESSION, // end up with a checkout, abandoned cart ~~> out of stock, payment rejected
         // seller operations
-        SELLER_SESSION, // price update + stock increase
+        DASHBOARD,
         PRICE_UPDATE,
-        DELETE_PRODUCT,
-        // external service operation
+        DELETE_PRODUCT, // could be a very rare tx
+        // 
         UPDATE_DELIVERY
     }
 }

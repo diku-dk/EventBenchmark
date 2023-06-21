@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Common.Streaming
 {
-    public class StreamingConfig
+    public class StreamingConstants
     {
 
         /*

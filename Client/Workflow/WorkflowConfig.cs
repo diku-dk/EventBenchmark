@@ -18,6 +18,11 @@ namespace Client.Workflow
         // step
         public bool transactionSubmission = true;
 
+        // prometheus
+        public bool collection = true;
+
+        public string collectionUrl = "http://localhost:9090/api/v1";
+
         // in future, constraint checking
 
         // submit requests to clean data created as part of the transaction submission e.g., orders, payments, shipments, carts, etc

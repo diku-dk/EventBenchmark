@@ -14,7 +14,8 @@ namespace Client.Workload
 	{
         public readonly List<KeyValuePair<TransactionType, int>> workloadDistribution;
 
-		public readonly int concurrencyLevel;
+        private int tid = 1;
+        private readonly int concurrencyLevel;
 
         private readonly Random random;
         private readonly ILogger logger;
@@ -29,7 +30,7 @@ namespace Client.Workload
 
 		public void Run()
 		{
-
+            
             int initialNumTxs = concurrencyLevel + (int)(concurrencyLevel * 0.25);
 
             // TODO keep an histogram in memory so we can see whether the distibution is correct
@@ -51,7 +52,8 @@ namespace Client.Workload
             for (int i = 0; i < num; i++)
             {
                 TransactionType tx = PickTransactionFromDistribution();
-                Shared.Workload.Add(tx);
+                Shared.Workload.Add(new TransactionIdentifier(tid,tx));
+                tid++;
             }
         }
 

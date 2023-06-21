@@ -15,7 +15,6 @@
     <None Remove="Newtonsoft.Json" />
     <None Remove="Scenario\Seller\" />
     <None Remove="Infra\" />
-    <None Remove="Event\" />
     <None Remove="Entity\CartStatus.config" />
     <None Remove="Entities\" />
     <None Remove="Http\" />
@@ -29,7 +28,6 @@
     <Folder Include="Serdes\" />
     <Folder Include="Workload\Seller\" />
     <Folder Include="Infra\" />
-    <Folder Include="Event\" />
     <Folder Include="Entities\" />
     <Folder Include="Http\" />
     <Folder Include="Ingestion\" />

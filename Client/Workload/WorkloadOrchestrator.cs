@@ -23,24 +23,14 @@ using Client.Streaming.Redis;
 namespace Client.Workload
 {
 
-    public class WorkloadOrchestrator : Stoppable
+    public class WorkloadOrchestrator
     {
         private readonly IClusterClient orleansClient;
         private readonly WorkloadConfig workloadConfig;
         private readonly Interval customerRange;
-
-        // customer and seller workers do not need to know about other customer
-        // but the transaction orchestrator needs to assign grain ids to the transactions emitted
-        // public readonly Distribution customerDistribution;
-        // public readonly Range customerRange;
-
-        // provides an ID generator for each workload (e.g., customer, seller)
-        // the generator obeys a distribution
-
-
         private readonly ILogger logger;
 
-        public WorkloadOrchestrator(IClusterClient orleansClient, WorkloadConfig workloadConfig, Interval customerRange) : base()
+        public WorkloadOrchestrator(IClusterClient orleansClient, WorkloadConfig workloadConfig, Interval customerRange)
         {
             this.orleansClient = orleansClient;
             this.workloadConfig = workloadConfig;
@@ -52,22 +42,30 @@ namespace Client.Workload
         {
             Console.WriteLine("Workload orchestrator started.");
 
+            // clean streams beforehand. make sure microservices do not receive events from previous runs
+            List<string> channelsToTrim = workloadConfig.streamingConfig.streams.ToList();
+
+            Task trimTasks = Task.Run(()=> RedisUtils.TrimStreams(channelsToTrim) );
+
             WorkloadGenerator workloadGen = new WorkloadGenerator(this.workloadConfig.transactionDistribution, this.workloadConfig.concurrencyLevel);
 
-            Task genTask = Task.Run(() => workloadGen.Run());
+            Task genTask = Task.Run(workloadGen.Run);
 
-            // setup streams
-            List<string> channels = new List<string>() { "InvoiceIssued" }; // { "PaymentConfirmed", "PaymentFailed", };
+            // setup streams to listen to
+            List<string> channelsToListen = workloadConfig.streamingConfig.txStreams.ToList();
 
             List<(Task,CancellationTokenSource)> streamConsumers = new();
-            foreach(var channel in channels)
+            foreach(var channel in channelsToListen)
             {
                 var token = new CancellationTokenSource();
-                streamConsumers.Add( (RedisConsumer.Subscribe(channel, token.Token, entry => {
+                // should it be a thread per consumer? https://stackoverflow.com/questions/37419572
+                streamConsumers.Add( (RedisUtils.Subscribe(channel, token.Token, entry => {
                     logger.LogInformation("[RedisConsumer] Payload received from channel {0}: {1}", channel, entry.ToString());
                     Shared.ResultQueue.Add(null);
-                }), token) );
+                }), token ) );
             }
+
+            await trimTasks;
 
             WorkloadEmitter emitter = new WorkloadEmitter(orleansClient, workloadConfig.customerWorkerConfig, workloadConfig.customerDistribution, customerRange, workloadConfig.concurrencyLevel);
 
@@ -118,9 +116,7 @@ namespace Client.Workload
             */
 
 
-           Console.WriteLine("Workload orchestrator has finished.");
-
-           
+            Console.WriteLine("Workload orchestrator has finished.");
 
             return;
         }

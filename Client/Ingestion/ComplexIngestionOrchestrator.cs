@@ -273,7 +273,7 @@ namespace Grains.Ingestion
             this.status = Status.FINISHED;
             Console.WriteLine("Ingestion process has finished.");
             // send the event to master
-            var resultStream = streamProvider.GetStream<int>(StreamingConfig.IngestionStreamId, "master");
+            var resultStream = streamProvider.GetStream<int>(StreamingConstants.IngestionStreamId, "master");
             await resultStream.OnNextAsync(1);
         }
 

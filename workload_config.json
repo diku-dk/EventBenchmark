@@ -5,7 +5,7 @@
     },
     // not inside customer config because customer
     // worker does not need to know that
-    "customerDistribution": "UNIFORM",
+    "customerDistribution": "NON_UNIFORM",
     "executionTime": 600000, // 1 minute by default
     "concurrencyLevel" : 1, // 10000,
     // mandatory entry points
@@ -17,13 +17,27 @@
     "shipments": "http://127.0.0.1:5005"
   },
   "streamingConfig": {
+    "type":  "REDIS",
     "host": "localhost",
-    "port": 6379
+    "port": 6379,
+    "streams": [
+      "InvoiceIssued",
+      "PaymentConfirmed",
+      "PaymentFailed",
+      "ShipmentNotification",
+      "Product",
+      "ReserveStock",
+      "DeliveryNotification",
+      "StockItem",
+      "StockConfirmed",
+      "ReserveStockFailed"
+    ],
+    "txStreams": [ "TransactionMark" ]
   },
   "customerWorkerConfig": {
     "maxNumberKeysToBrowse": 10,
     "maxNumberKeysToAddToCart": 10,
-    "sellerDistribution": "UNIFORM", // NORMAL, UNIFORM, ZIPFIAN
+    "sellerDistribution": "NON_UNIFORM",
     "minMaxQtyRange": {
       "min": 1,
       "max": 10
@@ -38,7 +52,7 @@
     "browsing": true
   },
   "sellerWorkerConfig": {
-      "keyDistribution": "UNIFORM",
+      "keyDistribution": "NON_UNIFORM",
       "delayBetweenRequestsRange": {
           "min": 1,
           "max": 1000

@@ -14,17 +14,12 @@ using System.Text.RegularExpressions;
 using Common.Entities;
 using Newtonsoft.Json;
 using System.Collections.Generic;
+using Orleans.Concurrency;
 
 namespace Grains.Workers
 {
-    /*
-     * This worker models the behavior of an external provider
-     * interacting with the system. 
-     * TODO exact behavior and distribution of sellers
-     * Some deliveries
-     * 
-     */
-	public class DeliveryWorker : Grain, IDeliveryWorker
+    [Reentrant]
+    public class DeliveryWorker : Grain, IDeliveryWorker
 	{
         private string shipmentUrl;
 
@@ -33,6 +28,8 @@ namespace Grains.Workers
         private readonly ILogger<DeliveryWorker> _logger;
 
         private long actorId;
+
+        private IAsyncStream<int> txStream;
 
         public DeliveryWorker(ILogger<DeliveryWorker> logger)
         {
@@ -48,8 +45,8 @@ namespace Grains.Workers
         public override async Task OnActivateAsync()
         {
             this.actorId = this.GetPrimaryKeyLong();
-            this.streamProvider = this.GetStreamProvider(StreamingConfig.DefaultStreamProvider);
-            var workloadStream = streamProvider.GetStream<int>(StreamingConfig.DeliveryStreamId, actorId.ToString());
+            this.streamProvider = this.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
+            var workloadStream = streamProvider.GetStream<int>(StreamingConstants.DeliveryStreamId, actorId.ToString());
             var subscriptionHandles_ = await workloadStream.GetAllSubscriptionHandles();
             if (subscriptionHandles_.Count > 0)
             {
@@ -59,41 +56,35 @@ namespace Grains.Workers
                 }
             }
             await workloadStream.SubscribeAsync<int>(Run);
+
+            this.txStream = streamProvider.GetStream<int>(StreamingConstants.DeliveryStreamId, StreamingConstants.TransactionStreamNameSpace);
         }
 
         // updating the delivery status of orders
-        public async Task Run(int op, StreamSequenceToken token)
+        public async Task Run(int tid, StreamSequenceToken token)
         {
-            this._logger.LogWarning("Delivery worker {0} task started!", this.actorId);
-            // move this later to seller worker => get overview
-            /*
-            // get open orders (not delivered status)
+            this._logger.LogWarning("Delivery {0}: Task started", this.actorId);
 
-            // get shipped packages
-            HttpResponseMessage response = await Task.Run(() =>
+            try
             {
-                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get,
-                    shipmentUrl + "?seller_id=" + sellerId +
-                    "&status=shipped,sort=shipment_id+asc");
-                return HttpUtils.client.Send(message);
-            });
-
-            var packagesStr = await response.Content.ReadAsStringAsync();
-            List<Package> packages = JsonConvert.DeserializeObject<List<Package>>(packagesStr);
-
-            
-            //   TODO   pick some (following a distribution?) to update
-            //      send put
-            */
-
-            HttpResponseMessage response = await Task.Run(() =>
+                HttpResponseMessage response = await Task.Run(() =>
+                {
+                    HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch,
+                        shipmentUrl + "/" + tid);
+                    return HttpUtils.client.Send(message);
+                });
+            }
+            catch(Exception e)
             {
-                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch,
-                    shipmentUrl + "/updateShipment");
-                return HttpUtils.client.Send(message);
-            });
+                this._logger.LogError("Delivery {0}: Update shipments could not be performed: {1}", this.actorId, e.Message);
+            }
+            finally
+            {
+                // let emitter aware this request has finished
+                _ = txStream.OnNextAsync(tid);
+            }
 
-            this._logger.LogWarning("Delivery worker {0} task terminated!", this.actorId);
+            this._logger.LogWarning("Delivery {0}: task terminated!", this.actorId);
 
             return;
         }

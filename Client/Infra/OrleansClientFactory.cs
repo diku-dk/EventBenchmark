@@ -40,7 +40,7 @@ namespace Client.Infra
                                     logging.AddConsole();
                                     logging.SetMinimumLevel(LogLevel.Warning);
                                 })
-                                .AddSimpleMessageStreamProvider(StreamingConfig.DefaultStreamProvider, options =>
+                                .AddSimpleMessageStreamProvider(StreamingConstants.DefaultStreamProvider, options =>
                                 {
                                     options.PubSubType = Orleans.Streams.StreamPubSubType.ExplicitGrainBasedOnly;
                                     options.FireAndForgetDelivery = false;
