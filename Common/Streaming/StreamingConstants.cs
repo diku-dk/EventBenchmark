@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 
 namespace Common.Streaming
 {
@@ -13,10 +12,6 @@ namespace Common.Streaming
         public const string DefaultStreamStorage = "PubSubStore";
 
         public const string DefaultStreamProvider = "SMSProvider";
-
-        public const string KafkaService = "localhost:9092";
-
-        public const string ZooKeeperService = "localhost:2181";
 
         /*
          * DRIVER

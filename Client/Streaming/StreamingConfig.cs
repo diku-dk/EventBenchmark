@@ -13,7 +13,7 @@ namespace Client.Streaming
 		public string[] streams { get; set; }
 
 		// these events mark the end of a transaction
-        public string[] txStreams { get; set; }
+        // public string[] txStreams { get; set; }
     }
 }
 

@@ -1,13 +1,15 @@
 ﻿using System;
-using Common.Workload;
 
 namespace Common.Workload
 {
+	/**
+	 * Tracked by emitter.
+	 * Later matched with transaction output
+	 */
 	public record TransactionIdentifier
 	(
 		int tid,
-		TransactionType type
-
+		TransactionType type,
+		DateTime startTs
 	);
 }
-

@@ -18,6 +18,12 @@ using Orleans;
 using Orleans.Streams;
 using Common.Distribution;
 using Common.Requests;
+using Common.Workload;
+using Client.Streaming.Redis;
+using StackExchange.Redis;
+using System.Threading;
+using System.Threading.Channels;
+using System.Collections.Concurrent;
 
 namespace Grains.Workers
 {
@@ -37,11 +43,13 @@ namespace Grains.Workers
 
         private IStreamProvider streamProvider;
 
-        private IAsyncStream<Event> stream;
+        //private IAsyncStream<Event> stream;
 
-        private IAsyncStream<CustomerStatusUpdate> txStream;
+        private IAsyncStream<CustomerWorkerStatusUpdate> txStream;
 
         private long customerId;
+
+        private Customer customer;
 
         private CustomerWorkerStatus status;
 
@@ -49,14 +57,19 @@ namespace Grains.Workers
 
         private string cartUrl;
 
-        private Customer customer;
+        private readonly IList<TransactionIdentifier> submittedTransactions = new List<TransactionIdentifier>();
+        private readonly IList<TransactionOutput> finishedTransactions = new List<TransactionOutput>();
 
-        private readonly ILogger<CustomerWorker> _logger;
+        private readonly ILogger<CustomerWorker> logger;
+
+        private CancellationTokenSource token = new CancellationTokenSource();
 
         public override async Task OnActivateAsync()
         {
             this.customerId = this.GetPrimaryKeyLong();
             this.streamProvider = this.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
+
+            /*
             this.stream = streamProvider.GetStream<Event>(StreamingConstants.CustomerReactStreamId, this.customerId.ToString());
             var subscriptionHandles = await stream.GetAllSubscriptionHandles();
             if (subscriptionHandles.Count > 0)
@@ -67,6 +80,23 @@ namespace Grains.Workers
                 }
             }
             await stream.SubscribeAsync<Event>(ProcessEventAsync);
+            */
+
+            // var channel = new StringBuilder(TransactionType.CUSTOMER_SESSION.ToString()).Append('_').Append(customerId).ToString();
+
+            // TODO not sure it is runnign as a background thread and not taking the turn of a normal tsk execution.... if so, should run as an independent thread.... maybe taskfactory?
+
+            _ = Task.Run(() => RedisUtils.Subscribe("ReserveStock", token.Token, entry =>
+            {
+                // TODO parse redis value so we can know which transaction has finished
+                // finishedTransactions.Add
+                var now = DateTime.Now;
+                logger.LogInformation("[RedisConsumer] Payload received from channel {0}: {1}", "ReserveStock", entry.ToString());
+
+                dynamic json = JsonConvert.DeserializeObject(entry.Values[0].Value);
+                TransactionMark mark = JsonConvert.DeserializeObject<TransactionMark>(json.data);
+                finishedTransactions.Add(new TransactionOutput(mark.tid, now));
+            }));
 
             var workloadStream = streamProvider.GetStream<int>(StreamingConstants.CustomerStreamId, this.customerId.ToString());
             var subscriptionHandles_ = await workloadStream.GetAllSubscriptionHandles();
@@ -77,24 +107,24 @@ namespace Grains.Workers
                     await subscriptionHandle.ResumeAsync(Run);
                 }
             }
-            await workloadStream.SubscribeAsync<int>(Run);
+            await workloadStream.SubscribeAsync(Run);
 
             // to notify transaction orchestrator about status update
-            this.txStream = streamProvider.GetStream<CustomerStatusUpdate>(StreamingConstants.CustomerStreamId, StreamingConstants.TransactionStreamNameSpace);
-
+            this.txStream = streamProvider.GetStream<CustomerWorkerStatusUpdate>(StreamingConstants.CustomerStreamId, StreamingConstants.TransactionStreamNameSpace);
         }
 
         public CustomerWorker(ILogger<CustomerWorker> logger)
         {
-            this._logger = logger;
+            this.logger = logger;
             this.random = new Random();
             this.status = CustomerWorkerStatus.IDLE;
         }
 
-        public async Task Init(CustomerWorkerConfig config)
+        public Task Init(CustomerWorkerConfig config, Customer customer)
         {
-            this._logger.LogWarning("Customer worker {0} Init", this.customerId);
+            this.logger.LogWarning("Customer worker {0} Init", this.customerId);
             this.config = config;
+            this.customer = customer;
             this.sellerIdGenerator = this.config.sellerDistribution == DistributionType.NON_UNIFORM ?
                 new NonUniformDistribution( (int)(this.config.sellerRange.max * 0.3), this.config.sellerRange.min, this.config.sellerRange.max) :
                 this.config.sellerDistribution == DistributionType.UNIFORM ?
@@ -102,20 +132,7 @@ namespace Grains.Workers
                 new ZipfianGenerator(this.config.sellerRange.min, this.config.sellerRange.max);
             this.productUrl = this.config.urls["products"];
             this.cartUrl = this.config.urls["carts"];
-            this.customer = await GetCustomer(this.config.urls["customers"], customerId);
-        }
-
-        private async Task<Customer> GetCustomer(string customerUrl, long customerId)
-        {
-            this._logger.LogWarning("Customer worker {0} retrieving customer object...", this.customerId);
-            HttpResponseMessage resp = await Task.Run(async () =>
-            {
-                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, customerUrl + "/" + customerId);
-                return await HttpUtils.client.SendAsync(message);
-            });
-            var str = await resp.Content.ReadAsStringAsync();
-            this._logger.LogWarning("Customer worker {0} retrieved customer object {1}", this.customerId, str);
-            return JsonConvert.DeserializeObject<Customer>(str);
+            return Task.CompletedTask;
         }
 
         /**
@@ -156,34 +173,28 @@ namespace Grains.Workers
                 sb.Append(sellerId).Append("-").Append(productId);
                 if (i < numberOfKeysToBrowse - 1) sb.Append(" | ");
             }
-            this._logger.LogWarning("Customer {0} defined the keys to browse: {1}", this.customerId, sb.ToString());
+            this.logger.LogWarning("Customer {0} defined the keys to browse: {1}", this.customerId, sb.ToString());
             return keyMap;
         }
 
         private async Task Run(int tid, StreamSequenceToken token)
         {
-            this._logger.LogWarning("Customer {0} started!", this.customerId);
-
-            if(this.customer == null)
-            {
-                this._logger.LogError("Customer object is not defined in Customer Worker {0}. Cancelling browsing...", this.customerId);
-                return;
-            }
+            this.logger.LogWarning("Customer worker {0} processing new task...", this.customerId);
 
             this.status = CustomerWorkerStatus.BROWSING;
 
             int numberOfKeysToBrowse = random.Next(1, this.config.maxNumberKeysToBrowse + 1);
 
-            this._logger.LogWarning("Customer {0} number of keys to browse: {1}", customerId, numberOfKeysToBrowse);
+            this.logger.LogWarning("Customer {0} number of keys to browse: {1}", customerId, numberOfKeysToBrowse);
 
             var keyMap = await DefineKeysToBrowseAsync(numberOfKeysToBrowse);
 
-            this._logger.LogWarning("Customer {0} started browsing...", this.customerId);
+            this.logger.LogWarning("Customer {0} started browsing...", this.customerId);
 
             // browsing
             await Browse(keyMap);
 
-            this._logger.LogWarning("Customer " + customerId + " finished browsing!");
+            this.logger.LogWarning("Customer worker {0} finished browsing.", this.customerId);
 
             // TODO should we also model this behavior?
             int numberOfKeysToCheckout =
@@ -196,51 +207,48 @@ namespace Grains.Workers
             }
             catch (Exception e)
             {
-                this._logger.LogError(e.Message);
+                this.logger.LogError(e.Message);
                 this.status = CustomerWorkerStatus.CHECKOUT_FAILED;
-                await InformFailedCheckout();
+                await InformFailedCheckout(tid);
                 return; // no need to continue  
             }
 
             // get cart
-            GetCart();
+            await GetCart();
 
-            // checkout
-            if(await Checkout(tid))
-            {
-                this.status = CustomerWorkerStatus.CHECKOUT_SENT;
-                this._logger.LogWarning("Customer {0} sent the checkout successfully", customerId);
-                await UpdateStatusAsync();
-            } else
-            {
-                // fail and deciding not to send treated in the same way
-                await InformFailedCheckout();
-            }
+            await Checkout(tid);
 
-            return;
         }
 
-        private async Task UpdateStatusAsync()
+        private async Task UpdateStatusAsync(int tid)
         {
             this.status = CustomerWorkerStatus.IDLE;
-            await txStream.OnNextAsync(new CustomerStatusUpdate(this.customerId, this.status)); 
+            await txStream.OnNextAsync(new CustomerWorkerStatusUpdate(this.customerId, this.status)); 
         }
 
-        private async Task InformFailedCheckout()
+        private async Task InformFailedCheckout(int tid)
         {
             // just cleaning cart state for next browsing
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, cartUrl + "/" + customerId + "/seal");
             HttpUtils.client.Send(message);
 
-            await txStream.OnNextAsync(new CustomerStatusUpdate(this.customerId, this.status));
-            this._logger.LogWarning("Customer {0} checkout failed", this.customerId);
+            await txStream.OnNextAsync(new CustomerWorkerStatusUpdate(this.customerId, this.status));
+            this.logger.LogWarning("Customer {0} checkout failed", this.customerId);
+        }
+
+        private async Task InformSucceededCheckout(int tid)
+        {
+            this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, DateTime.Now));
+            this.status = CustomerWorkerStatus.CHECKOUT_SENT;
+            this.logger.LogWarning("Customer {0} sent the checkout successfully", customerId);
+            await UpdateStatusAsync(tid);
         }
 
         /**
          * Simulating the customer browsing the cart before checkout
          * could verify whether the cart contains all the products chosen, otherwise throw exception
          */
-        private async void GetCart()
+        private async Task GetCart()
         {
             await Task.Run(() =>
             {
@@ -249,17 +257,18 @@ namespace Grains.Workers
             });
         }
 
-        private async Task<bool> Checkout(int tid)
+        private async Task Checkout(int tid)
         {
             // define whether client should send a checkout request
             if (random.Next(0, 100) > this.config.checkoutProbability)
             {
                 this.status = CustomerWorkerStatus.CHECKOUT_NOT_SENT;
-                this._logger.LogWarning("Customer {0} decided to not send a checkout.", this.customerId);
-                return false;
+                this.logger.LogWarning("Customer {0} decided to not send a checkout.", this.customerId);
+                await InformFailedCheckout(tid);
+                return;
             }
 
-            this._logger.LogWarning("Customer {0} decided to send a checkout.", this.customerId);
+            this.logger.LogWarning("Customer {0} decided to send a checkout.", this.customerId);
 
             // inform checkout intent. optional feature
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, cartUrl + "/" + this.customerId + "/checkout");
@@ -272,12 +281,16 @@ namespace Grains.Workers
             if (resp == null)
             {
                 this.status = CustomerWorkerStatus.CHECKOUT_FAILED;
-                return false;
+                await InformFailedCheckout(tid);
+                return;
             }
-            if (resp.IsSuccessStatusCode) return true;
+            if (resp.IsSuccessStatusCode)
+            {
+                await InformSucceededCheckout(tid);
+                return;
+            }
 
-            // perhaps price divergence
-            // apply new prices and send again
+            // perhaps there is price divergence. checking out again means the customer agrees with the new prices
             if(resp.StatusCode == HttpStatusCode.MethodNotAllowed)
             {
                 resp = await Task.Run(() =>
@@ -289,18 +302,20 @@ namespace Grains.Workers
             if (resp == null || !resp.IsSuccessStatusCode)
             {
                 this.status = CustomerWorkerStatus.CHECKOUT_FAILED;
-                return false;
+                await InformFailedCheckout(tid);
+                return;
             }
 
             // very unlikely to have another price update (considering the distribution is low)
-            return true;
+            await InformSucceededCheckout(tid);
+            
         }
 
         private async Task AddToCart(ISet<(long sellerId, long productId)> keyMap)
         {
             foreach (var entry in keyMap)
             {
-                this._logger.LogWarning("Customer {0}: Adding seller {1} product {2} to cart", this.customerId, entry.sellerId, entry.productId);
+                this.logger.LogWarning("Customer {0}: Adding seller {1} product {2} to cart", this.customerId, entry.sellerId, entry.productId);
                 await Task.Run(() =>
                 {
                     HttpResponseMessage response;
@@ -312,11 +327,11 @@ namespace Grains.Workers
                         // add to cart
                         if (response.Content.Headers.ContentLength == 0)
                         {
-                            this._logger.LogWarning("Customer {0}: Response content for seller {1} product {2} is empty!", this.customerId, entry.sellerId, entry.productId);
+                            this.logger.LogWarning("Customer {0}: Response content for seller {1} product {2} is empty!", this.customerId, entry.sellerId, entry.productId);
                             return;
                         }
 
-                        this._logger.LogWarning("Customer {0}: seller {1} product {2} retrieved", this.customerId, entry.sellerId, entry.productId);
+                        this.logger.LogWarning("Customer {0}: seller {1} product {2} retrieved", this.customerId, entry.sellerId, entry.productId);
 
                         var qty = random.Next(this.config.minMaxQtyRange.min, this.config.minMaxQtyRange.max + 1);
 
@@ -329,12 +344,12 @@ namespace Grains.Workers
                         HttpRequestMessage message2 = new HttpRequestMessage(HttpMethod.Patch, cartUrl + "/" + customerId + "/add");
                         message2.Content = payload;
 
-                        this._logger.LogWarning("Customer {0}: Sending seller {1} product {2} payload to cart...", this.customerId, entry.sellerId, entry.productId);
+                        this.logger.LogWarning("Customer {0}: Sending seller {1} product {2} payload to cart...", this.customerId, entry.sellerId, entry.productId);
                         response = HttpUtils.client.Send(message2);
                     }
                     catch (Exception e)
                     {
-                        this._logger.LogWarning("Customer {0} Url {1} Seller {2} Key {3}: Exception Message: {5} ",  customerId, productUrl, entry.sellerId, entry.productId, e.Message);
+                        this.logger.LogWarning("Customer {0} Url {1} Seller {2} Key {3}: Exception Message: {5} ",  customerId, productUrl, entry.sellerId, entry.productId, e.Message);
                     }
 
                 });
@@ -352,7 +367,7 @@ namespace Grains.Workers
             int delay;
             foreach (var entry in keyMap)
             {
-                this._logger.LogWarning("Customer {0} browsing seller {1} product {2}", this.customerId, entry.sellerId, entry.productId);
+                this.logger.LogWarning("Customer {0} browsing seller {1} product {2}", this.customerId, entry.sellerId, entry.productId);
                 delay = this.random.Next(this.config.delayBetweenRequestsRange.min, this.config.delayBetweenRequestsRange.max + 1);
                 await Task.Run(async () =>
                 {
@@ -362,7 +377,7 @@ namespace Grains.Workers
                     }
                     catch (Exception e)
                     {
-                        this._logger.LogWarning("Exception Message: {0} Customer {1} Url {2} Seller {3} Product {4}", e.Message, customerId, productUrl, entry.sellerId, entry.productId);
+                        this.logger.LogWarning("Exception Message: {0} Customer {1} Url {2} Seller {3} Product {4}", e.Message, customerId, productUrl, entry.sellerId, entry.productId);
                     }
 
                 });
@@ -378,11 +393,11 @@ namespace Grains.Workers
             {
                 case "abandoned-cart": { await this.ReactToAbandonedCart(data.payload); break; }
                 case "payment-rejected": { await this.ReactToPaymentRejected(data.payload); break; }
-                    // TODO merge the 3 below...
+                    // merge the 3 below...
                 case "out-of-stock": { await this.ReactToOutOfStock(data.payload); break; }
                 //case "price-update": { await this.ReactToPriceUpdate(data.payload); break; }
                 //case "product-unavailable": { await this.ReactToProductUnavailable(data.payload); break; }
-                default: { _logger.LogWarning("Topic: " + data.topic + " has no associated reaction in customer grain " + customerId); break; }
+                default: { logger.LogWarning("Topic: " + data.topic + " has no associated reaction in customer grain " + customerId); break; }
             }
             return;
         }
@@ -391,7 +406,7 @@ namespace Grains.Workers
 
         private Task ReactToAbandonedCart(string abandonedCartEvent)
         {
-            // TODO given a probability, can checkout or not
+            // given a probability, can checkout or not
             return Task.CompletedTask;
         }
 

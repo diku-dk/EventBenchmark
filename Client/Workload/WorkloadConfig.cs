@@ -20,6 +20,8 @@ namespace Client.Workload
         // a timer is configured to notify the orchestrator grain about the termination
         public int executionTime { get; set; } = 6000;
 
+        public int delayBetweenRequests = 1000;
+
         /**
          * from highest to lowest. last entry must be 100
          * e.g. customer_session 70, price_update 95, delivery 100

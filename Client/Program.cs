@@ -1,14 +1,8 @@
 ﻿using Client.DataGeneration;
 using Client.Workflow;
 using Client.Infra;
-using Common.Http;
-using Common.Ingestion;
-using Common.Workload;
-using Common.Entities;
-using DuckDB.NET.Data;
 using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.IO;
 using Microsoft.Extensions.Logging;
@@ -16,12 +10,13 @@ using System.Linq;
 using Client.Http;
 using Client.Ingestion.Config;
 using Client.Workload;
-using StackExchange.Redis;
 using Microsoft.Extensions.Hosting;
-using Client.Streaming.Redis;
+using Common.Infra;
 
 namespace Client
 {
+
+    public record MasterConfig(WorkflowConfig workflowConfig, SyntheticDataSourceConfig syntheticDataConfig, IngestionConfig ingestionConfig, WorkloadConfig workloadConfig);
 
     /**
      * Main method based on 
@@ -30,16 +25,43 @@ namespace Client
     public class Program
     {
         private static ILogger logger = LoggerProxy.GetInstance("Program");
+        private static readonly bool mock = false;
 
-        public static void Main(string[] args)
+        /*
+         * 
+         */
+        public static async Task Main(string[] args)
         {
-            var list = new List<string>();
-            list.Add("ReserveStock");
-            RedisUtils.TrimStreams(list);
-            // return Task.CompletedTask;
-        }
 
-        public record MasterConfig(WorkflowConfig workflowConfig, SyntheticDataSourceConfig syntheticDataConfig, IngestionConfig ingestionConfig, WorkloadConfig workloadConfig);
+            var masterConfig = BuildMasterConfig(args);
+
+            logger.LogInformation("Initializing Orleans client...");
+            var client = await OrleansClientFactory.Connect();
+            if (client == null) return;
+            logger.LogInformation("Orleans client initialized!");
+
+            HttpServer httpServer = null;
+            if (mock)
+            {
+                logger.LogInformation("Initializing Mock Http server...");
+                httpServer = new HttpServer(new DebugHttpHandler());
+                Task httpServerTask = Task.Run(httpServer.Run);
+            }
+
+            WorkflowOrchestrator orchestrator = new WorkflowOrchestrator(client, masterConfig.workflowConfig, masterConfig.syntheticDataConfig, masterConfig.ingestionConfig, masterConfig.workloadConfig);
+            await orchestrator.Run();
+
+            logger.LogInformation("Workflow orchestrator finished!");
+
+            await client.Close();
+
+            logger.LogInformation("Orleans client finalized!");
+
+            if (mock)
+            {
+                httpServer.Stop();
+            }
+        }
 
         /**
          * 1 - process directory of config files in the args. if not, select the default config files
@@ -56,11 +78,11 @@ namespace Client
             if (args is not null && args.Length > 0){
                 configFilesDir = args[0];
                 logger.LogInformation("Directory of configuration files passsed as parameter: {0}", configFilesDir);
-                Environment.CurrentDirectory = (configFilesDir);
             } else
             {
-                configFilesDir = Directory.GetCurrentDirectory();
+                configFilesDir = initDir;
             }
+            Environment.CurrentDirectory = (configFilesDir);
 
             if (!File.Exists("workflow_config.json"))
             {
@@ -158,43 +180,6 @@ namespace Client
                 // olistConfig = new DataGeneration.Real.OlistDataSourceConfiguration()
             );
             return masterConfiguration;
-        }
-
-        private static readonly bool mock = false;
-
-        /*
-         * 
-         */
-        public static async Task Main_(string[] args)
-        {
-
-            var masterConfig = BuildMasterConfig(args);
-
-            logger.LogInformation("Initializing Orleans client...");
-            var client = await OrleansClientFactory.Connect();
-            if (client == null) return;
-            logger.LogInformation("Orleans client initialized!");
-
-            HttpServer httpServer = null;
-            if (mock) {
-                logger.LogInformation("Initializing Mock Http server...");
-                httpServer = new HttpServer(new DebugHttpHandler());
-                Task httpServerTask = Task.Run(httpServer.Run);
-            }
-
-            WorkflowOrchestrator orchestrator = new WorkflowOrchestrator(client, masterConfig.workflowConfig, masterConfig.syntheticDataConfig, masterConfig.ingestionConfig, masterConfig.workloadConfig);
-            await orchestrator.Run();
-
-            logger.LogInformation("Workflow orchestrator finished!");
-
-            await client.Close();
-
-            logger.LogInformation("Orleans client finalized!");
-
-            if (mock)
-            {
-                httpServer.Stop();
-            }
         }
 
     }

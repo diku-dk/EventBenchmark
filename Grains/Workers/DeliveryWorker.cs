@@ -15,6 +15,7 @@ using Common.Entities;
 using Newtonsoft.Json;
 using System.Collections.Generic;
 using Orleans.Concurrency;
+using Common.Workload;
 
 namespace Grains.Workers
 {
@@ -29,7 +30,9 @@ namespace Grains.Workers
 
         private long actorId;
 
-        private IAsyncStream<int> txStream;
+        private IAsyncStream<TransactionOutput> txStream;
+
+        private readonly IList<TransactionIdentifier> submittedTransactions = new List<TransactionIdentifier>();
 
         public DeliveryWorker(ILogger<DeliveryWorker> logger)
         {
@@ -57,7 +60,7 @@ namespace Grains.Workers
             }
             await workloadStream.SubscribeAsync<int>(Run);
 
-            this.txStream = streamProvider.GetStream<int>(StreamingConstants.DeliveryStreamId, StreamingConstants.TransactionStreamNameSpace);
+            this.txStream = streamProvider.GetStream<TransactionOutput>(StreamingConstants.DeliveryStreamId, StreamingConstants.TransactionStreamNameSpace);
         }
 
         // updating the delivery status of orders
@@ -67,6 +70,7 @@ namespace Grains.Workers
 
             try
             {
+                this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.UPDATE_DELIVERY, DateTime.Now));
                 HttpResponseMessage response = await Task.Run(() =>
                 {
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch,
@@ -81,7 +85,7 @@ namespace Grains.Workers
             finally
             {
                 // let emitter aware this request has finished
-                _ = txStream.OnNextAsync(tid);
+                _ = txStream.OnNextAsync(new TransactionOutput(tid, DateTime.Now));
             }
 
             this._logger.LogWarning("Delivery {0}: task terminated!", this.actorId);

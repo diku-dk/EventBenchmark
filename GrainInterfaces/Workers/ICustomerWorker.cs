@@ -1,12 +1,12 @@
 ﻿using System.Threading.Tasks;
+using Common.Entities;
 using Common.Workload.Customer;
 using Orleans;
-using Orleans.Concurrency;
 
 namespace GrainInterfaces.Workers
 {
 	public interface ICustomerWorker : IGrainWithIntegerKey
 	{
-        Task Init(CustomerWorkerConfig config);
+        Task Init(CustomerWorkerConfig config, Customer customer);
     }
 }

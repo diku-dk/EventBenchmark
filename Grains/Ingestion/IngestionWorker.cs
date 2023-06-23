@@ -62,7 +62,7 @@ namespace Grains.Ingestion
 
             // Console.WriteLine("All responses received");
 
-            // TODO check correctness... make get requests looking for some random IDs. also total sql to count total of items ingested
+            // check correctness... make get requests looking for some random IDs. also total sql to count total of items ingested
             CheckCorrectness();
 
             // return;

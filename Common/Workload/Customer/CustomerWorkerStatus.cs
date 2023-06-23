@@ -1,5 +1,4 @@
-﻿using System;
-namespace Common.Workload.Customer
+﻿namespace Common.Workload.Customer
 {
     public enum CustomerWorkerStatus
     {
@@ -13,4 +12,3 @@ namespace Common.Workload.Customer
         REACT_ABANDONED_CART
     }
 }
-

@@ -2,8 +2,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Client.Infra;
-using Client.Workload;
+using Common.Infra;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 
@@ -21,8 +20,7 @@ namespace Client.Streaming.Redis
 	 */
     public sealed class RedisUtils
     {
-        private static readonly ILogger logger = LoggerProxy.GetInstance("RedisConsumer");
-
+        
         public static bool TestRedisConnection()
         {
             using (var db = ConnectionMultiplexer.Connect("localhost"))
@@ -60,6 +58,9 @@ namespace Client.Streaming.Redis
             CancellationToken cancellation,
             Action<Entry> handler)
         {
+
+            ILogger logger = LoggerProxy.GetInstance("RedisUtils");
+
             // The blocking reader's connection should not be shared with any other operation.
             var redis = ConnectionMultiplexer.Connect(connection);
             if (redis is null)

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using DuckDB.NET.Data;
 using System.Text;
-using Confluent.Kafka;
 using Bogus;
 using Bogus.Extensions.Brazil;
 using Common.Entities;
@@ -30,7 +29,7 @@ namespace Client.DataGeneration
             ["products"] = "CREATE OR REPLACE TABLE products (seller_id INTEGER, product_id INTEGER, name VARCHAR, sku VARCHAR, category VARCHAR, description VARCHAR, price REAL, created_at datetime, updated_at datetime, active BOOLEAN, status VARCHAR);",
             ["stock_items"] = "CREATE OR REPLACE TABLE stock_items (seller_id INTEGER, product_id INTEGER, qty_available INTEGER, qty_reserved INTEGER, order_count INTEGER, ytd INTEGER, data VARCHAR);",
             ["customers"] = "CREATE OR REPLACE TABLE customers (id INTEGER, first_name VARCHAR, last_name VARCHAR, address VARCHAR, complement VARCHAR, birth_date VARCHAR, " +
-                            "zip_code_prefix VARCHAR, city VARCHAR, state VARCHAR, " +
+                            "zip_code VARCHAR, city VARCHAR, state VARCHAR, " +
                             "card_number VARCHAR, card_security_number VARCHAR, card_expiration VARCHAR, card_holder_name VARCHAR, card_type VARCHAR, " +
                             "success_payment_count INTEGER, failed_payment_count INTEGER, delivery_count INTEGER, abandoned_cart_count INTEGER, data VARCHAR);"
         };
@@ -42,7 +41,7 @@ namespace Client.DataGeneration
         protected readonly string baseStockQuery = "INSERT INTO stock_items (seller_id, product_id, qty_available, qty_reserved, order_count, ytd, data) VALUES ";
 
         protected readonly string baseCustomerQuery = "INSERT INTO customers (id, first_name, last_name, address, complement, birth_date, " +
-                    "zip_code_prefix, city, state, " +
+                    "zip_code, city, state, " +
                     "card_number, card_security_number, card_expiration, card_holder_name, card_type, " +
                     "success_payment_count, failed_payment_count, delivery_count, abandoned_cart_count, data) VALUES ";
 
@@ -77,8 +76,7 @@ namespace Client.DataGeneration
 
         protected void GenerateCustomer(DuckDbCommand command, int customerId)
         {
-            var geolocation = Geolocation();
-            GenerateCustomer(command, customerId, geolocation);
+            GenerateCustomer(command, customerId, Geolocation());
         }
 
         protected void GenerateCustomer(DuckDbCommand command, int customerId, Geolocation geolocation)
@@ -137,8 +135,7 @@ namespace Client.DataGeneration
 
         protected void GenerateSeller(DuckDbCommand command, long sellerId)
         {
-            var geolocation = Geolocation();
-            GenerateSeller(command, sellerId, geolocation);
+            GenerateSeller(command, sellerId, Geolocation());
         }
 
         protected void GenerateSeller(DuckDbCommand command, long sellerId, Geolocation geolocation)

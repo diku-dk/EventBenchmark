@@ -1,11 +1,8 @@
 ﻿using System;
 using Common.Workload;
 using System.Collections.Generic;
-using Confluent.Kafka;
 using System.Linq;
 using Common.Infra;
-using System.Threading;
-using Client.Infra;
 using Microsoft.Extensions.Logging;
 
 namespace Client.Workload
@@ -52,7 +49,7 @@ namespace Client.Workload
             for (int i = 0; i < num; i++)
             {
                 TransactionType tx = PickTransactionFromDistribution();
-                Shared.Workload.Add(new TransactionIdentifier(tid,tx));
+                Shared.Workload.Add(new TransactionInput(tid,tx));
                 tid++;
             }
         }

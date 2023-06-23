@@ -4,8 +4,8 @@
     "numberCpus": 2, // optional
     "mapTableToUrl": {
         // "sellers": "http://127.0.0.1:5006",
-        "customers": "http://127.0.0.1:5007",
-        "stock_items": "http://127.0.0.1:5003",
+        //"customers": "http://127.0.0.1:5007",
+        //"stock_items": "http://127.0.0.1:5003",
         "products": "http://127.0.0.1:5008"
     }
 }

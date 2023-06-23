@@ -17,7 +17,6 @@ using Orleans.Streams;
 using Common.Distribution;
 using Common.Workload;
 using Common.Requests;
-using System.Text.RegularExpressions;
 
 namespace Grains.Workers
 {
@@ -29,9 +28,11 @@ namespace Grains.Workers
 
         private IStreamProvider streamProvider;
 
-        private IAsyncStream<Event> stream;
+        //private IAsyncStream<Event> stream;
 
         private long sellerId;
+
+        private SellerWorkerStatus status;
 
         private NumberGenerator productIdGenerator;
 
@@ -40,14 +41,18 @@ namespace Grains.Workers
         // to support: (i) customer product retrieval and (ii) the delete operation, since it uses a search string
         private List<Product> products;
 
-        private IAsyncStream<int> txStream;
+        private IAsyncStream<SellerWorkerStatusUpdate> txStream;
 
         private readonly ISet<long> deletedProducts;
+
+        private readonly IList<TransactionIdentifier> submittedTransactions = new List<TransactionIdentifier>();
+        private readonly IList<TransactionOutput> finishedTransactions = new List<TransactionOutput>();
 
         public SellerWorker(ILogger<SellerWorker> logger)
         {
             this._logger = logger;
             this.random = new Random();
+            this.status = SellerWorkerStatus.IDLE;
             this.deletedProducts = new HashSet<long>();
         }
 
@@ -68,7 +73,7 @@ namespace Grains.Workers
             this.products = products;
 
             this.products.Sort(productComparer);
-            int firstId = (int)this.products[0].product_id;
+            int firstId = (int) this.products[0].product_id;
             int lastId = (int) this.products.ElementAt(this.products.Count-1).product_id;
 
             this._logger.LogWarning("Init -> Seller worker {0} first {1} last {2}.", this.sellerId, this.products.ElementAt(0).product_id, lastId);
@@ -85,6 +90,8 @@ namespace Grains.Workers
         {
             this.sellerId = this.GetPrimaryKeyLong();
             this.streamProvider = this.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
+
+            /*
             this.stream = streamProvider.GetStream<Event>(StreamingConstants.SellerReactStreamId, this.sellerId.ToString());
             var subscriptionHandles = await stream.GetAllSubscriptionHandles();
             if (subscriptionHandles.Count > 0)
@@ -95,8 +102,9 @@ namespace Grains.Workers
                 }
             }
             await this.stream.SubscribeAsync<Event>(ReactToLowStock);
+            */
 
-            var workloadStream = streamProvider.GetStream<TransactionIdentifier>(StreamingConstants.SellerStreamId, this.sellerId.ToString());
+            var workloadStream = streamProvider.GetStream<TransactionInput>(StreamingConstants.SellerStreamId, this.sellerId.ToString());
             var subscriptionHandles_ = await workloadStream.GetAllSubscriptionHandles();
             if (subscriptionHandles_.Count > 0)
             {
@@ -105,13 +113,14 @@ namespace Grains.Workers
                     await subscriptionHandle.ResumeAsync(Run);
                 }
             }
-            await workloadStream.SubscribeAsync<TransactionIdentifier>(Run);
+            await workloadStream.SubscribeAsync(Run);
 
-            this.txStream = streamProvider.GetStream<int>(StreamingConstants.SellerStreamId, StreamingConstants.TransactionStreamNameSpace);
+            this.txStream = streamProvider.GetStream<SellerWorkerStatusUpdate>(StreamingConstants.SellerStreamId, StreamingConstants.TransactionStreamNameSpace);
         }
 
-        private async Task Run(TransactionIdentifier txId, StreamSequenceToken token)
+        private async Task Run(TransactionInput txId, StreamSequenceToken token)
         {
+            this.status = SellerWorkerStatus.RUNNING;
             switch (txId.type)
             {
                 case TransactionType.DASHBOARD:
@@ -130,6 +139,9 @@ namespace Grains.Workers
                     break;
                 }
             }
+            this.status = SellerWorkerStatus.IDLE;
+            // let emitter aware this request has finished
+            _ = txStream.OnNextAsync(new SellerWorkerStatusUpdate(this.sellerId, this.status));
         }
 
         private async Task BrowseDashboard(int tid)
@@ -141,18 +153,15 @@ namespace Grains.Workers
                 {
                     this._logger.LogWarning("Seller {0}: Dashboard will be queried...", this.sellerId);
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, config.urls["sellers"] + "/" + this.sellerId);
+                    this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.DASHBOARD, DateTime.Now));
                     var response = HttpUtils.client.Send(message);
                     response.EnsureSuccessStatusCode();
+                    this.finishedTransactions.Add(new TransactionOutput(tid, DateTime.Now));
                     this._logger.LogWarning("Seller {0}: Dashboard retrieved.", this.sellerId);
                 }
                 catch (Exception e)
                 {
                     this._logger.LogError("Seller {0}: Dashboard could not be retrieved: {1}", this.sellerId, e.Message);
-                }
-                finally
-                {
-                    // let emitter aware this request has finished
-                    _ = txStream.OnNextAsync(tid);
                 }
             });
 
@@ -261,8 +270,6 @@ namespace Grains.Workers
             }
         }
 
-        private static readonly ProductEqualityComparer productEqualityComparer = new ProductEqualityComparer();
-
         // app will send
         // low stock, marketplace offers this estimation
         // received from a continuous query (basically implement a model)[defined function or sql]
@@ -283,4 +290,3 @@ namespace Grains.Workers
 
     }
 }
-

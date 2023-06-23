@@ -16,17 +16,9 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{6E292FB7-57DF-4C20-8725-ACE4B928CBC5}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
-		deploy_macos.sh = deploy_macos.sh
 		README.md = README.md
 		.gitignore = .gitignore
-	EndProjectSection
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Configuration", "Configuration", "{C406FF1E-43FF-455D-B546-FDB0DDFC3E5C}"
-	ProjectSection(SolutionItems) = preProject
-		ingestion_config.json = ingestion_config.json
-		workflow_config.json = workflow_config.json
-		data_load_config.json = data_load_config.json
-		workload_config.json = workload_config.json
+		deploy_macos.sh = deploy_macos.sh
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests", "Tests\Tests.csproj", "{2BC39A65-8D44-4A36-A944-142D2FE5AAF1}"
@@ -67,5 +59,7 @@ Global
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {0EE07368-B3B9-49FD-A13B-38C78EA3E782}
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
 	EndGlobalSection
 EndGlobal

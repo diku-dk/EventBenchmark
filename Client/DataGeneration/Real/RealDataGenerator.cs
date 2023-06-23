@@ -77,8 +77,6 @@ namespace Client.DataGeneration.Real
             // customers
             LoadCustomers(connection);
 
-            // TODO orders. make calculation how many events per second, determine how long the experiments should run
-
             command.CommandText = "ALTER TABLE categories_aux RENAME TO categories;";
             command.ExecuteNonQuery();
 

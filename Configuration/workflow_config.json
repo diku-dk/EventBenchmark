@@ -1,5 +1,5 @@
 ﻿{
-  "healthCheck": true,
+  "healthCheck": false,
   "healthCheckEndpoint": "/health",
   "dataLoad": true,
   "ingestion": true,

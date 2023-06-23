@@ -1,34 +1,26 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Dynamic;
 using System.Net.Http;
-using System.Threading;
 using System.Threading.Tasks;
 using Client.DataGeneration;
 using Client.DataGeneration.Real;
 using Client.Infra;
 using Client.Ingestion;
-using Client.Streaming.Kafka;
 using Common.Http;
-using Common.Ingestion;
 using Common.Workload;
 using Common.Workload.Customer;
 using Common.Entities;
-using Common.Workload.Seller;
 using Common.Streaming;
-using Confluent.Kafka;
 using DuckDB.NET.Data;
-using GrainInterfaces.Ingestion;
 using GrainInterfaces.Workers;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
 using Orleans;
 using Orleans.Streams;
 using Client.Workload;
-using static Confluent.Kafka.ConfigPropertyNames;
 using Client.Ingestion.Config;
 using Client.Streaming.Redis;
+using Common.Infra;
+using System.Linq;
 
 namespace Client.Workflow
 {
@@ -70,15 +62,6 @@ namespace Client.Workflow
 
             this.logger = LoggerProxy.GetInstance("WorkflowOrchestrator");
         }
-
-        /*
-        private Task FinalizeIngestion(int obj, StreamSequenceToken token = null)
-        {
-            if (this.ingestionProcess == null) throw new Exception("Semaphore not initialized properly!");
-            this.ingestionProcess.Signal();
-            return Task.CompletedTask;
-        }
-        */
 
         /**
          * Initialize the first step
@@ -150,35 +133,9 @@ namespace Client.Workflow
 
             if (this.workflowConfig.ingestion)
             {
-
                 var ingestionOrchestrator = new SimpleIngestionOrchestrator(ingestionConfig);
 
                 ingestionOrchestrator.Run();
-
-                /*
-                IIngestionOrchestrator ingestionOrchestrator = masterConfig.orleansClient.GetGrain<IIngestionOrchestrator>(0);
-
-                // make sure is online to receive stream
-                await ingestionOrchestrator.Init(ingestionConfig);
-
-                logger.LogInformation("Ingestion orchestrator grain will start.");
-
-                IAsyncStream<int> ingestionStream = streamProvider.GetStream<int>(StreamingConfiguration.IngestionStreamId, 0.ToString());
-
-                this.ingestionProcess = new CountdownEvent(1);
-
-                IAsyncStream<int> resultStream = streamProvider.GetStream<int>(StreamingConfiguration.IngestionStreamId, "master");
-
-                var subscription = await resultStream.SubscribeAsync(FinalizeIngestion);
-
-                await ingestionStream.OnNextAsync(0);
-
-                ingestionProcess.Wait();
-
-                await subscription.UnsubscribeAsync();
-
-                logger.LogInformation("Ingestion orchestrator grain finished.");
-                */
             }
 
             if (this.workflowConfig.transactionSubmission)
@@ -212,31 +169,54 @@ namespace Client.Workflow
                 // update customer config
                 long numSellers = DuckDbUtils.Count(connection, "sellers");
                 // defined dynamically
-                this.workloadConfig.customerWorkerConfig.sellerRange = new Interval(1, (int) numSellers);
+                this.workloadConfig.customerWorkerConfig.sellerRange = new Interval(1, (int)numSellers);
 
-                // make sure to activate all sellers so all can respond to customers when required
+                // activate all customer workers
+                List<Task> tasks = new();
+                List<Customer> customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
+                ICustomerWorker customerWorker = null;
+                foreach (var customer in customers)
+                {
+                    customerWorker = this.orleansClient.GetGrain<ICustomerWorker>(customer.id);
+                    tasks.Add( customerWorker.Init(customerConfig, customer) );
+                }
+                await Task.WhenAll(tasks);
+
+                // make sure to activate all sellers so they can respond to customers when required
                 // another solution is making them read from the microservice itself...
                 ISellerWorker sellerWorker = null;
-                List<Task> tasks = new();
+                tasks.Clear();
                 for (int i = 1; i <= numSellers; i++)
                 {
                     List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
                     sellerWorker = this.orleansClient.GetGrain<ISellerWorker>(i);
-                    tasks.Add( sellerWorker.Init(this.workloadConfig.sellerWorkerConfig, products) );
+                    tasks.Add(sellerWorker.Init(this.workloadConfig.sellerWorkerConfig, products));
                 }
                 await Task.WhenAll(tasks);
 
-                // activate delivery worker
-                await this.orleansClient.GetGrain<IDeliveryWorker>(0).Init(this.workloadConfig.mapTableToUrl["shipments"]);
+                // calc percentage of delivery txs
+                tasks.Clear();
+                // activate delivery workers
+                Interval deliveryRange = null;
+                if (this.workloadConfig.transactionDistribution.ContainsKey(TransactionType.UPDATE_DELIVERY))
+                {
+                    int minDeliveryWorkers = GetMinNumWorkersPerTransaction(TransactionType.UPDATE_DELIVERY);
+                    for (int i = 1; i <= minDeliveryWorkers; i++)
+                    {
+                        tasks.Add(this.orleansClient.GetGrain<IDeliveryWorker>(i).Init(this.workloadConfig.mapTableToUrl["shipments"]));
+                    }
+                    deliveryRange = new Interval(1, minDeliveryWorkers);
+                    await Task.WhenAll(tasks);
+                }
 
                 // could be read in the data load config, but in cases the file is not read, reading from DB ensures the value is always fulfilled
                 long numCustomers = DuckDbUtils.Count(connection, "customers");
                 var customerRange = new Interval(1, (int)numCustomers);
 
                 // setup transaction orchestrator
-                WorkloadOrchestrator workloadOrchestrator = new WorkloadOrchestrator(this.orleansClient, this.workloadConfig, customerRange);
+                WorkloadOrchestrator workloadOrchestrator = new WorkloadOrchestrator(this.orleansClient, this.workloadConfig, customerRange, deliveryRange);
 
-                Task workloadTask = Task.Run(() => workloadOrchestrator.Run());
+                Task workloadTask = Task.Run(workloadOrchestrator.Run);
 
                 // listen for cluster client disconnect and stop the sleep if necessary... Task.WhenAny...
                 await Task.WhenAny(workloadTask, OrleansClientFactory._siloFailedTask.Task);               
@@ -251,8 +231,29 @@ namespace Client.Workflow
 
             }
 
+            if (this.workflowConfig.cleanup)
+            {
+                // DuckDbUtils.DeleteAll(connection, "products", "seller_id = " + i);
+            }
+
             return;
 
+        }
+
+        private int GetMinNumWorkersPerTransaction(TransactionType transactionType)
+        {
+            KeyValuePair<TransactionType, int>? previous = null;
+            int percTarget = this.workloadConfig.transactionDistribution[transactionType];
+            foreach (var entry in this.workloadConfig.transactionDistribution)
+            {
+                if (entry.Key == transactionType) break;
+                previous = entry;
+            }
+            if(previous is not null)
+            {
+                return percTarget - previous.Value.Value;
+            }
+            return percTarget;
         }
 
     }

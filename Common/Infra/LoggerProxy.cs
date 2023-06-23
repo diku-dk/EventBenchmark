@@ -1,7 +1,6 @@
-﻿using System;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 
-namespace Client.Infra
+namespace Common.Infra
 {
     /*
      * Based on https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/classes-and-structs/static-constructors
@@ -23,7 +22,7 @@ namespace Client.Infra
 
         public static ILogger GetInstance(string categoryName)
         {
-            return loggerFactory.CreateLogger("DefaultClientLogger");
+            return loggerFactory.CreateLogger(categoryName);
         }
     }
 }
