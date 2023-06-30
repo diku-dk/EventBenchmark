@@ -1,28 +1,24 @@
 ﻿using System;
-using Common.Workload.Customer;
-using Common.Distribution.YCSB;
 using System.Threading.Tasks;
 using GrainInterfaces.Workers;
 using Common.Streaming;
 using Orleans;
-using System.IO;
 using Microsoft.Extensions.Logging;
 using Orleans.Streams;
 using Common.Http;
 using System.Net.Http;
-using System.Text.RegularExpressions;
-using Common.Entities;
-using Newtonsoft.Json;
-using System.Collections.Generic;
 using Orleans.Concurrency;
 using Common.Workload;
+using Common.Workload.Metrics;
+using System.Collections.Concurrent;
+using Common.Workload.Delivery;
 
 namespace Grains.Workers
 {
     [Reentrant]
     public class DeliveryWorker : Grain, IDeliveryWorker
-	{
-        private string shipmentUrl;
+    {
+        private DeliveryWorkerConfig config;
 
         private IStreamProvider streamProvider;
 
@@ -30,18 +26,17 @@ namespace Grains.Workers
 
         private long actorId;
 
-        private IAsyncStream<TransactionOutput> txStream;
-
-        private readonly IList<TransactionIdentifier> submittedTransactions = new List<TransactionIdentifier>();
+        private readonly ConcurrentBag<TransactionIdentifier> submittedTransactions = new ConcurrentBag<TransactionIdentifier>();
+        private readonly ConcurrentBag<TransactionOutput> finishedTransactions = new ConcurrentBag<TransactionOutput>();
 
         public DeliveryWorker(ILogger<DeliveryWorker> logger)
         {
             this._logger = logger;
         }
 
-        public Task Init(string shipmentUrl)
+        public Task Init(DeliveryWorkerConfig config)
         {
-            this.shipmentUrl = shipmentUrl;
+            this.config = config;
             return Task.CompletedTask;
         }
 
@@ -59,38 +54,27 @@ namespace Grains.Workers
                 }
             }
             await workloadStream.SubscribeAsync<int>(Run);
-
-            this.txStream = streamProvider.GetStream<TransactionOutput>(StreamingConstants.DeliveryStreamId, StreamingConstants.TransactionStreamNameSpace);
         }
 
         // updating the delivery status of orders
         public async Task Run(int tid, StreamSequenceToken token)
         {
-            this._logger.LogWarning("Delivery {0}: Task started", this.actorId);
-
-            try
-            {
-                this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.UPDATE_DELIVERY, DateTime.Now));
-                HttpResponseMessage response = await Task.Run(() =>
+            await Task.Run(() => {
+                this._logger.LogWarning("Delivery {0}: Task started", this.actorId);
+                try
                 {
-                    HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch,
-                        shipmentUrl + "/" + tid);
-                    return HttpUtils.client.Send(message);
-                });
-            }
-            catch(Exception e)
-            {
-                this._logger.LogError("Delivery {0}: Update shipments could not be performed: {1}", this.actorId, e.Message);
-            }
-            finally
-            {
-                // let emitter aware this request has finished
-                _ = txStream.OnNextAsync(new TransactionOutput(tid, DateTime.Now));
-            }
-
-            this._logger.LogWarning("Delivery {0}: task terminated!", this.actorId);
-
-            return;
+                    HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, config.shipmentUrl + "/" + tid);
+                    this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.UPDATE_DELIVERY, DateTime.Now));
+                    var resp = HttpUtils.client.Send(message);
+                    resp.EnsureSuccessStatusCode();
+                    this.finishedTransactions.Add(new TransactionOutput(tid, DateTime.Now));
+                }
+                catch(Exception e)
+                {
+                    this._logger.LogError("Delivery {0}: Update shipments could not be performed: {1}", this.actorId, e.Message);
+                }
+                this._logger.LogWarning("Delivery {0}: task terminated!", this.actorId);
+            });
         }
 
     }

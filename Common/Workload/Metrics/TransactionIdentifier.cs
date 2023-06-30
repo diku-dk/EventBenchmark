@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Common.Workload
+namespace Common.Workload.Metrics
 {
 	/**
 	 * Tracked by emitter.

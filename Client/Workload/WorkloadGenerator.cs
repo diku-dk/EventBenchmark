@@ -1,5 +1,6 @@
 ﻿using System;
 using Common.Workload;
+using Common.Workload.Seller;
 using System.Collections.Generic;
 using System.Linq;
 using Common.Infra;

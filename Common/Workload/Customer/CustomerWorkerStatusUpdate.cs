@@ -1,5 +1,5 @@
 ﻿namespace Common.Workload.Customer
 {
-	public record CustomerWorkerStatusUpdate
+    public record CustomerWorkerStatusUpdate
 	(long customerId, CustomerWorkerStatus status);
 }

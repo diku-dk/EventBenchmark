@@ -1,14 +1,12 @@
-﻿using System;
-using Common.Workload.Seller;
-using Orleans;
-using System.Collections.Generic;
+﻿using Orleans;
 using System.Threading.Tasks;
+using Common.Workload.Delivery;
 
 namespace GrainInterfaces.Workers
 {
 	public interface IDeliveryWorker : IGrainWithIntegerKey
     {
-        public Task Init(string shipmentUrl);
+        public Task Init(DeliveryWorkerConfig config);
 	}
 }
 

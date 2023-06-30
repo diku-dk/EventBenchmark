@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using Common.Distribution;
+﻿using Common.Distribution;
 
 namespace Common.Workload.Customer
 {
@@ -20,7 +19,9 @@ namespace Common.Workload.Customer
         public int checkoutProbability { get; set; } = 50;
 
         // products, carts, and customers
-        public IDictionary<string, string> urls { get; set; }
+        public string productUrl { get; set; }
+
+        public string cartUrl { get; set; }
 
         public Interval minMaxQtyRange { get; set; }
 

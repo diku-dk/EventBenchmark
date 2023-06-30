@@ -26,7 +26,7 @@ namespace Client.DataGeneration
         protected readonly Dictionary<string, string> mapTableToCreateStmt = new()
         {
             ["sellers"] = "CREATE OR REPLACE TABLE sellers (id INTEGER, name VARCHAR, company_name VARCHAR, email VARCHAR, phone VARCHAR, mobile_phone VARCHAR, cpf VARCHAR, cnpj VARCHAR, address VARCHAR, complement VARCHAR, city VARCHAR, state VARCHAR, zip_code_prefix VARCHAR, order_count INTEGER);",
-            ["products"] = "CREATE OR REPLACE TABLE products (seller_id INTEGER, product_id INTEGER, name VARCHAR, sku VARCHAR, category VARCHAR, description VARCHAR, price REAL, created_at datetime, updated_at datetime, active BOOLEAN, status VARCHAR);",
+            ["products"] = "CREATE OR REPLACE TABLE products (seller_id INTEGER, product_id INTEGER, name VARCHAR, sku VARCHAR, category VARCHAR, description VARCHAR, price REAL, freight_value REAL, created_at datetime, updated_at datetime, active BOOLEAN, status VARCHAR);",
             ["stock_items"] = "CREATE OR REPLACE TABLE stock_items (seller_id INTEGER, product_id INTEGER, qty_available INTEGER, qty_reserved INTEGER, order_count INTEGER, ytd INTEGER, data VARCHAR);",
             ["customers"] = "CREATE OR REPLACE TABLE customers (id INTEGER, first_name VARCHAR, last_name VARCHAR, address VARCHAR, complement VARCHAR, birth_date VARCHAR, " +
                             "zip_code VARCHAR, city VARCHAR, state VARCHAR, " +
@@ -36,7 +36,7 @@ namespace Client.DataGeneration
 
         protected readonly string baseSellerQuery = "INSERT INTO sellers(id, name, company_name, email, phone, mobile_phone, cpf, cnpj, address, complement, city, state, zip_code_prefix, order_count) VALUES ";
 
-        protected readonly string baseProductQuery = "INSERT INTO products (seller_id, product_id, name, sku, category, description, price, active, status) VALUES ";
+        protected readonly string baseProductQuery = "INSERT INTO products (seller_id, product_id, name, sku, category, description, price, freight_value, active, status) VALUES ";
 
         protected readonly string baseStockQuery = "INSERT INTO stock_items (seller_id, product_id, qty_available, qty_reserved, order_count, ytd, data) VALUES ";
 
@@ -188,8 +188,8 @@ namespace Client.DataGeneration
             // e.g., "PRDQQ1UCPOFRHWAA"
             var sku = RandomString(16, alphanumericupper);
             var price = Numeric(4, 2, false);
+            var freight_value = Numeric(3, 2, false);
             var description = RemoveBadCharacter( faker.Commerce.ProductDescription() );
-            var status = "approved";
             var sb = new StringBuilder(baseProductQuery);
 
             DateTime now = DateTime.Now;
@@ -201,8 +201,9 @@ namespace Client.DataGeneration
             sb.Append('\'').Append(category).Append("',");
             sb.Append('\'').Append(description).Append("',");
             sb.Append(price).Append(',');
+            sb.Append(freight_value).Append(',');
             sb.Append("TRUE").Append(',');
-            sb.Append('\'').Append(status).Append("');");
+            sb.Append('\'').Append("approved").Append("');");
 
             Console.WriteLine(sb.ToString());
 

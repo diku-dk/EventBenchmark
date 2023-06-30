@@ -1,5 +1,4 @@
-﻿using System;
-namespace Client.Streaming
+﻿namespace Client.Streaming
 {
 	public class StreamingConfig
 	{
@@ -11,9 +10,6 @@ namespace Client.Streaming
 
 		// all streams to "clean up"
 		public string[] streams { get; set; }
-
-		// these events mark the end of a transaction
-        // public string[] txStreams { get; set; }
     }
 }
 

@@ -9,7 +9,6 @@ using Common.Streaming;
 using Common.Workload;
 using Common.Workload.Customer;
 using Common.Workload.Seller;
-using GrainInterfaces.Workers;
 using Microsoft.Extensions.Logging;
 using Orleans;
 using Orleans.Streams;
@@ -34,8 +33,6 @@ namespace Client.Workload
 
         private readonly int concurrencyLevel;
 
-        private readonly Interval deliveryRange;
-
         private readonly ILogger logger;
 
         public WorkloadEmitter(IClusterClient clusterClient,
@@ -43,13 +40,11 @@ namespace Client.Workload
                                 Interval sellerRange,
                                 DistributionType customerDistribution,
                                 Interval customerRange,
-                                Interval deliveryRange,
                                 int concurrencyLevel) : base()
         {
             this.orleansClient = clusterClient;
             this.streamProvider = orleansClient.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
             this.concurrencyLevel = concurrencyLevel;
-            this.deliveryRange = deliveryRange;
 
             NumberGenerator sellerIdGenerator = sellerDistribution ==
                                 DistributionType.NON_UNIFORM ? new NonUniformDistribution((int)(sellerRange.max * 0.3), sellerRange.min, sellerRange.max) :
@@ -109,7 +104,7 @@ namespace Client.Workload
                     Shared.WaitHandle.Set();
                 }
 
-                await Task.Delay(10000);
+                // await Task.Delay(10000);
 
             }
 
@@ -119,10 +114,10 @@ namespace Client.Workload
 
         private void SubmitTransaction()
         {
-            long threadId = System.Environment.CurrentManagedThreadId;
-            this.logger.LogWarning("Thread ID {0} Submit transaction called", threadId);
+            long threadId = Environment.CurrentManagedThreadId;
+            this.logger.LogInformation("Thread ID {0} Submit transaction called", threadId);
             TransactionInput txId = Shared.Workload.Take();
-            this.logger.LogWarning("Thread ID {0} Transaction type {0}", threadId, txId.type.ToString());
+            this.logger.LogInformation("Thread ID {0} Transaction type {0}", threadId, txId.type.ToString());
             try
             {
                 long grainID;
@@ -134,19 +129,24 @@ namespace Client.Workload
                     {
                         grainID = this.keyGeneratorPerWorkloadType[txId.type].NextValue();
                         // but make sure there is no active session for the customer. if so, pick another customer
-                        ICustomerWorker customerWorker;
                         while (this.customerStatusCache.ContainsKey(grainID) &&
                                 customerStatusCache[grainID] == CustomerWorkerStatus.BROWSING)
                         {
                             grainID = this.keyGeneratorPerWorkloadType[txId.type].NextValue();
                         }
-                        customerWorker = this.orleansClient.GetGrain<ICustomerWorker>(grainID);
                         
-                        this.logger.LogWarning("Customer worker {0} defined!", grainID);
+                        this.logger.LogInformation("Customer worker {0} defined!", grainID);
                         var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConstants.CustomerStreamId, grainID.ToString());
                         this.customerStatusCache[grainID] = CustomerWorkerStatus.BROWSING;
                         _ = streamOutgoing.OnNextAsync(txId.tid);
-                        this.logger.LogWarning("Customer worker {0} message sent!", grainID);
+                        this.logger.LogInformation("Customer worker {0} message sent!", grainID);
+                        break;
+                    }
+                    // delivery worker
+                    case TransactionType.UPDATE_DELIVERY:
+                    {
+                        var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConstants.DeliveryStreamId, "0");
+                        _ = streamOutgoing.OnNextAsync(txId.tid);
                         break;
                     }
                     // seller worker
@@ -172,15 +172,6 @@ namespace Client.Workload
                         _ = streamOutgoing.OnNextAsync(txId);
                         break;
                     }
-                    // delivery worker
-                    case TransactionType.UPDATE_DELIVERY:
-                    {
-                        // distribute workload accross many actors
-                        int workerId = new Random().Next(deliveryRange.min, deliveryRange.max + 1);
-                        var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConstants.DeliveryStreamId, workerId.ToString());
-                        _ = streamOutgoing.OnNextAsync(txId.tid);
-                        break;
-                    }
                     default: { throw new Exception("Thread ID " + threadId + " Unknown transaction type defined!"); }
                 }
             }
@@ -194,7 +185,7 @@ namespace Client.Workload
         private Task UpdateCustomerStatusAsync(CustomerWorkerStatusUpdate update, StreamSequenceToken token = null)
         {
             var old = this.customerStatusCache[update.customerId];
-            this.logger.LogWarning("Attempt to update customer worker {0} status in cache. Previous {1} Update {2}",
+            this.logger.LogInformation("Attempt to update customer worker {0} status in cache. Previous {1} Update {2}",
                 update.customerId, old, update.status);
             this.customerStatusCache[update.customerId] = update.status;
             Shared.ResultQueue.Add(0);

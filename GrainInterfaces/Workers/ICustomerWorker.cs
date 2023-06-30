@@ -7,6 +7,6 @@ namespace GrainInterfaces.Workers
 {
 	public interface ICustomerWorker : IGrainWithIntegerKey
 	{
-        Task Init(CustomerWorkerConfig config, Customer customer);
+        Task Init(CustomerWorkerConfig config, Customer customer, bool endToEndLatencyCollection, string connection);
     }
 }

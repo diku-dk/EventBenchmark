@@ -4,9 +4,9 @@ using Common.Workload;
 using Common.Workload.Customer;
 using Common.Workload.Seller;
 using Client.Streaming;
-using Common.Distribution.YCSB;
 using Common.Distribution;
 using Common.Streaming;
+using Common.Workload.Delivery;
 
 namespace Client.Workload
 {
@@ -22,6 +22,9 @@ namespace Client.Workload
 
         public int delayBetweenRequests = 1000;
 
+        // client perspective
+        public bool endToEndLatencyCollection = false;
+
         /**
          * from highest to lowest. last entry must be 100
          * e.g. customer_session 70, price_update 95, delivery 100
@@ -29,11 +32,6 @@ namespace Client.Workload
          * 25% price update and 5% delivery
          */
         public IDictionary<TransactionType,int> transactionDistribution { get; set; }
-
-        // similar to ingestion config
-        // but as new microservices might be added here
-        // we have this attribute in the config
-        public Dictionary<string, string> mapTableToUrl { get; set; }
 
         // map kafka topic to orleans stream Guid
         public readonly Dictionary<string, Guid> mapTopicToStreamGuid = new()
@@ -53,6 +51,8 @@ namespace Client.Workload
         public CustomerWorkerConfig customerWorkerConfig { get; set; }
 
         public SellerWorkerConfig sellerWorkerConfig { get; set; }
+
+        public DeliveryWorkerConfig deliveryWorkerConfig { get; set; }
 
         // customer key distribution
         public DistributionType customerDistribution { get; set; }

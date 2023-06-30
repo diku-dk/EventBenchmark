@@ -7,10 +7,8 @@ using System.Threading.Tasks;
 using System.IO;
 using Microsoft.Extensions.Logging;
 using System.Linq;
-using Client.Http;
 using Client.Ingestion.Config;
 using Client.Workload;
-using Microsoft.Extensions.Hosting;
 using Common.Infra;
 
 namespace Client
@@ -25,7 +23,6 @@ namespace Client
     public class Program
     {
         private static ILogger logger = LoggerProxy.GetInstance("Program");
-        private static readonly bool mock = false;
 
         /*
          * 
@@ -40,14 +37,6 @@ namespace Client
             if (client == null) return;
             logger.LogInformation("Orleans client initialized!");
 
-            HttpServer httpServer = null;
-            if (mock)
-            {
-                logger.LogInformation("Initializing Mock Http server...");
-                httpServer = new HttpServer(new DebugHttpHandler());
-                Task httpServerTask = Task.Run(httpServer.Run);
-            }
-
             WorkflowOrchestrator orchestrator = new WorkflowOrchestrator(client, masterConfig.workflowConfig, masterConfig.syntheticDataConfig, masterConfig.ingestionConfig, masterConfig.workloadConfig);
             await orchestrator.Run();
 
@@ -56,11 +45,6 @@ namespace Client
             await client.Close();
 
             logger.LogInformation("Orleans client finalized!");
-
-            if (mock)
-            {
-                httpServer.Stop();
-            }
         }
 
         /**
@@ -171,6 +155,27 @@ namespace Client
                 if (dataLoadConfig.numCustomers < workloadConfig.concurrencyLevel)
                 {
                     throw new Exception("Total number of customers must be higher than concurrency level");
+                }
+
+                if (workloadConfig.customerWorkerConfig.productUrl is null)
+                {
+                    throw new Exception("No products URL found! Execution suspended.");
+                }
+                if (workloadConfig.customerWorkerConfig.cartUrl is null)
+                {
+                    throw new Exception("No carts URL found! Execution suspended.");
+                }
+                if (workloadConfig.sellerWorkerConfig.productUrl is null)
+                {
+                    throw new Exception("No product URL found for seller! Execution suspended.");
+                }
+                if (workloadConfig.sellerWorkerConfig.sellerUrl is null)
+                {
+                    throw new Exception("No sellers URL found! Execution suspended.");
+                }
+                if (workloadConfig.deliveryWorkerConfig.shipmentUrl is null)
+                {
+                    throw new Exception("No shipment URL found! Execution suspended.");
                 }
 
             }

@@ -1,4 +1,4 @@
-﻿namespace Common.Workload
+﻿namespace Common.Workload.Seller
 {
 	/**
 	 * Received by seller worker grains

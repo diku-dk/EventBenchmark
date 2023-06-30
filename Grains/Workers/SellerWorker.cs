@@ -16,10 +16,18 @@ using Orleans;
 using Orleans.Streams;
 using Common.Distribution;
 using Common.Workload;
+using Common.Workload.Metrics;
 using Common.Requests;
+using Client.Streaming.Redis;
+using Newtonsoft.Json.Linq;
+using System.Text;
+using System.Threading;
+using System.Collections.Concurrent;
+using Orleans.Concurrency;
 
 namespace Grains.Workers
 {
+    [Reentrant]
 	public class SellerWorker : Grain, ISellerWorker
     {
         private readonly Random random;
@@ -27,8 +35,6 @@ namespace Grains.Workers
         private SellerWorkerConfig config;
 
         private IStreamProvider streamProvider;
-
-        //private IAsyncStream<Event> stream;
 
         private long sellerId;
 
@@ -43,17 +49,22 @@ namespace Grains.Workers
 
         private IAsyncStream<SellerWorkerStatusUpdate> txStream;
 
-        private readonly ISet<long> deletedProducts;
+        private readonly IDictionary<long,byte> deletedProducts;
 
-        private readonly IList<TransactionIdentifier> submittedTransactions = new List<TransactionIdentifier>();
+        private readonly ConcurrentBag<TransactionIdentifier> submittedTransactions = new ConcurrentBag<TransactionIdentifier>();
         private readonly IList<TransactionOutput> finishedTransactions = new List<TransactionOutput>();
+
+        private bool endToEndLatencyCollection = false;
+        private CancellationTokenSource token = new CancellationTokenSource();
+        private Task externalTask;
+        private string channel;
 
         public SellerWorker(ILogger<SellerWorker> logger)
         {
             this._logger = logger;
             this.random = new Random();
             this.status = SellerWorkerStatus.IDLE;
-            this.deletedProducts = new HashSet<long>();
+            this.deletedProducts = new ConcurrentDictionary<long,byte>();
         }
 
         private sealed class ProductComparer : IComparer<Product>
@@ -66,15 +77,15 @@ namespace Grains.Workers
 
         private static readonly ProductComparer productComparer = new ProductComparer();
 
-        public Task Init(SellerWorkerConfig sellerConfig, List<Product> products)
+        public Task Init(SellerWorkerConfig sellerConfig, List<Product> products, bool endToEndLatencyCollection, string connection)
         {
             this._logger.LogWarning("Init -> Seller worker {0} with #{1} product(s).", this.sellerId, products.Count);
             this.config = sellerConfig;
             this.products = products;
 
             this.products.Sort(productComparer);
-            int firstId = (int) this.products[0].product_id;
-            int lastId = (int) this.products.ElementAt(this.products.Count-1).product_id;
+            int firstId = (int)this.products[0].product_id;
+            int lastId = (int)this.products.ElementAt(this.products.Count - 1).product_id;
 
             this._logger.LogWarning("Init -> Seller worker {0} first {1} last {2}.", this.sellerId, this.products.ElementAt(0).product_id, lastId);
 
@@ -83,6 +94,22 @@ namespace Grains.Workers
                  new UniformLongGenerator(firstId, lastId) :
                  new ZipfianGenerator(firstId, lastId);
 
+            this.endToEndLatencyCollection = endToEndLatencyCollection;
+            if (endToEndLatencyCollection) {
+                this.channel = new StringBuilder(nameof(TransactionMark)).Append('_').Append(sellerId).ToString();
+                this.externalTask = Task.Run(() => RedisUtils.Subscribe(connection, channel, token.Token, entry =>
+                {
+                    var now = DateTime.Now;
+                    try
+                    {
+                        JObject d = JsonConvert.DeserializeObject<JObject>(entry.Values[0].Value.ToString());
+                        TransactionMark mark = JsonConvert.DeserializeObject<TransactionMark>(d.SelectToken("['data']").ToString());
+                        finishedTransactions.Add(new TransactionOutput(mark.tid, now));
+                    }
+                    catch (Exception) { }
+                }));
+            }
+
             return Task.CompletedTask;
         }
 
@@ -90,19 +117,6 @@ namespace Grains.Workers
         {
             this.sellerId = this.GetPrimaryKeyLong();
             this.streamProvider = this.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
-
-            /*
-            this.stream = streamProvider.GetStream<Event>(StreamingConstants.SellerReactStreamId, this.sellerId.ToString());
-            var subscriptionHandles = await stream.GetAllSubscriptionHandles();
-            if (subscriptionHandles.Count > 0)
-            {
-                foreach (var subscriptionHandle in subscriptionHandles)
-                {
-                    await subscriptionHandle.ResumeAsync(ReactToLowStock);
-                }
-            }
-            await this.stream.SubscribeAsync<Event>(ReactToLowStock);
-            */
 
             var workloadStream = streamProvider.GetStream<TransactionInput>(StreamingConstants.SellerStreamId, this.sellerId.ToString());
             var subscriptionHandles_ = await workloadStream.GetAllSubscriptionHandles();
@@ -146,13 +160,12 @@ namespace Grains.Workers
 
         private async Task BrowseDashboard(int tid)
         {
-
             await Task.Run(() =>
             {
                 try
                 {
                     this._logger.LogWarning("Seller {0}: Dashboard will be queried...", this.sellerId);
-                    HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, config.urls["sellers"] + "/" + this.sellerId);
+                    HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, config.sellerUrl + "/" + this.sellerId);
                     this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.DASHBOARD, DateTime.Now));
                     var response = HttpUtils.client.Send(message);
                     response.EnsureSuccessStatusCode();
@@ -164,7 +177,6 @@ namespace Grains.Workers
                     this._logger.LogError("Seller {0}: Dashboard could not be retrieved: {1}", this.sellerId, e.Message);
                 }
             });
-
         }
 
         private async Task DeleteProduct(int tid)
@@ -177,7 +189,7 @@ namespace Grains.Workers
             
             long selectedProduct = this.productIdGenerator.NextValue();
 
-            while (deletedProducts.Contains(selectedProduct))
+            while (deletedProducts.ContainsKey(selectedProduct))
             {
                 selectedProduct = this.productIdGenerator.NextValue();
             }
@@ -187,11 +199,13 @@ namespace Grains.Workers
                 try
                 {
                     var obj = JsonConvert.SerializeObject(new DeleteProduct(sellerId, selectedProduct, tid));
-                    HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Delete, config.urls["products"]);
+                    HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Delete, config.productUrl);
                     message.Content = HttpUtils.BuildPayload(obj);
+                    this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.DELETE_PRODUCT, DateTime.Now));
                     var response = HttpUtils.client.Send(message);
                     response.EnsureSuccessStatusCode();
-                    this.deletedProducts.Add(selectedProduct);
+                    // many threads can access the set at the same time...
+                    this.deletedProducts.Add(selectedProduct, 0);
                     this._logger.LogWarning("Seller {0}: Product {1} deleted.", this.sellerId, selectedProduct);
                 }
                 catch (Exception e) {
@@ -205,7 +219,7 @@ namespace Grains.Workers
             HttpResponseMessage response = await Task.Run(async () =>
             {
                 // [query string](https://en.wikipedia.org/wiki/Query_string)
-                return await HttpUtils.client.GetAsync(config.urls["products"] + "/" + this.sellerId);
+                return await HttpUtils.client.GetAsync(config.productUrl + "/" + this.sellerId);
             });
             // deserialize response
             response.EnsureSuccessStatusCode();
@@ -227,7 +241,7 @@ namespace Grains.Workers
             // 2 - select one to submit the update (based on distribution)
             long selectedProduct = this.productIdGenerator.NextValue();
 
-            while (this.deletedProducts.Contains(selectedProduct))
+            while (this.deletedProducts.ContainsKey(selectedProduct))
             {
                 selectedProduct = this.productIdGenerator.NextValue();
             }
@@ -244,8 +258,9 @@ namespace Grains.Workers
             var resp = await Task.Run(() =>
             {
                 // https://dev.olist.com/docs/editing-a-product
-                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Patch, config.urls["products"]);
+                HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Patch, config.productUrl);
                 request.Content = HttpUtils.BuildPayload(serializedObject);
+                this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.PRICE_UPDATE, DateTime.Now));
                 return HttpUtils.client.Send(request);
             });
 
@@ -268,18 +283,6 @@ namespace Grains.Workers
             {
                 return obj.product_id.GetHashCode();
             }
-        }
-
-        // app will send
-        // low stock, marketplace offers this estimation
-        // received from a continuous query (basically implement a model)[defined function or sql]
-        // the standard deviation for the continuous query
-        private Task ReactToLowStock(Event lowStockWarning, StreamSequenceToken token)
-        {
-            // given a distribution, the seller can increase and send an event increasing the stock or not
-            // maybe it is reasonable to always increase stock to a minimum level
-            // let's do it first
-            return Task.CompletedTask;
         }
 
         public Task<long> GetProductId()

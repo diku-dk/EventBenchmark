@@ -1,6 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Threading;
-using Common.Workload;
+using Common.Workload.Seller;
 
 namespace Client.Workload
 {

@@ -1,6 +1,5 @@
 ﻿{
-  "healthCheck": false,
-  "healthCheckEndpoint": "/health",
+  "healthCheck": true,
   "dataLoad": true,
   "ingestion": true,
   "transactionSubmission": true,

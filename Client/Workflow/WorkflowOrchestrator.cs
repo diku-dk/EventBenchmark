@@ -68,15 +68,16 @@ namespace Client.Workflow
          */
         public async Task Run()
         {
+            string redisConnection = string.Format("{0}:{1}", this.workloadConfig.streamingConfig.host, this.workloadConfig.streamingConfig.port);
+
             if (this.workflowConfig.healthCheck)
             {
-                string healthCheckEndpoint = this.workflowConfig.healthCheckEndpoint;
                 // for each table and associated url, perform a GET request to check if return is OK
                 // health check. is the microservice online?
                 var responses = new List<Task<HttpResponseMessage>>();
                 foreach (var tableUrl in ingestionConfig.mapTableToUrl)
                 {
-                    var urlHealth = tableUrl.Value + healthCheckEndpoint;
+                    var urlHealth = tableUrl.Value + WorkflowConfig.healthCheckEndpoint;
                     logger.LogInformation("Contacting {0} healthcheck on {1}", tableUrl.Key, urlHealth);
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, urlHealth);
                     responses.Add(HttpUtils.client.SendAsync(message));
@@ -96,17 +97,19 @@ namespace Client.Workflow
                 {
                     if (!responses[idx].Result.IsSuccessStatusCode)
                     {
-                        logger.LogInformation("Healthcheck failed for {0} in URL {1}", tableUrl.Key, tableUrl.Value);
+                        logger.LogError("Healthcheck failed for {0} in URL {1}", tableUrl.Key, tableUrl.Value);
                         return;
                     }
                     idx++;
                 }
 
+                logger.LogInformation("Healthcheck succeeded for all URLs {1}", ingestionConfig.mapTableToUrl);
+
                 // https://stackoverflow.com/questions/27102351/how-do-you-handle-failed-redis-connections
                 // https://stackoverflow.com/questions/47348341/servicestack-redis-service-availability
-                if (this.workflowConfig.transactionSubmission && !RedisUtils.TestRedisConnection())
+                if (this.workflowConfig.transactionSubmission && !RedisUtils.TestRedisConnection(redisConnection))
                 {
-                    logger.LogInformation("Healthcheck failed for Redis in URL {0}", "localhost");
+                    logger.LogInformation("Healthcheck failed for Redis in URL {0}", redisConnection);
                 }
 
                 logger.LogInformation("Healthcheck process succeeded");
@@ -134,34 +137,16 @@ namespace Client.Workflow
             if (this.workflowConfig.ingestion)
             {
                 var ingestionOrchestrator = new SimpleIngestionOrchestrator(ingestionConfig);
-
                 ingestionOrchestrator.Run();
             }
 
             if (this.workflowConfig.transactionSubmission)
             {
-                // customer session distriburtion 100 in 0 in transaction submssion
-                this.workloadConfig.customerWorkerConfig.urls = workloadConfig.mapTableToUrl;
-                CustomerWorkerConfig customerConfig = workloadConfig.customerWorkerConfig;
-
-                if (!customerConfig.urls.ContainsKey("products"))
-                {
-                    throw new Exception("No products URL found! Execution suspended.");
-                }
-                if (!customerConfig.urls.ContainsKey("carts"))
-                {
-                    throw new Exception("No carts URL found! Execution suspended.");
-                }
-                if (!customerConfig.urls.ContainsKey("customers"))
-                {
-                    throw new Exception("No customers URL found! Execution suspended.");
-                }
-
                 // get number of products
                 using var connection = new DuckDBConnection(connectionString);
                 connection.Open();
                 var endValue = DuckDbUtils.Count(connection, "products");
-                if (endValue < customerConfig.maxNumberKeysToBrowse || endValue < customerConfig.maxNumberKeysToAddToCart)
+                if (endValue < this.workloadConfig.customerWorkerConfig.maxNumberKeysToBrowse || endValue < this.workloadConfig.customerWorkerConfig.maxNumberKeysToAddToCart)
                 {
                     throw new Exception("Number of available products < possible number of keys to checkout. That may lead to customer grain looping forever!");
                 }
@@ -178,7 +163,7 @@ namespace Client.Workflow
                 foreach (var customer in customers)
                 {
                     customerWorker = this.orleansClient.GetGrain<ICustomerWorker>(customer.id);
-                    tasks.Add( customerWorker.Init(customerConfig, customer) );
+                    tasks.Add( customerWorker.Init(this.workloadConfig.customerWorkerConfig, customer, this.workloadConfig.endToEndLatencyCollection, redisConnection) );
                 }
                 await Task.WhenAll(tasks);
 
@@ -190,44 +175,44 @@ namespace Client.Workflow
                 {
                     List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
                     sellerWorker = this.orleansClient.GetGrain<ISellerWorker>(i);
-                    tasks.Add(sellerWorker.Init(this.workloadConfig.sellerWorkerConfig, products));
+                    tasks.Add(sellerWorker.Init(this.workloadConfig.sellerWorkerConfig, products, this.workloadConfig.endToEndLatencyCollection, redisConnection));
                 }
                 await Task.WhenAll(tasks);
-
-                // calc percentage of delivery txs
-                tasks.Clear();
-                // activate delivery workers
-                Interval deliveryRange = null;
-                if (this.workloadConfig.transactionDistribution.ContainsKey(TransactionType.UPDATE_DELIVERY))
-                {
-                    int minDeliveryWorkers = GetMinNumWorkersPerTransaction(TransactionType.UPDATE_DELIVERY);
-                    for (int i = 1; i <= minDeliveryWorkers; i++)
-                    {
-                        tasks.Add(this.orleansClient.GetGrain<IDeliveryWorker>(i).Init(this.workloadConfig.mapTableToUrl["shipments"]));
-                    }
-                    deliveryRange = new Interval(1, minDeliveryWorkers);
-                    await Task.WhenAll(tasks);
-                }
 
                 // could be read in the data load config, but in cases the file is not read, reading from DB ensures the value is always fulfilled
                 long numCustomers = DuckDbUtils.Count(connection, "customers");
                 var customerRange = new Interval(1, (int)numCustomers);
 
+                // activate delivery worker
+                await this.orleansClient.GetGrain<IDeliveryWorker>(0).Init(this.workloadConfig.deliveryWorkerConfig);
+
                 // setup transaction orchestrator
-                WorkloadOrchestrator workloadOrchestrator = new WorkloadOrchestrator(this.orleansClient, this.workloadConfig, customerRange, deliveryRange);
+                WorkloadOrchestrator workloadOrchestrator = new WorkloadOrchestrator(this.orleansClient, this.workloadConfig, customerRange);
 
                 Task workloadTask = Task.Run(workloadOrchestrator.Run);
 
                 // listen for cluster client disconnect and stop the sleep if necessary... Task.WhenAny...
-                await Task.WhenAny(workloadTask, OrleansClientFactory._siloFailedTask.Task);               
+                await Task.WhenAny(workloadTask, OrleansClientFactory._siloFailedTask.Task);
 
-            }
+                if (this.workflowConfig.collection)
+                {
+                    // set up data collection for metrics
 
-            if (this.workflowConfig.collection)
-            {
+                    if (this.workloadConfig.endToEndLatencyCollection) {
+                        // stop subscription to streams in every worker
+                        // this is the end to end latency
+                        foreach (var customer in customers)
+                        {
+                            customerWorker = this.orleansClient.GetGrain<ICustomerWorker>(customer.id);
+                            // customerWorker.
+                            // TODO complete
+                        }
+                    }
 
-                // set up data collection for metrics
-
+                    // collect data from prometheus here
+                    // http://localhost:9090/api/v1/query?query=dapr_component_pubsub_ingress_count
+                    // http://localhost:9090/api/v1/query?query=dapr_component_pubsub_egress_count
+                }
 
             }
 
@@ -238,22 +223,6 @@ namespace Client.Workflow
 
             return;
 
-        }
-
-        private int GetMinNumWorkersPerTransaction(TransactionType transactionType)
-        {
-            KeyValuePair<TransactionType, int>? previous = null;
-            int percTarget = this.workloadConfig.transactionDistribution[transactionType];
-            foreach (var entry in this.workloadConfig.transactionDistribution)
-            {
-                if (entry.Key == transactionType) break;
-                previous = entry;
-            }
-            if(previous is not null)
-            {
-                return percTarget - previous.Value.Value;
-            }
-            return percTarget;
         }
 
     }

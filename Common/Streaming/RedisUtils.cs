@@ -21,17 +21,17 @@ namespace Client.Streaming.Redis
     public sealed class RedisUtils
     {
         
-        public static bool TestRedisConnection()
+        public static bool TestRedisConnection(string connection)
         {
-            using (var db = ConnectionMultiplexer.Connect("localhost"))
+            using (var db = ConnectionMultiplexer.Connect(connection))
             {
                 return db.IsConnected;
             }
         }
 
-        public static void TrimStreams(List<string> streams)
+        public static void TrimStreams(string connection, List<string> streams)
         {
-            using (var conn = ConnectionMultiplexer.Connect("localhost"))
+            using (var conn = ConnectionMultiplexer.Connect(connection))
             {
                 var db = conn.GetDatabase();
                 foreach (var streamName in streams)
@@ -47,7 +47,7 @@ namespace Client.Streaming.Redis
             }
         }
 
-        public static Task Subscribe(string stream, CancellationToken cancellation, Action<Entry> handler, string connection = "localhost")
+        public static Task Subscribe(string connection, string stream, CancellationToken cancellation, Action<Entry> handler)
         {
             return Listen(connection, stream, cancellation, handler);
         }
@@ -74,7 +74,7 @@ namespace Client.Streaming.Redis
             {
                 var db = redis.GetDatabase();
 
-                var currentId = "$"; // listen for new messages
+                var currentId = "0-0"; // listen from start
                 while (!cancellation.IsCancellationRequested)
                 {
                     var arguments = new List<object>

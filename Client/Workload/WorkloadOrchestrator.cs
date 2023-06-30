@@ -15,15 +15,13 @@ namespace Client.Workload
         private readonly IClusterClient orleansClient;
         private readonly WorkloadConfig workloadConfig;
         private readonly Interval customerRange;
-        private readonly Interval deliveryRange;
         private readonly ILogger logger;
 
-        public WorkloadOrchestrator(IClusterClient orleansClient, WorkloadConfig workloadConfig, Interval customerRange, Interval deliveryRange)
+        public WorkloadOrchestrator(IClusterClient orleansClient, WorkloadConfig workloadConfig, Interval customerRange)
         {
             this.orleansClient = orleansClient;
             this.workloadConfig = workloadConfig;
             this.customerRange = customerRange;
-            this.deliveryRange = deliveryRange;
             this.logger = LoggerProxy.GetInstance("WorkloadOrchestrator");
         }
 
@@ -34,7 +32,8 @@ namespace Client.Workload
             // clean streams beforehand. make sure microservices do not receive events from previous runs
             List<string> channelsToTrim = workloadConfig.streamingConfig.streams.ToList();
 
-            Task trimTasks = Task.Run(() => RedisUtils.TrimStreams(channelsToTrim));
+            string redisConnection = string.Format("{0}:{1}", this.workloadConfig.streamingConfig.host, this.workloadConfig.streamingConfig.port);
+            Task trimTasks = Task.Run(() => RedisUtils.TrimStreams(redisConnection, channelsToTrim));
 
             WorkloadGenerator workloadGen = new WorkloadGenerator(this.workloadConfig.transactionDistribution, this.workloadConfig.concurrencyLevel);
 
@@ -48,7 +47,6 @@ namespace Client.Workload
                 workloadConfig.customerWorkerConfig.sellerRange,
                 workloadConfig.customerDistribution,
                 customerRange,
-                deliveryRange,
                 workloadConfig.concurrencyLevel);
 
             Task emitTask = Task.Run(emitter.Run);
