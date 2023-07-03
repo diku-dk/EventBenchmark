@@ -70,11 +70,13 @@ namespace Client.Workload
             this.logger = LoggerProxy.GetInstance("WorkloadEmitter");
         }
 
-		public async void Run()
+		public async Task<(DateTime startTime, DateTime finishTime)> Run()
 		{
 
             SetUpCustomerWorkerListener();
             SetUpSellerWorkerListener();
+
+            DateTime startTime = DateTime.Now;
 
             int submitted = 0;
             while (submitted < concurrencyLevel)
@@ -108,8 +110,12 @@ namespace Client.Workload
 
             }
 
+            DateTime finishTime = DateTime.Now;
+
             await customerWorkerSubscription.UnsubscribeAsync();
             await sellerWorkerSubscription.UnsubscribeAsync();
+
+            return (startTime, finishTime);
         }
 
         private void SubmitTransaction()

@@ -10,11 +10,12 @@ using System.Linq;
 using Client.Ingestion.Config;
 using Client.Workload;
 using Common.Infra;
+using Client.Collection;
 
 namespace Client
 {
 
-    public record MasterConfig(WorkflowConfig workflowConfig, SyntheticDataSourceConfig syntheticDataConfig, IngestionConfig ingestionConfig, WorkloadConfig workloadConfig);
+    public record MasterConfig(WorkflowConfig workflowConfig, SyntheticDataSourceConfig syntheticDataConfig, IngestionConfig ingestionConfig, WorkloadConfig workloadConfig, CollectionConfig collectionConfig);
 
     /**
      * Main method based on 
@@ -29,7 +30,6 @@ namespace Client
          */
         public static async Task Main(string[] args)
         {
-
             var masterConfig = BuildMasterConfig(args);
 
             logger.LogInformation("Initializing Orleans client...");
@@ -37,7 +37,7 @@ namespace Client
             if (client == null) return;
             logger.LogInformation("Orleans client initialized!");
 
-            WorkflowOrchestrator orchestrator = new WorkflowOrchestrator(client, masterConfig.workflowConfig, masterConfig.syntheticDataConfig, masterConfig.ingestionConfig, masterConfig.workloadConfig);
+            WorkflowOrchestrator orchestrator = new WorkflowOrchestrator(client, masterConfig.workflowConfig, masterConfig.syntheticDataConfig, masterConfig.ingestionConfig, masterConfig.workloadConfig, masterConfig.collectionConfig);
             await orchestrator.Run();
 
             logger.LogInformation("Workflow orchestrator finished!");
@@ -54,12 +54,12 @@ namespace Client
          */
         public static MasterConfig BuildMasterConfig(string[] args)
         {
-            
+
             logger.LogInformation("Initializing benchmark driver...");
 
             string initDir = Directory.GetCurrentDirectory();
             string configFilesDir;
-            if (args is not null && args.Length > 0){
+            if (args is not null && args.Length > 0) {
                 configFilesDir = args[0];
                 logger.LogInformation("Directory of configuration files passsed as parameter: {0}", configFilesDir);
             } else
@@ -74,7 +74,7 @@ namespace Client
             }
             if (!File.Exists("data_load_config.json"))
             {
-                throw new Exception("Data load configuration file cannot be loaded from "+ configFilesDir);
+                throw new Exception("Data load configuration file cannot be loaded from " + configFilesDir);
             }
             if (!File.Exists("ingestion_config.json"))
             {
@@ -83,6 +83,10 @@ namespace Client
             if (!File.Exists("workload_config.json"))
             {
                 throw new Exception("Workload configuration file cannot be loaded from " + configFilesDir);
+            }
+            if (!File.Exists("collection_config.json"))
+            {
+                throw new Exception("Collection of metrics configuration file cannot be loaded from " + configFilesDir);
             }
 
             /** =============== Workflow config file ================= */
@@ -97,7 +101,7 @@ namespace Client
             logger.LogInformation("Workflow configuration file read succesfully");
 
             /** =============== Data load config file ================= */
-            
+
             SyntheticDataSourceConfig dataLoadConfig = null;
             if (workflowConfig.dataLoad)
             {
@@ -140,12 +144,12 @@ namespace Client
 
                 var list = workloadConfig.transactionDistribution.ToList();
                 int lastPerc = 0;
-                foreach(var entry in list)
+                foreach (var entry in list)
                 {
                     if (entry.Value < lastPerc) throw new Exception("Transaction distribution is incorrectly configured.");
                     lastPerc = entry.Value;
                 }
-                if(list.Last().Value != 100) throw new Exception("Transaction distribution is incorrectly configured.");
+                if (list.Last().Value != 100) throw new Exception("Transaction distribution is incorrectly configured.");
 
                 /**
                  * The relation between prescribed concurrency level and minimum number of customers
@@ -180,10 +184,22 @@ namespace Client
 
             }
 
+            /** =============== Collection of metrics config file ================= */
+            CollectionConfig collectionConfig = null;
+            if (workflowConfig.transactionSubmission)
+            {
+                logger.LogInformation("Init reading collection of metrics configuration file...");
+                using (StreamReader r = new StreamReader("collection_config.json"))
+                {
+                    string json = r.ReadToEnd();
+                    logger.LogInformation("collection_config.json contents:\n {0}", json);
+                    collectionConfig = JsonConvert.DeserializeObject<CollectionConfig>(json);
+                }
+                logger.LogInformation("collection of metrics file read succesfully");
+            }
+
             MasterConfig masterConfiguration = new MasterConfig(            
-                workflowConfig,dataLoadConfig, ingestionConfig, workloadConfig
-                // olistConfig = new DataGeneration.Real.OlistDataSourceConfiguration()
-            );
+                workflowConfig,dataLoadConfig, ingestionConfig, workloadConfig, collectionConfig);
             return masterConfiguration;
         }
 

@@ -1,5 +1,4 @@
-﻿using System;
-namespace Client.Workflow
+﻿namespace Client.Workflow
 {
 	public class WorkflowConfig
 	{
@@ -22,9 +21,6 @@ namespace Client.Workflow
         // prometheus
         public bool collection = true;
 
-        // prometheus URL
-        public string collectionUrl = "http://localhost:9090/api/v1";
-
         // in future, constraint checking
 
         // submit requests to clean data created as part of the transaction submission e.g., orders, payments, shipments, carts, etc
@@ -34,4 +30,3 @@ namespace Client.Workflow
         public string cleanupEndpoint = "/cleanup";
     }
 }
-

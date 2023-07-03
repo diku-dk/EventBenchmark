@@ -51,8 +51,8 @@ namespace Grains.Workers
 
         private readonly IDictionary<long,byte> deletedProducts;
 
-        private readonly ConcurrentBag<TransactionIdentifier> submittedTransactions = new ConcurrentBag<TransactionIdentifier>();
-        private readonly IList<TransactionOutput> finishedTransactions = new List<TransactionOutput>();
+        private readonly IDictionary<long,TransactionIdentifier> submittedTransactions;
+        private readonly IDictionary<long, TransactionOutput> finishedTransactions;
 
         private bool endToEndLatencyCollection = false;
         private CancellationTokenSource token = new CancellationTokenSource();
@@ -65,6 +65,8 @@ namespace Grains.Workers
             this.random = new Random();
             this.status = SellerWorkerStatus.IDLE;
             this.deletedProducts = new ConcurrentDictionary<long,byte>();
+            this.submittedTransactions = new Dictionary<long, TransactionIdentifier>();
+            this.finishedTransactions = new Dictionary<long, TransactionOutput>();
         }
 
         private sealed class ProductComparer : IComparer<Product>
@@ -104,7 +106,7 @@ namespace Grains.Workers
                     {
                         JObject d = JsonConvert.DeserializeObject<JObject>(entry.Values[0].Value.ToString());
                         TransactionMark mark = JsonConvert.DeserializeObject<TransactionMark>(d.SelectToken("['data']").ToString());
-                        finishedTransactions.Add(new TransactionOutput(mark.tid, now));
+                        finishedTransactions.Add(mark.tid, new TransactionOutput(mark.tid, now));
                     }
                     catch (Exception) { }
                 }));
@@ -166,10 +168,10 @@ namespace Grains.Workers
                 {
                     this._logger.LogWarning("Seller {0}: Dashboard will be queried...", this.sellerId);
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, config.sellerUrl + "/" + this.sellerId);
-                    this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.DASHBOARD, DateTime.Now));
+                    this.submittedTransactions.Add(tid, new TransactionIdentifier(tid, TransactionType.DASHBOARD, DateTime.Now));
                     var response = HttpUtils.client.Send(message);
                     response.EnsureSuccessStatusCode();
-                    this.finishedTransactions.Add(new TransactionOutput(tid, DateTime.Now));
+                    this.finishedTransactions.Add(tid, new TransactionOutput(tid, DateTime.Now));
                     this._logger.LogWarning("Seller {0}: Dashboard retrieved.", this.sellerId);
                 }
                 catch (Exception e)
@@ -201,7 +203,7 @@ namespace Grains.Workers
                     var obj = JsonConvert.SerializeObject(new DeleteProduct(sellerId, selectedProduct, tid));
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Delete, config.productUrl);
                     message.Content = HttpUtils.BuildPayload(obj);
-                    this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.DELETE_PRODUCT, DateTime.Now));
+                    this.submittedTransactions.Add(tid, new TransactionIdentifier(tid, TransactionType.DELETE_PRODUCT, DateTime.Now));
                     var response = HttpUtils.client.Send(message);
                     response.EnsureSuccessStatusCode();
                     // many threads can access the set at the same time...
@@ -260,7 +262,7 @@ namespace Grains.Workers
                 // https://dev.olist.com/docs/editing-a-product
                 HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Patch, config.productUrl);
                 request.Content = HttpUtils.BuildPayload(serializedObject);
-                this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.PRICE_UPDATE, DateTime.Now));
+                this.submittedTransactions.Add(tid, new TransactionIdentifier(tid, TransactionType.PRICE_UPDATE, DateTime.Now));
                 return HttpUtils.client.Send(request);
             });
 
@@ -289,6 +291,24 @@ namespace Grains.Workers
         {
             long selectedProduct = this.productIdGenerator.NextValue();
             return Task.FromResult(selectedProduct);
+        }
+
+        public Task<List<Latency>> Collect(DateTime startTime)
+        {
+            this.token.Cancel();
+
+            var targetValues = submittedTransactions.Values.Where(e => e.timestamp.CompareTo(startTime) >= 0);
+            var latencyList = new List<Latency>(submittedTransactions.Count());
+            foreach (var entry in targetValues)
+            {
+                if (finishedTransactions.ContainsKey(entry.tid))
+                {
+                    var res = finishedTransactions[entry.tid];
+                    latencyList.Add(new Latency(entry.tid, entry.type,
+                        res.timestamp.Millisecond - entry.timestamp.Millisecond));
+                }
+            }
+            return Task.FromResult(latencyList);
         }
 
     }

@@ -23,6 +23,7 @@ using Common.Workload.Metrics;
 using Client.Streaming.Redis;
 using System.Threading;
 using Newtonsoft.Json.Linq;
+using System.Collections.Concurrent;
 
 namespace Grains.Workers
 {
@@ -44,20 +45,35 @@ namespace Grains.Workers
 
         private IAsyncStream<CustomerWorkerStatusUpdate> txStream;
 
+        // the customer this worker is simulating
         private long customerId;
 
+        // the object respective to this worker
         private Customer customer;
 
+        // status of this worker
         private CustomerWorkerStatus status;
 
-        private readonly IList<TransactionIdentifier> submittedTransactions = new List<TransactionIdentifier>();
-        private readonly IList<TransactionOutput> finishedTransactions = new List<TransactionOutput>();
+        private readonly IDictionary<long, TransactionIdentifier> submittedTransactions;
+        private readonly IDictionary<long, TransactionOutput> finishedTransactions;
 
         private readonly ILogger<CustomerWorker> logger;
 
-        private CancellationTokenSource token = new CancellationTokenSource();
+        private bool endToEndLatencyCollection;
+        private CancellationTokenSource token;
         private Task externalTask;
         private string channel;
+
+        public CustomerWorker(ILogger<CustomerWorker> logger)
+        {
+            this.logger = logger;
+            this.random = new Random();
+            this.status = CustomerWorkerStatus.IDLE;
+            this.endToEndLatencyCollection = false;
+            this.token = new CancellationTokenSource();
+            this.submittedTransactions = new Dictionary<long, TransactionIdentifier>();
+            this.finishedTransactions = new Dictionary<long, TransactionOutput>();
+        }
 
         public override async Task OnActivateAsync()
         {
@@ -79,13 +95,6 @@ namespace Grains.Workers
             this.txStream = streamProvider.GetStream<CustomerWorkerStatusUpdate>(StreamingConstants.CustomerStreamId, StreamingConstants.TransactionStreamNameSpace);
         }
 
-        public CustomerWorker(ILogger<CustomerWorker> logger)
-        {
-            this.logger = logger;
-            this.random = new Random();
-            this.status = CustomerWorkerStatus.IDLE;
-        }
-
         public Task Init(CustomerWorkerConfig config, Customer customer, bool endToEndLatencyCollection, string connection = "")
         {
             this.logger.LogWarning("Customer worker {0} Init", this.customerId);
@@ -96,7 +105,7 @@ namespace Grains.Workers
                 this.config.sellerDistribution == DistributionType.UNIFORM ?
                 new UniformLongGenerator(this.config.sellerRange.min, this.config.sellerRange.max) :
                 new ZipfianGenerator(this.config.sellerRange.min, this.config.sellerRange.max);
-
+            this.endToEndLatencyCollection = endToEndLatencyCollection;
             if (endToEndLatencyCollection)
             {
                 this.channel = new StringBuilder(TransactionType.CUSTOMER_SESSION.ToString()).Append('_').Append(customerId).ToString();
@@ -111,7 +120,7 @@ namespace Grains.Workers
                     {
                         JObject d = JsonConvert.DeserializeObject<JObject>(entry.Values[0].Value.ToString());
                         TransactionMark mark = JsonConvert.DeserializeObject<TransactionMark>(d.SelectToken("['data']").ToString());
-                        finishedTransactions.Add(new TransactionOutput(mark.tid, now));
+                        finishedTransactions.Add(mark.tid, new TransactionOutput(mark.tid, now));
                     }
                     catch (Exception) { }
                 }));
@@ -164,7 +173,7 @@ namespace Grains.Workers
 
         private async Task Run(int tid, StreamSequenceToken token)
         {
-            this.logger.LogWarning("Customer worker {0} processing new task...", this.customerId);
+            this.logger.LogWarning("Customer worker {0} starting new TID: {1}", this.customerId, tid);
 
             this.status = CustomerWorkerStatus.BROWSING;
 
@@ -174,12 +183,7 @@ namespace Grains.Workers
 
             var keyMap = await DefineKeysToBrowseAsync(numberOfKeysToBrowse);
 
-            this.logger.LogWarning("Customer {0} started browsing...", this.customerId);
-
-            // browsing
             await Browse(keyMap);
-
-            this.logger.LogWarning("Customer worker {0} finished browsing.", this.customerId);
 
             // TODO should we also model this behavior?
             int numberOfKeysToCheckout =
@@ -188,28 +192,28 @@ namespace Grains.Workers
             // adding to cart
             try
             {
-                await AddToCart(DefineKeysToCheckout(keyMap.ToList(), numberOfKeysToCheckout));
+                await AddItemsToCart(DefineKeysToCheckout(keyMap.ToList(), numberOfKeysToCheckout));
+
+                await GetCart();
+
+                await Checkout(tid);
             }
             catch (Exception e)
             {
                 this.logger.LogError(e.Message);
                 this.status = CustomerWorkerStatus.CHECKOUT_FAILED;
-                await InformFailedCheckout(tid);
-                return; // no need to continue  
+                await InformFailedCheckout();
             }
-
-            await GetCart();
-
-            await Checkout(tid);
+            
         }
 
-        private async Task UpdateStatusAsync(int tid)
+        private async Task UpdateStatusAsync()
         {
             this.status = CustomerWorkerStatus.IDLE;
             await txStream.OnNextAsync(new CustomerWorkerStatusUpdate(this.customerId, this.status)); 
         }
 
-        private async Task InformFailedCheckout(int tid)
+        private async Task InformFailedCheckout()
         {
             // just cleaning cart state for next browsing
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, this.config.cartUrl + "/" + customerId + "/seal");
@@ -219,11 +223,11 @@ namespace Grains.Workers
             this.logger.LogWarning("Customer {0} checkout failed", this.customerId);
         }
 
-        private async Task InformSucceededCheckout(int tid)
+        private async Task InformSucceededCheckout()
         {
             this.status = CustomerWorkerStatus.CHECKOUT_SENT;
             this.logger.LogWarning("Customer {0} sent the checkout successfully", customerId);
-            await UpdateStatusAsync(tid);
+            await UpdateStatusAsync();
         }
 
         /**
@@ -246,7 +250,7 @@ namespace Grains.Workers
             {
                 this.status = CustomerWorkerStatus.CHECKOUT_NOT_SENT;
                 this.logger.LogWarning("Customer {0} decided to not send a checkout.", this.customerId);
-                await InformFailedCheckout(tid);
+                await InformFailedCheckout();
                 return;
             }
 
@@ -265,13 +269,14 @@ namespace Grains.Workers
             if (resp == null)
             {
                 this.status = CustomerWorkerStatus.CHECKOUT_FAILED;
-                await InformFailedCheckout(tid);
+                await InformFailedCheckout();
                 return;
             }
             if (resp.IsSuccessStatusCode)
             {
-                submittedTransactions.Add(txId);
-                await InformSucceededCheckout(tid);
+                if(endToEndLatencyCollection)
+                    submittedTransactions.Add(txId.tid, txId);
+                await InformSucceededCheckout();
                 return;
             }
 
@@ -288,17 +293,18 @@ namespace Grains.Workers
             if (resp == null || !resp.IsSuccessStatusCode)
             {
                 this.status = CustomerWorkerStatus.CHECKOUT_FAILED;
-                await InformFailedCheckout(tid);
+                await InformFailedCheckout();
                 return;
             }
 
-            submittedTransactions.Add(txId);
+            if (endToEndLatencyCollection)
+                submittedTransactions.Add(txId.tid, txId);
             // very unlikely to have another price update (considering the distribution is low)
-            await InformSucceededCheckout(tid);
+            await InformSucceededCheckout();
             
         }
 
-        private async Task AddToCart(ISet<(long sellerId, long productId)> keyMap)
+        private async Task AddItemsToCart(ISet<(long sellerId, long productId)> keyMap)
         {
             foreach (var entry in keyMap)
             {
@@ -351,6 +357,7 @@ namespace Grains.Workers
 
         private async Task Browse(ISet<(long sellerId, long productId)> keyMap)
         {
+            this.logger.LogWarning("Customer {0} started browsing...", this.customerId);
             int delay;
             foreach (var entry in keyMap)
             {
@@ -371,6 +378,7 @@ namespace Grains.Workers
                 // artificial delay after retrieving the product
                 await Task.Delay(delay);
             }
+            this.logger.LogWarning("Customer worker {0} finished browsing.", this.customerId);
         }
 
         private StringContent BuildCartItem(string productPayload, int quantity)
@@ -407,7 +415,6 @@ namespace Grains.Workers
 
         private StringContent BuildCheckoutPayload(int tid, Customer customer)
         {
-
             // define payment type randomly
             var typeIdx = random.Next(1, 4);
             PaymentType type = typeIdx > 2 ? PaymentType.CREDIT_CARD : typeIdx > 1 ? PaymentType.DEBIT_CARD : PaymentType.BOLETO;
@@ -434,6 +441,25 @@ namespace Grains.Workers
 
             var payload = JsonConvert.SerializeObject(basketCheckout);
             return HttpUtils.BuildPayload(payload);
+        }
+
+        public Task<List<Latency>> Collect(DateTime startTime)
+        {
+            // unsubscribe redis
+            this.token.Cancel();
+
+            var targetValues = submittedTransactions.Values.Where(e => e.timestamp.CompareTo(startTime) >= 0);
+            var latencyList = new List<Latency>(submittedTransactions.Count());
+            foreach (var entry in targetValues)
+            {
+                if (finishedTransactions.ContainsKey(entry.tid))
+                {
+                    var res = finishedTransactions[entry.tid];
+                    latencyList.Add(new Latency(entry.tid, entry.type,
+                        res.timestamp.Millisecond - entry.timestamp.Millisecond));
+                }
+            }
+            return Task.FromResult(latencyList);
         }
 
     }

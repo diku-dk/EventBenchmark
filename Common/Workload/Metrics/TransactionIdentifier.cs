@@ -10,6 +10,6 @@ namespace Common.Workload.Metrics
 	(
 		int tid,
 		TransactionType type,
-		DateTime startTs
+		DateTime timestamp
 	);
 }

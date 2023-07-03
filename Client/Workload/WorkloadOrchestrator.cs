@@ -6,6 +6,7 @@ using Common.Infra;
 using Microsoft.Extensions.Logging;
 using System.Linq;
 using Client.Streaming.Redis;
+using System;
 
 namespace Client.Workload
 {
@@ -25,7 +26,7 @@ namespace Client.Workload
             this.logger = LoggerProxy.GetInstance("WorkloadOrchestrator");
         }
 
-        public async Task Run()
+        public async Task<(DateTime startTime, DateTime finishTime)> Run()
         {
             logger.LogInformation("Workload orchestrator started.");
 
@@ -49,14 +50,16 @@ namespace Client.Workload
                 customerRange,
                 workloadConfig.concurrencyLevel);
 
-            Task emitTask = Task.Run(emitter.Run);
+            Task<(DateTime startTime, DateTime finishTime)> emitTask = Task.Run(emitter.Run);
 
-            await Task.WhenAny(Task.Delay(workloadConfig.executionTime));
+            await Task.Delay(this.workloadConfig.executionTime);
 
             workloadGen.Stop();
             emitter.Stop();
 
             logger.LogInformation("Workload orchestrator has finished.");
+
+            return emitTask.Result;
 
         }
 

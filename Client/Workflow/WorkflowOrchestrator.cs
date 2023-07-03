@@ -8,7 +8,6 @@ using Client.Infra;
 using Client.Ingestion;
 using Common.Http;
 using Common.Workload;
-using Common.Workload.Customer;
 using Common.Entities;
 using Common.Streaming;
 using DuckDB.NET.Data;
@@ -20,7 +19,8 @@ using Client.Workload;
 using Client.Ingestion.Config;
 using Client.Streaming.Redis;
 using Common.Infra;
-using System.Linq;
+using Common.Workload.Metrics;
+using Client.Collection;
 
 namespace Client.Workflow
 {
@@ -29,15 +29,17 @@ namespace Client.Workflow
 
         public string connectionString = "Data Source=file.db"; // "DataSource=:memory:"
 
-        public WorkflowConfig workflowConfig = null;
+        public readonly WorkflowConfig workflowConfig;
 
-        public SyntheticDataSourceConfig syntheticDataConfig = null;
+        public readonly SyntheticDataSourceConfig syntheticDataConfig;
 
-        public OlistDataSourceConfiguration olistDataConfig = null;
+        public readonly OlistDataSourceConfiguration olistDataConfig;
 
-        public IngestionConfig ingestionConfig = null;
+        public readonly IngestionConfig ingestionConfig;
 
-        public WorkloadConfig workloadConfig;
+        public readonly WorkloadConfig workloadConfig;
+
+        public readonly CollectionConfig collectionConfig;
 
         // orleans client
         private readonly IClusterClient orleansClient;
@@ -47,10 +49,9 @@ namespace Client.Workflow
 
         private readonly ILogger logger;
 
-        // synchronization with possible many ingestion orchestrator
-        // CountdownEvent ingestionProcess;
-
-        public WorkflowOrchestrator(IClusterClient orleansClient, WorkflowConfig workflowConfig, SyntheticDataSourceConfig syntheticDataConfig, IngestionConfig ingestionConfig, WorkloadConfig workloadConfig)
+        public WorkflowOrchestrator(IClusterClient orleansClient, WorkflowConfig workflowConfig,
+            SyntheticDataSourceConfig syntheticDataConfig, IngestionConfig ingestionConfig,
+            WorkloadConfig workloadConfig, CollectionConfig collectionConfig)
 		{
             this.orleansClient = orleansClient;
             this.streamProvider = orleansClient.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
@@ -59,6 +60,7 @@ namespace Client.Workflow
             this.syntheticDataConfig = syntheticDataConfig;
             this.ingestionConfig = ingestionConfig;
             this.workloadConfig = workloadConfig;
+            this.collectionConfig = collectionConfig;
 
             this.logger = LoggerProxy.GetInstance("WorkflowOrchestrator");
         }
@@ -184,34 +186,81 @@ namespace Client.Workflow
                 var customerRange = new Interval(1, (int)numCustomers);
 
                 // activate delivery worker
-                await this.orleansClient.GetGrain<IDeliveryWorker>(0).Init(this.workloadConfig.deliveryWorkerConfig);
+                var deliveryWorker = this.orleansClient.GetGrain<IDeliveryWorker>(0);
+                await deliveryWorker.Init(this.workloadConfig.deliveryWorkerConfig, this.workloadConfig.endToEndLatencyCollection);
 
                 // setup transaction orchestrator
                 WorkloadOrchestrator workloadOrchestrator = new WorkloadOrchestrator(this.orleansClient, this.workloadConfig, customerRange);
 
-                Task workloadTask = Task.Run(workloadOrchestrator.Run);
+                var workloadTask = Task.Run(workloadOrchestrator.Run);
+                DateTime startTime = workloadTask.Result.startTime;
+                DateTime finishTime = workloadTask.Result.finishTime;
 
                 // listen for cluster client disconnect and stop the sleep if necessary... Task.WhenAny...
                 await Task.WhenAny(workloadTask, OrleansClientFactory._siloFailedTask.Task);
 
+                // set up data collection for metrics
                 if (this.workflowConfig.collection)
                 {
-                    // set up data collection for metrics
 
+                    // this is the end to end latency
                     if (this.workloadConfig.endToEndLatencyCollection) {
-                        // stop subscription to streams in every worker
-                        // this is the end to end latency
+                        // collect() stops subscription to redis streams in every worker
+                        
+                        var latencyGatherTasks = new List<Task<List<Latency>>>();
+
                         foreach (var customer in customers)
                         {
                             customerWorker = this.orleansClient.GetGrain<ICustomerWorker>(customer.id);
-                            // customerWorker.
-                            // TODO complete
+                            latencyGatherTasks.Add( customerWorker.Collect(startTime) );
                         }
+
+                        for (int i = 1; i <= numSellers; i++)
+                        {
+                            sellerWorker = this.orleansClient.GetGrain<ISellerWorker>(i);
+                            latencyGatherTasks.Add(sellerWorker.Collect(startTime));
+                        }
+
+                        latencyGatherTasks.Add( deliveryWorker.Collect(startTime) );
+
+
+                        // this does not mean the system has finished processing it. we need to get the last tid processed from the grains
+                        // var lastTidSubmitted = Shared.Workload.Take().tid - 1;
+                        // TODO continue...
+
                     }
 
-                    // collect data from prometheus here
-                    // http://localhost:9090/api/v1/query?query=dapr_component_pubsub_ingress_count
-                    // http://localhost:9090/api/v1/query?query=dapr_component_pubsub_egress_count
+                    // check whether prometheus is online
+                    string urlMetric = collectionConfig.baseUrl + "/" + collectionConfig.ready;
+                    logger.LogInformation("Contacting {0} metric collection API healthcheck on {1}", urlMetric);
+                    HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, urlMetric);
+                    var resp = HttpUtils.client.Send(message);
+                    if (resp.IsSuccessStatusCode)
+                    {
+
+                        // collect data from prometheus here
+                        // http://localhost:9090/api/v1/query?query=dapr_component_pubsub_ingress_count
+                        // http://localhost:9090/api/v1/query?query=dapr_component_pubsub_egress_count&name=ReserveInventory
+                        // http://localhost:9090/api/v1/query?query=dapr_component_pubsub_egress_count{app_id="cart"}&time=1688136844
+                        // http://localhost:9090/api/v1/query?query=dapr_component_pubsub_egress_count{app_id="cart",topic="ReserveStock"}&time=1688136844
+
+                        var ingressCountPerMs = new Dictionary<string,long>();
+
+                        foreach(var entry in collectionConfig.egress_topics)
+                        {
+
+                        }
+
+                        var egressCountPerMs = new Dictionary<string, long>();
+
+
+                    }
+                    else
+                    {
+                        logger.LogError("It was not possible to contact {0} metric collection API healthcheck on {1}", urlMetric);
+                    }
+
+                  
                 }
 
             }
