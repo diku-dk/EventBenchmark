@@ -30,9 +30,9 @@ namespace Client.Workload
         {
             logger.LogInformation("Workload orchestrator started.");
 
+            // TODO create a cleaning task, separated from this.... channels to trim go there to a cleaning config file
             // clean streams beforehand. make sure microservices do not receive events from previous runs
             List<string> channelsToTrim = workloadConfig.streamingConfig.streams.ToList();
-
             string redisConnection = string.Format("{0}:{1}", this.workloadConfig.streamingConfig.host, this.workloadConfig.streamingConfig.port);
             Task trimTasks = Task.Run(() => RedisUtils.TrimStreams(redisConnection, channelsToTrim));
 

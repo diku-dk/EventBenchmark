@@ -11,6 +11,10 @@ using Client.Ingestion.Config;
 using Client.Workload;
 using Common.Infra;
 using Client.Collection;
+using Common.Http;
+using System.Dynamic;
+using System.Net.Http;
+using System.Collections.Generic;
 
 namespace Client
 {
@@ -24,6 +28,21 @@ namespace Client
     public class Program
     {
         private static ILogger logger = LoggerProxy.GetInstance("Program");
+
+        public static async Task Main_(string[] args)
+        {
+            var masterConfig = BuildMasterConfig(args);
+            var message = new HttpRequestMessage(HttpMethod.Get, "http://localhost:9090/api/v1/query?query=dapr_component_pubsub_egress_count{app_id=%22cart%22,topic=%22ReserveStock%22}&time=1688136844");
+            // masterConfig.collectionConfig.baseUrl + "/" + masterConfig.collectionConfig.ingress_count);
+            var resp = HttpUtils.client.Send(message);
+            string respStr = await resp.Content.ReadAsStringAsync();
+            dynamic respObj = JsonConvert.DeserializeObject<ExpandoObject>(respStr);
+
+            ExpandoObject data = respObj.data.result[0];
+            var elem = ((List<object>)data.ElementAt(1).Value)[1];
+
+            Console.WriteLine("the respObj is {0}", respObj);
+        }
 
         /*
          * 
@@ -101,7 +120,6 @@ namespace Client
             logger.LogInformation("Workflow configuration file read succesfully");
 
             /** =============== Data load config file ================= */
-
             SyntheticDataSourceConfig dataLoadConfig = null;
             if (workflowConfig.dataLoad)
             {

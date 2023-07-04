@@ -23,7 +23,6 @@ using Common.Workload.Metrics;
 using Client.Streaming.Redis;
 using System.Threading;
 using Newtonsoft.Json.Linq;
-using System.Collections.Concurrent;
 
 namespace Grains.Workers
 {

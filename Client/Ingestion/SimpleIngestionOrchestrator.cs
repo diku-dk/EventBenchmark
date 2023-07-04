@@ -1,16 +1,13 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Net.Http;
 using System.Reflection;
 using System.Threading.Tasks;
-using System.Xml.Linq;
 using Client.Ingestion.Config;
 using Common.Http;
 using DuckDB.NET.Data;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using static DuckDB.NET.NativeMethods;
 
 namespace Client.Ingestion
 {
@@ -58,15 +55,11 @@ namespace Client.Ingestion
             Console.WriteLine("Ingestion process has terminated.");
         }
 
-        // private static readonly JsonSerializerSettings settings = new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore };
-     
-
         private void Produce(DuckDBDataReader queryResult)
         {
-            JObject obj = new JObject();
             while (queryResult.Read())
             {
-               
+                JObject obj = new JObject();
                 for (int ordinal = 0; ordinal < queryResult.FieldCount; ordinal++)
                 {
                     var column = queryResult.GetName(ordinal);
@@ -77,7 +70,6 @@ namespace Client.Ingestion
                 string strObj = JsonConvert.SerializeObject(obj);
                 this.tuples.Add(strObj);
             }
-
         }
 
         private static readonly BindingFlags bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
