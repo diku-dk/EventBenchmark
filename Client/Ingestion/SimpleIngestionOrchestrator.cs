@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Threading.Tasks;
 using Client.Ingestion.Config;
 using Common.Http;
@@ -15,12 +17,12 @@ namespace Client.Ingestion
 	{
 
 		private readonly IngestionConfig config;
-        private readonly BlockingCollection<string> tuples;
+        private readonly BlockingCollection<JObject> tuples;
 
         public SimpleIngestionOrchestrator(IngestionConfig config)
 		{
 			this.config = config;
-            this.tuples = new BlockingCollection<string>();
+            this.tuples = new BlockingCollection<JObject>();
         }
 
 		public void Run()
@@ -32,6 +34,8 @@ namespace Client.Ingestion
                 duckDBConnection.Open();
                 var command = duckDBConnection.CreateCommand();
 
+                List<Task> tasksToWait = new();
+
                 foreach (var table in config.mapTableToUrl)
                 {
                     Console.WriteLine("Ingesting table {0}", table);
@@ -42,12 +46,26 @@ namespace Client.Ingestion
                     Task t1 = Task.Run(() => Produce(queryResult));
 
                     long rowCount = GetRowCount(queryResult);
-
                     Task t2 = Task.Run(() => Consume(table.Value, rowCount));
 
-                    Task.WaitAll(t1, t2);
+                    // spawning several threads leads to corrupted state. guess it is related to the shared queue...
+                    if (config.distributionStrategy == IngestionDistributionStrategy.SINGLE_WORKER)
+                    {
+                        Task.WaitAll(t1, t2);
+                        Console.WriteLine("Finished loading table {0}", table);
+                    }
+                    else
+                    {
+                        tasksToWait.Add(t1);
+                        tasksToWait.Add(t2);
+                    }
+ 
+                }
 
-                    Console.WriteLine("Finished loading table {0}", table);
+                if(tasksToWait.Count > 0)
+                {
+                    Task.WhenAll(tasksToWait);
+                    Console.WriteLine("Finished loading all tables");
                 }
 
             }
@@ -66,9 +84,7 @@ namespace Client.Ingestion
                     var val = queryResult.GetValue(ordinal);
                     obj[column] = JToken.FromObject(val);
                 }
-                
-                string strObj = JsonConvert.SerializeObject(obj);
-                this.tuples.Add(strObj);
+                this.tuples.Add(obj);
             }
         }
 
@@ -82,13 +98,14 @@ namespace Client.Ingestion
 
         private void Consume(string url, long rowCount) {
             int currRow = 1;
-            string obj = null;
+            string strObj = null;
             do
             {
-                obj = this.tuples.Take();
+                var obj = this.tuples.Take();
+                strObj = JsonConvert.SerializeObject(obj); 
            
                 HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, url);
-                message.Content = HttpUtils.BuildPayload(obj);
+                message.Content = HttpUtils.BuildPayload(strObj);
 
                 try
                 {

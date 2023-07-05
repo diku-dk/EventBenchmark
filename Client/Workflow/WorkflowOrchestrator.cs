@@ -21,45 +21,38 @@ using Client.Streaming.Redis;
 using Common.Infra;
 using Client.Collection;
 using System.Linq;
+using Client.Cleaning;
 
 namespace Client.Workflow
 {
 	public class WorkflowOrchestrator
 	{
 
-        public readonly WorkflowConfig workflowConfig;
+        private readonly WorkflowConfig workflowConfig;
 
-        public readonly SyntheticDataSourceConfig syntheticDataConfig;
+        private readonly SyntheticDataSourceConfig syntheticDataConfig;
 
-        public readonly OlistDataSourceConfiguration olistDataConfig;
+        private readonly OlistDataSourceConfiguration olistDataConfig;
 
-        public readonly IngestionConfig ingestionConfig;
+        private readonly IngestionConfig ingestionConfig;
 
-        public readonly WorkloadConfig workloadConfig;
+        private readonly WorkloadConfig workloadConfig;
 
-        public readonly CollectionConfig collectionConfig;
+        private readonly CollectionConfig collectionConfig;
 
-        // orleans client
-        private readonly IClusterClient orleansClient;
-
-        // streams
-        private readonly IStreamProvider streamProvider;
+        private readonly CleaningConfig cleaningConfig;
 
         private readonly ILogger logger;
 
-        public WorkflowOrchestrator(IClusterClient orleansClient, WorkflowConfig workflowConfig,
-            SyntheticDataSourceConfig syntheticDataConfig, IngestionConfig ingestionConfig,
-            WorkloadConfig workloadConfig, CollectionConfig collectionConfig)
+        public WorkflowOrchestrator(WorkflowConfig workflowConfig, SyntheticDataSourceConfig syntheticDataConfig, IngestionConfig ingestionConfig,
+            WorkloadConfig workloadConfig, CollectionConfig collectionConfig, CleaningConfig cleaningConfig)
 		{
-            this.orleansClient = orleansClient;
-            this.streamProvider = orleansClient.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
-
             this.workflowConfig = workflowConfig;
             this.syntheticDataConfig = syntheticDataConfig;
             this.ingestionConfig = ingestionConfig;
             this.workloadConfig = workloadConfig;
             this.collectionConfig = collectionConfig;
-
+            this.cleaningConfig = cleaningConfig;
             this.logger = LoggerProxy.GetInstance("WorkflowOrchestrator");
         }
 
@@ -139,18 +132,29 @@ namespace Client.Workflow
 
             if (this.workflowConfig.transactionSubmission)
             {
+
+                logger.LogInformation("Initializing Orleans client...");
+                var orleansClient = await OrleansClientFactory.Connect();
+                if (orleansClient == null) {
+                    logger.LogError("Error on contacting Orleans Silo.");
+                    return;
+                }
+                logger.LogInformation("Orleans client initialized!");
+
+                var streamProvider = orleansClient.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
+
                 // get number of products
-                using var connection = new DuckDBConnection(ingestionConfig.connectionString);
+                using var connection = new DuckDBConnection(this.workloadConfig.connectionString);
                 connection.Open();
                 List<Customer> customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
                 long numSellers = DuckDbUtils.Count(connection, "sellers");
                 var customerRange = new Interval(1, customers.Count());
 
                 // initialize all workers
-                await Prepare(customers, numSellers, connection);
+                await Prepare(orleansClient, customers, numSellers, connection);
 
                 // setup transaction orchestrator
-                WorkloadOrchestrator workloadOrchestrator = new WorkloadOrchestrator(orleansClient, workloadConfig, customerRange);
+                WorkloadOrchestrator workloadOrchestrator = new WorkloadOrchestrator(orleansClient, this.workloadConfig, customerRange);
 
                 var workloadTask = Task.Run(workloadOrchestrator.Run);
                 DateTime startTime = workloadTask.Result.startTime;
@@ -162,22 +166,41 @@ namespace Client.Workflow
                 // set up data collection for metrics
                 if (this.workflowConfig.collection)
                 {
-                    MetricGather metricGather = new MetricGather(orleansClient, customers, numSellers, collectionConfig, this.workloadConfig.endToEndLatencyCollection);
+                    MetricGather metricGather = new MetricGather(orleansClient, customers, numSellers, this.collectionConfig, this.workloadConfig.endToEndLatencyCollection);
                     await metricGather.Collect(startTime, finishTime);
                 }
 
-                if (this.workflowConfig.cleanup)
-                {
-                    // DuckDbUtils.DeleteAll(connection, "products", "seller_id = " + i);
-                }
+                await orleansClient.Close();
+                logger.LogInformation("Orleans client finalized!");
+            }
 
+            if (this.workflowConfig.cleanup)
+            {
+                // clean streams beforehand. make sure microservices do not receive events from previous runs
+                List<string> channelsToTrim = cleaningConfig.streamingConfig.streams.ToList();
+                string redisConnection = string.Format("{0}:{1}", this.cleaningConfig.streamingConfig.host, this.cleaningConfig.streamingConfig.port);
+                logger.LogInformation("Triggering {0} stream cleanup on {1}", cleaningConfig.streamingConfig.type, redisConnection);
+                Task trimTasks = Task.Run(() => RedisUtils.TrimStreams(redisConnection, channelsToTrim));
+                await trimTasks; // should also iterate over all transaction mark streams and trim them
+
+                List<Task> responses = new();
+                // truncate duckdb tables
+                foreach(var entry in this.cleaningConfig.mapMicroserviceToUrl)
+                {
+                    var urlCleanup = entry.Value + CleaningConfig.cleanupEndpoint;
+                    logger.LogInformation("Triggering {0} cleanup on {1}", entry.Key, urlCleanup);
+                    HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, urlCleanup);
+                    responses.Add(HttpUtils.client.SendAsync(message));
+                }
+                await Task.WhenAll(responses);
+                // DuckDbUtils.DeleteAll(connection, "products", "seller_id = " + i);
             }
 
             return;
 
         }
 
-        public async Task Prepare(List<Customer> customers, long numSellers, DuckDBConnection connection)
+        public async Task Prepare(IClusterClient orleansClient, List<Customer> customers, long numSellers, DuckDBConnection connection)
         {
             var endValue = DuckDbUtils.Count(connection, "products");
             if (endValue < workloadConfig.customerWorkerConfig.maxNumberKeysToBrowse || endValue < workloadConfig.customerWorkerConfig.maxNumberKeysToAddToCart)

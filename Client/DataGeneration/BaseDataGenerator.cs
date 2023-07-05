@@ -47,7 +47,7 @@ namespace Client.DataGeneration
 
         protected void GenerateStockItem(DuckDbCommand command, int productId, int sellerId)
         {
-            var quantity = Numeric(3, false);
+            var quantity = Numeric(2, false);
             var ytd = Numeric(1, false);
             var data = faker.Lorem.Sentence();
 
@@ -152,8 +152,6 @@ namespace Client.DataGeneration
             var address = RemoveBadCharacter(faker.Address.StreetAddress());
             var complement = RemoveBadCharacter(faker.Address.SecondaryAddress());
 
-            var order_count = Numeric(1, false);
-
             // issue insert statement
             var sb = new StringBuilder(baseSellerQuery);
             sb.Append('(').Append(sellerId).Append(',');
@@ -169,7 +167,7 @@ namespace Client.DataGeneration
             sb.Append('\'').Append(geolocation.city).Append("',");
             sb.Append('\'').Append(geolocation.state).Append("',");
             sb.Append('\'').Append(geolocation.zipcode).Append("',");
-            sb.Append(order_count).Append(");");
+            sb.Append(0).Append(");");
             
             Console.WriteLine(sb.ToString());
 

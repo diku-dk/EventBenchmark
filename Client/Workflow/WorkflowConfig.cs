@@ -4,29 +4,27 @@
 	{
         // step
         // check whether the microservices are all active before starting the workflow
-        public bool healthCheck = true;
+        public bool healthCheck { get; set; }
 
         // all microservices are expected to implement this API
         public const string healthCheckEndpoint = "/health";
 
         // step
-        public bool dataLoad = true;
+        public bool dataLoad { get; set; }
 
         // step
-        public bool ingestion = true;
+        public bool ingestion { get; set; }
 
         // step
-        public bool transactionSubmission = true;
+        public bool transactionSubmission { get; set; }
 
         // prometheus
-        public bool collection = true;
+        public bool collection { get; set; }
 
         // in future, constraint checking
 
         // submit requests to clean data created as part of the transaction submission e.g., orders, payments, shipments, carts, etc
-        public bool cleanup = false;
+        public bool cleanup { get; set; }
 
-        // all microservices are expected to implement this API
-        public string cleanupEndpoint = "/cleanup";
     }
 }

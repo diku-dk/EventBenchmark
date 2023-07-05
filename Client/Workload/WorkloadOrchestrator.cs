@@ -1,11 +1,8 @@
 ﻿using Orleans;
 using System.Threading.Tasks;
 using Common.Workload;
-using System.Collections.Generic;
 using Common.Infra;
 using Microsoft.Extensions.Logging;
-using System.Linq;
-using Client.Streaming.Redis;
 using System;
 
 namespace Client.Workload
@@ -30,17 +27,10 @@ namespace Client.Workload
         {
             logger.LogInformation("Workload orchestrator started.");
 
-            // TODO create a cleaning task, separated from this.... channels to trim go there to a cleaning config file
-            // clean streams beforehand. make sure microservices do not receive events from previous runs
-            List<string> channelsToTrim = workloadConfig.streamingConfig.streams.ToList();
-            string redisConnection = string.Format("{0}:{1}", this.workloadConfig.streamingConfig.host, this.workloadConfig.streamingConfig.port);
-            Task trimTasks = Task.Run(() => RedisUtils.TrimStreams(redisConnection, channelsToTrim));
-
-            WorkloadGenerator workloadGen = new WorkloadGenerator(this.workloadConfig.transactionDistribution, this.workloadConfig.concurrencyLevel);
+            WorkloadGenerator workloadGen = new WorkloadGenerator(
+                this.workloadConfig.transactionDistribution, this.workloadConfig.concurrencyLevel);
 
             Task genTask = Task.Run(workloadGen.Run);
-
-            await trimTasks;
 
             WorkloadEmitter emitter = new WorkloadEmitter(
                 orleansClient,
@@ -48,7 +38,8 @@ namespace Client.Workload
                 workloadConfig.customerWorkerConfig.sellerRange,
                 workloadConfig.customerDistribution,
                 customerRange,
-                workloadConfig.concurrencyLevel);
+                workloadConfig.concurrencyLevel,
+                this.workloadConfig.delayBetweenRequests);
 
             Task<(DateTime startTime, DateTime finishTime)> emitTask = Task.Run(emitter.Run);
 

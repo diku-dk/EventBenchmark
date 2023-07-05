@@ -13,6 +13,7 @@ namespace Client.Workload
 
     public class WorkloadConfig
     {
+        public string connectionString { get; set; } = "Data Source=file.db"; // "DataSource=:memory:"
 
         // maximum number of concurrent transactions submitted to the target system
         public int concurrencyLevel { get; set; }
@@ -20,10 +21,10 @@ namespace Client.Workload
         // a timer is configured to notify the orchestrator grain about the termination
         public int executionTime { get; set; } = 6000;
 
-        public int delayBetweenRequests = 1000;
+        public int delayBetweenRequests { get; set; } = 1000;
 
         // client perspective
-        public bool endToEndLatencyCollection = false;
+        public bool endToEndLatencyCollection { get; set; }
 
         /**
          * from highest to lowest. last entry must be 100

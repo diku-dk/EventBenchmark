@@ -1,6 +1,5 @@
 ﻿using Client.DataGeneration;
 using Client.Workflow;
-using Client.Infra;
 using Newtonsoft.Json;
 using System;
 using System.Threading.Tasks;
@@ -11,15 +10,13 @@ using Client.Ingestion.Config;
 using Client.Workload;
 using Common.Infra;
 using Client.Collection;
-using Common.Http;
-using System.Dynamic;
-using System.Net.Http;
-using System.Collections.Generic;
+using Client.Cleaning;
 
 namespace Client
 {
 
-    public record MasterConfig(WorkflowConfig workflowConfig, SyntheticDataSourceConfig syntheticDataConfig, IngestionConfig ingestionConfig, WorkloadConfig workloadConfig, CollectionConfig collectionConfig);
+    public record MasterConfig(WorkflowConfig workflowConfig, SyntheticDataSourceConfig syntheticDataConfig, IngestionConfig ingestionConfig,
+        WorkloadConfig workloadConfig, CollectionConfig collectionConfig, CleaningConfig cleaningConfig);
 
     /**
      * Main method based on 
@@ -29,9 +26,14 @@ namespace Client
     {
         private static ILogger logger = LoggerProxy.GetInstance("Program");
 
-        public static async Task Main_(string[] args)
+        public static async Task Main(string[] args)
         {
             var masterConfig = BuildMasterConfig(args);
+
+            // http://localhost:9090/api/v1/query?query=dapr_component_pubsub_ingress_count&time=1688568061.327
+
+            var res = await MetricGather.GetFromPrometheus(masterConfig.collectionConfig, "1688568061.327");
+            /*
             var message = new HttpRequestMessage(HttpMethod.Get, "http://localhost:9090/api/v1/query?query=dapr_component_pubsub_egress_count{app_id=%22cart%22,topic=%22ReserveStock%22}&time=1688136844");
             // masterConfig.collectionConfig.baseUrl + "/" + masterConfig.collectionConfig.ingress_count);
             var resp = HttpUtils.client.Send(message);
@@ -42,28 +44,25 @@ namespace Client
             var elem = ((List<object>)data.ElementAt(1).Value)[1];
 
             Console.WriteLine("the respObj is {0}", respObj);
+            */
+
+            Console.WriteLine("the respObj is {0}", res);
         }
 
         /*
          * 
          */
-        public static async Task Main(string[] args)
+        public static async Task Main_(string[] args)
         {
+            logger.LogInformation("Initializing benchmark driver...");
             var masterConfig = BuildMasterConfig(args);
-
-            logger.LogInformation("Initializing Orleans client...");
-            var client = await OrleansClientFactory.Connect();
-            if (client == null) return;
-            logger.LogInformation("Orleans client initialized!");
-
-            WorkflowOrchestrator orchestrator = new WorkflowOrchestrator(client, masterConfig.workflowConfig, masterConfig.syntheticDataConfig, masterConfig.ingestionConfig, masterConfig.workloadConfig, masterConfig.collectionConfig);
+            logger.LogInformation("Configuration parsed.");
+            WorkflowOrchestrator orchestrator = new WorkflowOrchestrator(
+                masterConfig.workflowConfig, masterConfig.syntheticDataConfig, masterConfig.ingestionConfig,
+                masterConfig.workloadConfig, masterConfig.collectionConfig, masterConfig.cleaningConfig);
+            logger.LogInformation("Starting workflow...");
             await orchestrator.Run();
-
-            logger.LogInformation("Workflow orchestrator finished!");
-
-            await client.Close();
-
-            logger.LogInformation("Orleans client finalized!");
+            logger.LogInformation("Workflow finished!");
         }
 
         /**
@@ -73,9 +72,6 @@ namespace Client
          */
         public static MasterConfig BuildMasterConfig(string[] args)
         {
-
-            logger.LogInformation("Initializing benchmark driver...");
-
             string initDir = Directory.GetCurrentDirectory();
             string configFilesDir;
             if (args is not null && args.Length > 0) {
@@ -106,6 +102,10 @@ namespace Client
             if (!File.Exists("collection_config.json"))
             {
                 throw new Exception("Collection of metrics configuration file cannot be loaded from " + configFilesDir);
+            }
+            if (!File.Exists("cleaning_config.json"))
+            {
+                throw new Exception("Cleaning configuration file cannot be loaded from " + configFilesDir);
             }
 
             /** =============== Workflow config file ================= */
@@ -174,7 +174,7 @@ namespace Client
                  * varies according to the distribution of transactions. The code below is a (very)
                  * safe threshold.
                  */
-                if (dataLoadConfig.numCustomers < workloadConfig.concurrencyLevel)
+                if (dataLoadConfig != null && dataLoadConfig.numCustomers < workloadConfig.concurrencyLevel)
                 {
                     throw new Exception("Total number of customers must be higher than concurrency level");
                 }
@@ -204,7 +204,7 @@ namespace Client
 
             /** =============== Collection of metrics config file ================= */
             CollectionConfig collectionConfig = null;
-            if (workflowConfig.transactionSubmission)
+            if (workflowConfig.collection)
             {
                 logger.LogInformation("Init reading collection of metrics configuration file...");
                 using (StreamReader r = new StreamReader("collection_config.json"))
@@ -213,11 +213,27 @@ namespace Client
                     logger.LogInformation("collection_config.json contents:\n {0}", json);
                     collectionConfig = JsonConvert.DeserializeObject<CollectionConfig>(json);
                 }
-                logger.LogInformation("collection of metrics file read succesfully");
+                logger.LogInformation("Collection of metrics file read succesfully");
             }
 
+
+            /** =============== Cleaning config file ================= */
+            CleaningConfig cleaningConfig = null;
+            if (workflowConfig.cleanup)
+            {
+                logger.LogInformation("Init reading cleaning configuration file...");
+                using (StreamReader r = new StreamReader("cleaning_config.json"))
+                {
+                    string json = r.ReadToEnd();
+                    logger.LogInformation("cleaning_config.json contents:\n {0}", json);
+                    cleaningConfig = JsonConvert.DeserializeObject<CleaningConfig>(json);
+                }
+                logger.LogInformation("Cleaning file read succesfully");
+            }
+
+
             MasterConfig masterConfiguration = new MasterConfig(            
-                workflowConfig,dataLoadConfig, ingestionConfig, workloadConfig, collectionConfig);
+                workflowConfig,dataLoadConfig, ingestionConfig, workloadConfig, collectionConfig, cleaningConfig);
             return masterConfiguration;
         }
 

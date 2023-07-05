@@ -6,13 +6,13 @@ namespace Client.Ingestion.Config
     public class IngestionConfig
     {
 
-        public string connectionString = "Data Source=file.db"; // "DataSource=:memory:"
+        public string connectionString { get; set; } = "Data Source=file.db"; // "DataSource=:memory:"
 
         // distribution of work strategy
-        public IngestionDistributionStrategy distributionStrategy = IngestionDistributionStrategy.SINGLE_WORKER;
+        public IngestionDistributionStrategy distributionStrategy { get; set; } = IngestionDistributionStrategy.SINGLE_WORKER;
 
-        // number of logical processors = Environment.ProcessorCount
-        public int numberCpus = Environment.ProcessorCount;
+        // number of logical processors by default
+        public readonly int concurrencyLevel = Environment.ProcessorCount;
 
         public IDictionary<string, string> mapTableToUrl;
 

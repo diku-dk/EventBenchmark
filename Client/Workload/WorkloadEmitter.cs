@@ -33,6 +33,8 @@ namespace Client.Workload
 
         private readonly int concurrencyLevel;
 
+        private readonly int delayBetweenRequests;
+
         private readonly ILogger logger;
 
         public WorkloadEmitter(IClusterClient clusterClient,
@@ -40,11 +42,13 @@ namespace Client.Workload
                                 Interval sellerRange,
                                 DistributionType customerDistribution,
                                 Interval customerRange,
-                                int concurrencyLevel) : base()
+                                int concurrencyLevel,
+                                int delayBetweenRequests) : base()
         {
             this.orleansClient = clusterClient;
             this.streamProvider = orleansClient.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
             this.concurrencyLevel = concurrencyLevel;
+            this.delayBetweenRequests = delayBetweenRequests;
 
             NumberGenerator sellerIdGenerator = sellerDistribution ==
                                 DistributionType.NON_UNIFORM ? new NonUniformDistribution((int)(sellerRange.max * 0.3), sellerRange.min, sellerRange.max) :
@@ -88,7 +92,7 @@ namespace Client.Workload
             // signal the queue has been drained
             Shared.WaitHandle.Set();
 
-            logger.LogInformation("[WorkloadEmitter] Will start waiting for result at {0}", DateTime.Now.Millisecond);
+            logger.LogInformation("[WorkloadEmitter] Will start waiting for result at {0}", DateTime.Now);
 
             while (IsRunning())
             {
@@ -96,7 +100,7 @@ namespace Client.Workload
                 // wait for results
                 Shared.ResultQueue.Take();
 
-                logger.LogInformation("[WorkloadEmitter] Received a result at {0}. Submitting a new transaction at", DateTime.Now.Millisecond);
+                logger.LogInformation("[WorkloadEmitter] Received a result at {0}. Submitting a new transaction then", DateTime.Now);
 
                 SubmitTransaction();
                 submitted++;
@@ -106,7 +110,9 @@ namespace Client.Workload
                     Shared.WaitHandle.Set();
                 }
 
-                // await Task.Delay(10000);
+                // throttle
+                if (this.delayBetweenRequests > 0)
+                    await Task.Delay(this.delayBetweenRequests);
 
             }
 
@@ -121,7 +127,7 @@ namespace Client.Workload
         private void SubmitTransaction()
         {
             long threadId = Environment.CurrentManagedThreadId;
-            this.logger.LogInformation("Thread ID {0} Submit transaction called", threadId);
+            this.logger.LogInformation("Thread ID {0} Submit transaction triggered", threadId);
             TransactionInput txId = Shared.Workload.Take();
             this.logger.LogInformation("Thread ID {0} Transaction type {0}", threadId, txId.type.ToString());
             try

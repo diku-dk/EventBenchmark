@@ -1,0 +1,24 @@
+﻿{
+    "streamingConfig": {
+        "type": "REDIS",
+        "host": "localhost",
+        "port": 6379,
+        "streams": [
+            "DeliveryNotification",
+            "InvoiceIssued",
+            "PaymentConfirmed",
+            "PaymentFailed",
+            "Product",
+            "ProductUpdate",
+            "ReserveStock",
+            "ShipmentNotification",
+            "StockConfirmed",
+            "ReserveStockFailed"
+        ]
+    },
+    "mapMicroserviceToUrl": {
+        "cart": "http://127.0.0.1:5001",
+        "stock_item": "http://127.0.0.1:5003",
+        "product": "http://127.0.0.1:5008"
+    }
+}

@@ -1,17 +1,5 @@
-﻿using Client.Infra;
-using Common.Ingestion.DTO;
-using Common.Serdes;
-using DuckDB.NET.Data;
-using Newtonsoft.Json.Linq;
+﻿using DuckDB.NET.Data;
 using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Data.Common;
-using System.Diagnostics.Metrics;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Text.Json;
 
 namespace Client.DataGeneration
 {
@@ -64,7 +52,7 @@ namespace Client.DataGeneration
 
             while (remainingProducts > 0)
             {
-                numProductsForSeller = random.Next(1, config.avgNumProdPerSeller + 1);
+                numProductsForSeller = this.random.Next(1, config.avgNumProdPerSeller + 1);
 
                 //
                 numProductsForSeller = Math.Min(numProductsForSeller, remainingProducts);

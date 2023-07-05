@@ -65,8 +65,8 @@ namespace Grains.Workers
             this.random = new Random();
             this.status = SellerWorkerStatus.IDLE;
             this.deletedProducts = new ConcurrentDictionary<long,byte>();
-            this.submittedTransactions = new Dictionary<long, TransactionIdentifier>();
-            this.finishedTransactions = new Dictionary<long, TransactionOutput>();
+            this.submittedTransactions = new ConcurrentDictionary<long, TransactionIdentifier>();
+            this.finishedTransactions = new ConcurrentDictionary<long, TransactionOutput>();
         }
 
         private sealed class ProductComparer : IComparer<Product>
@@ -81,7 +81,7 @@ namespace Grains.Workers
 
         public Task Init(SellerWorkerConfig sellerConfig, List<Product> products, bool endToEndLatencyCollection, string connection)
         {
-            this._logger.LogWarning("Init -> Seller worker {0} with #{1} product(s).", this.sellerId, products.Count);
+            this._logger.LogInformation("Init -> Seller worker {0} with #{1} product(s).", this.sellerId, products.Count);
             this.config = sellerConfig;
             this.products = products;
 
@@ -89,7 +89,7 @@ namespace Grains.Workers
             int firstId = (int)this.products[0].product_id;
             int lastId = (int)this.products.ElementAt(this.products.Count - 1).product_id;
 
-            this._logger.LogWarning("Init -> Seller worker {0} first {1} last {2}.", this.sellerId, this.products.ElementAt(0).product_id, lastId);
+            this._logger.LogInformation("Init -> Seller worker {0} first {1} last {2}.", this.sellerId, this.products.ElementAt(0).product_id, lastId);
 
             this.productIdGenerator = this.config.keyDistribution == DistributionType.NON_UNIFORM ? new NonUniformDistribution((int)(((lastId - firstId) * 0.3) + firstId), firstId, lastId) :
                 this.config.keyDistribution == DistributionType.UNIFORM ?
@@ -102,13 +102,17 @@ namespace Grains.Workers
                 this.externalTask = Task.Run(() => RedisUtils.Subscribe(connection, channel, token.Token, entry =>
                 {
                     var now = DateTime.Now;
+                    this._logger.LogInformation("Seller worker {0} received a transaction mark at {1}", sellerId, now);
                     try
                     {
                         JObject d = JsonConvert.DeserializeObject<JObject>(entry.Values[0].Value.ToString());
                         TransactionMark mark = JsonConvert.DeserializeObject<TransactionMark>(d.SelectToken("['data']").ToString());
                         finishedTransactions.Add(mark.tid, new TransactionOutput(mark.tid, now));
                     }
-                    catch (Exception) { }
+                    catch (Exception e)
+                    {
+                        this._logger.LogWarning("Seller worker {0}: Error processing transaction mark: {1}", sellerId, e.Message);
+                    }
                 }));
             }
 
@@ -166,13 +170,13 @@ namespace Grains.Workers
             {
                 try
                 {
-                    this._logger.LogWarning("Seller {0}: Dashboard will be queried...", this.sellerId);
+                    this._logger.LogInformation("Seller {0}: Dashboard will be queried...", this.sellerId);
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, config.sellerUrl + "/" + this.sellerId);
                     this.submittedTransactions.Add(tid, new TransactionIdentifier(tid, TransactionType.DASHBOARD, DateTime.Now));
                     var response = HttpUtils.client.Send(message);
                     response.EnsureSuccessStatusCode();
                     this.finishedTransactions.Add(tid, new TransactionOutput(tid, DateTime.Now));
-                    this._logger.LogWarning("Seller {0}: Dashboard retrieved.", this.sellerId);
+                    this._logger.LogInformation("Seller {0}: Dashboard retrieved.", this.sellerId);
                 }
                 catch (Exception e)
                 {
@@ -185,7 +189,7 @@ namespace Grains.Workers
         {
             if(this.deletedProducts.Count() == this.products.Count())
             {
-                this._logger.LogWarning("All products already deleted by seller {0}", this.sellerId);
+                this._logger.LogInformation("All products already deleted by seller {0}", this.sellerId);
                 return;
             }
             
@@ -200,15 +204,15 @@ namespace Grains.Workers
             {
                 try
                 {
+                    this._logger.LogInformation("Seller {0}: Product {1} will be deleted...", this.sellerId, selectedProduct);
                     var obj = JsonConvert.SerializeObject(new DeleteProduct(sellerId, selectedProduct, tid));
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Delete, config.productUrl);
                     message.Content = HttpUtils.BuildPayload(obj);
                     this.submittedTransactions.Add(tid, new TransactionIdentifier(tid, TransactionType.DELETE_PRODUCT, DateTime.Now));
                     var response = HttpUtils.client.Send(message);
                     response.EnsureSuccessStatusCode();
-                    // many threads can access the set at the same time...
                     this.deletedProducts.Add(selectedProduct, 0);
-                    this._logger.LogWarning("Seller {0}: Product {1} deleted.", this.sellerId, selectedProduct);
+                    this._logger.LogInformation("Seller {0}: Product {1} deleted.", this.sellerId, selectedProduct);
                 }
                 catch (Exception e) {
                     this._logger.LogError("Seller {0}: Product {1} could not be deleted: {2}", this.sellerId, selectedProduct, e.Message);
@@ -232,7 +236,13 @@ namespace Grains.Workers
         private async Task UpdatePrice(int tid)
         {
             // to simulate how a seller would interact with the platform
-            this._logger.LogWarning("Seller {0} has started UpdatePrice", this.sellerId);
+            this._logger.LogInformation("Seller {0}: Started price update.", this.sellerId);
+
+            if(this.deletedProducts.Count() == this.products.Count())
+            {
+                this._logger.LogWarning("No products to delete since seller {0} has deleted every product already!", this.sellerId);
+                return;
+            }
 
             // 1 - simulate seller browsing own main page (that will bring the product list)
             var productsRetrieved = (await GetOwnProducts()).ToDictionary(k=>k.product_id,v=>v);
@@ -256,11 +266,11 @@ namespace Grains.Workers
             var newPrice = currPrice + ( (currPrice * percToAdjust) / 100 );
             
             // 4 - submit update
-            string serializedObject = JsonConvert.SerializeObject(new UpdatePrice(this.sellerId, selectedProduct, newPrice, tid));
             var resp = await Task.Run(() =>
             {
                 // https://dev.olist.com/docs/editing-a-product
                 HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Patch, config.productUrl);
+                string serializedObject = JsonConvert.SerializeObject(new UpdatePrice(this.sellerId, selectedProduct, newPrice, tid));
                 request.Content = HttpUtils.BuildPayload(serializedObject);
                 this.submittedTransactions.Add(tid, new TransactionIdentifier(tid, TransactionType.PRICE_UPDATE, DateTime.Now));
                 return HttpUtils.client.Send(request);
@@ -268,10 +278,10 @@ namespace Grains.Workers
 
             if (resp.IsSuccessStatusCode)
             {
-                this._logger.LogWarning("Seller {0}: Finished product {1} price update.", this.sellerId, selectedProduct);
+                this._logger.LogInformation("Seller {0}: Finished product {1} price update.", this.sellerId, selectedProduct);
                 return;
             }
-            this._logger.LogError("Seller {0} failed to update product {1} price.", this.sellerId, selectedProduct);
+            this._logger.LogError("Seller {0} failed to update product {1} price: {2}", this.sellerId, selectedProduct, resp.ReasonPhrase);
         }
 
         private sealed class ProductEqualityComparer : IEqualityComparer<Product>

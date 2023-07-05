@@ -1,7 +1,10 @@
 ﻿{
+  "connectionString": "Data Source=file.db",
   "transactionDistribution": {
-    "CUSTOMER_SESSION": 100 // 70,
+    // "CUSTOMER_SESSION": 100 // 70,
     // "UPDATE_DELIVERY": 100
+    "PRICE_UPDATE": 50,
+    "DELETE_PRODUCT": 100
   },
   // not inside customer config because customer
   // worker does not need to know that
@@ -9,23 +12,11 @@
   "executionTime": 60000, // 1 minute by default
   "delayBetweenRequests": 10000,
   "concurrencyLevel": 1, // 10000,
-  "endToEndLatencyCollection": false,
+  "endToEndLatencyCollection": true,
   "streamingConfig": {
     "type": "REDIS",
     "host": "localhost",
-    "port": 6379,
-    "streams": [
-      "ReserveStock",
-      "Product",
-      "InvoiceIssued",
-      "PaymentConfirmed",
-      "PaymentFailed",
-      "ShipmentNotification",
-      "DeliveryNotification",
-      "StockItem",
-      "StockConfirmed",
-      "ReserveStockFailed"
-    ]
+    "port": 6379
   },
   "customerWorkerConfig": {
     "maxNumberKeysToBrowse": 10,
