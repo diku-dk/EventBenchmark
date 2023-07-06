@@ -26,7 +26,7 @@ namespace Client
     {
         private static ILogger logger = LoggerProxy.GetInstance("Program");
 
-        public static async Task Main(string[] args)
+        public static async Task Main_(string[] args)
         {
             var masterConfig = BuildMasterConfig(args);
 
@@ -52,7 +52,7 @@ namespace Client
         /*
          * 
          */
-        public static async Task Main_(string[] args)
+        public static async Task Main(string[] args)
         {
             logger.LogInformation("Initializing benchmark driver...");
             var masterConfig = BuildMasterConfig(args);

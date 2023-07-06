@@ -20,7 +20,8 @@ namespace Client.Streaming.Redis
 	 */
     public sealed class RedisUtils
     {
-        
+        public static readonly ILogger logger = LoggerProxy.GetInstance("RedisUtils");
+
         public static bool TestRedisConnection(string connection)
         {
             using (var db = ConnectionMultiplexer.Connect(connection))
@@ -65,10 +66,10 @@ namespace Client.Streaming.Redis
             var redis = ConnectionMultiplexer.Connect(connection);
             if (redis is null)
             {
-                Console.WriteLine($"Connection to {connection} failed");
+                logger.LogError($"Connection to {connection} failed");
                 return;
             }
-            Console.WriteLine($"Started consuming from stream {streamName}");
+            logger.LogInformation($"Started consuming from stream {streamName}");
 
             try
             {

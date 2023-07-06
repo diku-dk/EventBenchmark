@@ -38,32 +38,28 @@ namespace Grains.Workers
 
         private long sellerId;
 
-        private SellerWorkerStatus status;
-
         private NumberGenerator productIdGenerator;
 
-        private readonly ILogger<SellerWorker> _logger;
+        private readonly ILogger<SellerWorker> logger;
 
         // to support: (i) customer product retrieval and (ii) the delete operation, since it uses a search string
         private List<Product> products;
 
-        private IAsyncStream<SellerWorkerStatusUpdate> txStream;
+        private IAsyncStream<int> txStream;
 
         private readonly IDictionary<long,byte> deletedProducts;
 
         private readonly IDictionary<long,TransactionIdentifier> submittedTransactions;
         private readonly IDictionary<long, TransactionOutput> finishedTransactions;
 
-        private bool endToEndLatencyCollection = false;
         private CancellationTokenSource token = new CancellationTokenSource();
         private Task externalTask;
         private string channel;
 
         public SellerWorker(ILogger<SellerWorker> logger)
         {
-            this._logger = logger;
+            this.logger = logger;
             this.random = new Random();
-            this.status = SellerWorkerStatus.IDLE;
             this.deletedProducts = new ConcurrentDictionary<long,byte>();
             this.submittedTransactions = new ConcurrentDictionary<long, TransactionIdentifier>();
             this.finishedTransactions = new ConcurrentDictionary<long, TransactionOutput>();
@@ -79,9 +75,9 @@ namespace Grains.Workers
 
         private static readonly ProductComparer productComparer = new ProductComparer();
 
-        public Task Init(SellerWorkerConfig sellerConfig, List<Product> products, bool endToEndLatencyCollection, string connection)
+        public Task Init(SellerWorkerConfig sellerConfig, List<Product> products, string redisConnection)
         {
-            this._logger.LogInformation("Init -> Seller worker {0} with #{1} product(s).", this.sellerId, products.Count);
+            this.logger.LogInformation("Init -> Seller worker {0} with #{1} product(s).", this.sellerId, products.Count);
             this.config = sellerConfig;
             this.products = products;
 
@@ -89,29 +85,36 @@ namespace Grains.Workers
             int firstId = (int)this.products[0].product_id;
             int lastId = (int)this.products.ElementAt(this.products.Count - 1).product_id;
 
-            this._logger.LogInformation("Init -> Seller worker {0} first {1} last {2}.", this.sellerId, this.products.ElementAt(0).product_id, lastId);
+            this.logger.LogInformation("Init -> Seller worker {0} first {1} last {2}.", this.sellerId, this.products.ElementAt(0).product_id, lastId);
 
             this.productIdGenerator = this.config.keyDistribution == DistributionType.NON_UNIFORM ? new NonUniformDistribution((int)(((lastId - firstId) * 0.3) + firstId), firstId, lastId) :
                 this.config.keyDistribution == DistributionType.UNIFORM ?
                  new UniformLongGenerator(firstId, lastId) :
                  new ZipfianGenerator(firstId, lastId);
 
-            this.endToEndLatencyCollection = endToEndLatencyCollection;
-            if (endToEndLatencyCollection) {
+            if (redisConnection is not null) {
                 this.channel = new StringBuilder(nameof(TransactionMark)).Append('_').Append(sellerId).ToString();
-                this.externalTask = Task.Run(() => RedisUtils.Subscribe(connection, channel, token.Token, entry =>
+                this.externalTask = Task.Run(() => RedisUtils.Subscribe(redisConnection, channel, token.Token, entry =>
                 {
                     var now = DateTime.Now;
-                    this._logger.LogInformation("Seller worker {0} received a transaction mark at {1}", sellerId, now);
+                    
+                    int tid = -1;
                     try
                     {
                         JObject d = JsonConvert.DeserializeObject<JObject>(entry.Values[0].Value.ToString());
                         TransactionMark mark = JsonConvert.DeserializeObject<TransactionMark>(d.SelectToken("['data']").ToString());
                         finishedTransactions.Add(mark.tid, new TransactionOutput(mark.tid, now));
+                        tid = mark.tid;
+                        this.logger.LogInformation("Seller worker {0}: Processed the transaction mark {1} at {2}", sellerId, tid, now);
                     }
                     catch (Exception e)
                     {
-                        this._logger.LogWarning("Seller worker {0}: Error processing transaction mark: {1}", sellerId, e.Message);
+                        this.logger.LogWarning("Seller worker {0}: Error processing transaction mark event: {1}", sellerId, e.Message);
+                    }
+                    finally
+                    {
+                        // let emitter aware this request has finished
+                        _ = txStream.OnNextAsync(tid);
                     }
                 }));
             }
@@ -135,12 +138,11 @@ namespace Grains.Workers
             }
             await workloadStream.SubscribeAsync(Run);
 
-            this.txStream = streamProvider.GetStream<SellerWorkerStatusUpdate>(StreamingConstants.SellerStreamId, StreamingConstants.TransactionStreamNameSpace);
+            this.txStream = streamProvider.GetStream<int>(StreamingConstants.SellerStreamId, StreamingConstants.TransactionStreamNameSpace);
         }
 
         private async Task Run(TransactionInput txId, StreamSequenceToken token)
         {
-            this.status = SellerWorkerStatus.RUNNING;
             switch (txId.type)
             {
                 case TransactionType.DASHBOARD:
@@ -159,9 +161,6 @@ namespace Grains.Workers
                     break;
                 }
             }
-            this.status = SellerWorkerStatus.IDLE;
-            // let emitter aware this request has finished
-            _ = txStream.OnNextAsync(new SellerWorkerStatusUpdate(this.sellerId, this.status));
         }
 
         private async Task BrowseDashboard(int tid)
@@ -170,17 +169,22 @@ namespace Grains.Workers
             {
                 try
                 {
-                    this._logger.LogInformation("Seller {0}: Dashboard will be queried...", this.sellerId);
+                    this.logger.LogInformation("Seller {0}: Dashboard will be queried...", this.sellerId);
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, config.sellerUrl + "/" + this.sellerId);
                     this.submittedTransactions.Add(tid, new TransactionIdentifier(tid, TransactionType.DASHBOARD, DateTime.Now));
                     var response = HttpUtils.client.Send(message);
                     response.EnsureSuccessStatusCode();
                     this.finishedTransactions.Add(tid, new TransactionOutput(tid, DateTime.Now));
-                    this._logger.LogInformation("Seller {0}: Dashboard retrieved.", this.sellerId);
+                    this.logger.LogInformation("Seller {0}: Dashboard retrieved.", this.sellerId);
                 }
                 catch (Exception e)
                 {
-                    this._logger.LogError("Seller {0}: Dashboard could not be retrieved: {1}", this.sellerId, e.Message);
+                    this.logger.LogError("Seller {0}: Dashboard could not be retrieved: {1}", this.sellerId, e.Message);
+                }
+                finally
+                {
+                    // let emitter aware this request has finished
+                    _ = txStream.OnNextAsync(tid);
                 }
             });
         }
@@ -189,7 +193,9 @@ namespace Grains.Workers
         {
             if(this.deletedProducts.Count() == this.products.Count())
             {
-                this._logger.LogInformation("All products already deleted by seller {0}", this.sellerId);
+                this.logger.LogWarning("All products already deleted by seller {0}", this.sellerId);
+                // to ensure emitter send other transactions
+                _ = txStream.OnNextAsync(tid);
                 return;
             }
             
@@ -204,7 +210,7 @@ namespace Grains.Workers
             {
                 try
                 {
-                    this._logger.LogInformation("Seller {0}: Product {1} will be deleted...", this.sellerId, selectedProduct);
+                    this.logger.LogInformation("Seller {0}: Product {1} will be deleted...", this.sellerId, selectedProduct);
                     var obj = JsonConvert.SerializeObject(new DeleteProduct(sellerId, selectedProduct, tid));
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Delete, config.productUrl);
                     message.Content = HttpUtils.BuildPayload(obj);
@@ -212,10 +218,10 @@ namespace Grains.Workers
                     var response = HttpUtils.client.Send(message);
                     response.EnsureSuccessStatusCode();
                     this.deletedProducts.Add(selectedProduct, 0);
-                    this._logger.LogInformation("Seller {0}: Product {1} deleted.", this.sellerId, selectedProduct);
+                    this.logger.LogInformation("Seller {0}: Product {1} deleted.", this.sellerId, selectedProduct);
                 }
                 catch (Exception e) {
-                    this._logger.LogError("Seller {0}: Product {1} could not be deleted: {2}", this.sellerId, selectedProduct, e.Message);
+                    this.logger.LogError("Seller {0}: Product {1} could not be deleted: {2}", this.sellerId, selectedProduct, e.Message);
                 }
             });
         }
@@ -236,11 +242,13 @@ namespace Grains.Workers
         private async Task UpdatePrice(int tid)
         {
             // to simulate how a seller would interact with the platform
-            this._logger.LogInformation("Seller {0}: Started price update.", this.sellerId);
+            this.logger.LogInformation("Seller {0}: Started price update.", this.sellerId);
 
             if(this.deletedProducts.Count() == this.products.Count())
             {
-                this._logger.LogWarning("No products to delete since seller {0} has deleted every product already!", this.sellerId);
+                this.logger.LogWarning("No products to update since seller {0} has deleted every product already!", this.sellerId);
+                // to ensure emitter send other transactions
+                _ = txStream.OnNextAsync(tid);
                 return;
             }
 
@@ -278,10 +286,10 @@ namespace Grains.Workers
 
             if (resp.IsSuccessStatusCode)
             {
-                this._logger.LogInformation("Seller {0}: Finished product {1} price update.", this.sellerId, selectedProduct);
+                this.logger.LogInformation("Seller {0}: Finished product {1} price update.", this.sellerId, selectedProduct);
                 return;
             }
-            this._logger.LogError("Seller {0} failed to update product {1} price: {2}", this.sellerId, selectedProduct, resp.ReasonPhrase);
+            this.logger.LogError("Seller {0} failed to update product {1} price: {2}", this.sellerId, selectedProduct, resp.ReasonPhrase);
         }
 
         private sealed class ProductEqualityComparer : IEqualityComparer<Product>
@@ -315,7 +323,7 @@ namespace Grains.Workers
                 {
                     var res = finishedTransactions[entry.tid];
                     latencyList.Add(new Latency(entry.tid, entry.type,
-                        res.timestamp.Millisecond - entry.timestamp.Millisecond));
+                        (res.timestamp - entry.timestamp).TotalMilliseconds ));
                 }
             }
             return Task.FromResult(latencyList);

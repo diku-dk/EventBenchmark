@@ -9,8 +9,7 @@ namespace GrainInterfaces.Workers
 {
 	public interface IDeliveryWorker : IGrainWithIntegerKey
     {
-        public Task Init(DeliveryWorkerConfig config, bool endToEndLatencyCollection);
+        public Task Init(DeliveryWorkerConfig config);
         public Task<List<Latency>> Collect(DateTime startTime);
 	}
 }
-

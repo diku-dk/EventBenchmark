@@ -21,7 +21,6 @@ namespace Grains.Workers
     public class DeliveryWorker : Grain, IDeliveryWorker
     {
         private DeliveryWorkerConfig config;
-        private bool endToEndLatencyCollection;
         private IStreamProvider streamProvider;
 
         private readonly ILogger<DeliveryWorker> _logger;
@@ -31,18 +30,18 @@ namespace Grains.Workers
         private readonly IDictionary<long, TransactionIdentifier> submittedTransactions;
         private readonly IDictionary<long, TransactionOutput> finishedTransactions;
 
+        private IAsyncStream<int> txStream;
+
         public DeliveryWorker(ILogger<DeliveryWorker> logger)
         {
             this._logger = logger;
-            this.endToEndLatencyCollection = false;
             this.submittedTransactions = new ConcurrentDictionary<long, TransactionIdentifier>();
             this.finishedTransactions = new ConcurrentDictionary<long, TransactionOutput>();
         }
 
-        public Task Init(DeliveryWorkerConfig config, bool endToEndLatencyCollection)
+        public Task Init(DeliveryWorkerConfig config)
         {
             this.config = config;
-            this.endToEndLatencyCollection = endToEndLatencyCollection;
             return Task.CompletedTask;
         }
 
@@ -60,6 +59,8 @@ namespace Grains.Workers
                 }
             }
             await workloadStream.SubscribeAsync<int>(Run);
+
+            this.txStream = streamProvider.GetStream<int>(StreamingConstants.DeliveryStreamId, StreamingConstants.TransactionStreamNameSpace);
         }
 
         // updating the delivery status of orders
@@ -70,23 +71,20 @@ namespace Grains.Workers
                 try
                 {
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, config.shipmentUrl + "/" + tid);
-                    if (endToEndLatencyCollection)
+                    this.submittedTransactions.Add(tid, new TransactionIdentifier(tid, TransactionType.UPDATE_DELIVERY, DateTime.Now));
+                    var resp = HttpUtils.client.Send(message);
+                    if (resp.IsSuccessStatusCode)
                     {
-                        this.submittedTransactions.Add(tid, new TransactionIdentifier(tid, TransactionType.UPDATE_DELIVERY, DateTime.Now));
-                        var resp = HttpUtils.client.Send(message);
-                        if (resp.IsSuccessStatusCode)
-                        {
-                            this.finishedTransactions.Add(tid, new TransactionOutput(tid, DateTime.Now));
-                        }
-                    }
-                    else
-                    {
-                        var resp = HttpUtils.client.Send(message);
+                        this.finishedTransactions.Add(tid, new TransactionOutput(tid, DateTime.Now));
                     }
                 }
                 catch(Exception e)
                 {
                     this._logger.LogError("Delivery {0}: Update shipments could not be performed: {1}", this.actorId, e.Message);
+                } finally
+                {
+                    // let emitter aware this request has finished
+                    _ = txStream.OnNextAsync(tid);
                 }
                 this._logger.LogInformation("Delivery {0}: task terminated!", this.actorId);
             });
@@ -101,7 +99,7 @@ namespace Grains.Workers
                 if (finishedTransactions.ContainsKey(entry.tid)) {
                     var res = finishedTransactions[entry.tid];
                     latencyList.Add(new Latency(entry.tid, entry.type,
-                        res.timestamp.Millisecond - entry.timestamp.Millisecond));
+                        (res.timestamp - entry.timestamp).TotalMilliseconds ));
                 }
             }
             return Task.FromResult(latencyList);

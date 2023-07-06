@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Client.DataGeneration;
-using Client.DataGeneration.Real;
 using Client.Infra;
 using Client.Ingestion;
 using Common.Http;
@@ -14,7 +13,6 @@ using DuckDB.NET.Data;
 using GrainInterfaces.Workers;
 using Microsoft.Extensions.Logging;
 using Orleans;
-using Orleans.Streams;
 using Client.Workload;
 using Client.Ingestion.Config;
 using Client.Streaming.Redis;
@@ -31,8 +29,6 @@ namespace Client.Workflow
         private readonly WorkflowConfig workflowConfig;
 
         private readonly SyntheticDataSourceConfig syntheticDataConfig;
-
-        private readonly OlistDataSourceConfiguration olistDataConfig;
 
         private readonly IngestionConfig ingestionConfig;
 
@@ -107,21 +103,8 @@ namespace Client.Workflow
 
             if (this.workflowConfig.dataLoad)
             {
-                if(this.syntheticDataConfig != null)
-                {
-                    var syntheticDataGenerator = new SyntheticDataGenerator(syntheticDataConfig);
-                    syntheticDataGenerator.Generate();
-                } else {
-
-                    if(this.olistDataConfig == null)
-                    {
-                        throw new Exception("Loading data is set up but no configuration was found!");
-                    }
-
-                    var realDataGenerator = new RealDataGenerator(olistDataConfig);
-                    realDataGenerator.Generate();
-
-                }
+                var syntheticDataGenerator = new SyntheticDataGenerator(syntheticDataConfig);
+                syntheticDataGenerator.Generate();
             }
 
             if (this.workflowConfig.ingestion)
@@ -166,7 +149,7 @@ namespace Client.Workflow
                 // set up data collection for metrics
                 if (this.workflowConfig.collection)
                 {
-                    MetricGather metricGather = new MetricGather(orleansClient, customers, numSellers, this.collectionConfig, this.workloadConfig.endToEndLatencyCollection);
+                    MetricGather metricGather = new MetricGather(orleansClient, customers, numSellers, this.collectionConfig);
                     await metricGather.Collect(startTime, finishTime);
                 }
 
@@ -220,7 +203,7 @@ namespace Client.Workflow
             foreach (var customer in customers)
             {
                 customerWorker = orleansClient.GetGrain<ICustomerWorker>(customer.id);
-                tasks.Add(customerWorker.Init(workloadConfig.customerWorkerConfig, customer, workloadConfig.endToEndLatencyCollection, redisConnection));
+                tasks.Add(customerWorker.Init(workloadConfig.customerWorkerConfig, customer, redisConnection));
             }
             await Task.WhenAll(tasks);
 
@@ -232,13 +215,13 @@ namespace Client.Workflow
             {
                 List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
                 sellerWorker = orleansClient.GetGrain<ISellerWorker>(i);
-                tasks.Add(sellerWorker.Init(workloadConfig.sellerWorkerConfig, products, workloadConfig.endToEndLatencyCollection, redisConnection));
+                tasks.Add(sellerWorker.Init(workloadConfig.sellerWorkerConfig, products, redisConnection));
             }
             await Task.WhenAll(tasks);
 
             // activate delivery worker
             var deliveryWorker = orleansClient.GetGrain<IDeliveryWorker>(0);
-            await deliveryWorker.Init(workloadConfig.deliveryWorkerConfig, workloadConfig.endToEndLatencyCollection);
+            await deliveryWorker.Init(workloadConfig.deliveryWorkerConfig);
 
         }
 

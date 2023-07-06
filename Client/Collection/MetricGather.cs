@@ -24,17 +24,15 @@ namespace Client.Collection
         private readonly List<Customer> customers;
         private readonly long numSellers;
         private readonly CollectionConfig collectionConfig;
-        private readonly bool endToEndLatencyCollection;
         private readonly ILogger logger;
 
         public MetricGather(IClusterClient orleansClient, List<Customer> customers, long numSellers,
-            CollectionConfig collectionConfig, bool endToEndLatencyCollection)
+            CollectionConfig collectionConfig)
 		{
             this.orleansClient = orleansClient;
             this.customers = customers;
             this.numSellers = numSellers;
             this.collectionConfig = collectionConfig;
-            this.endToEndLatencyCollection = endToEndLatencyCollection;
             this.logger = LoggerProxy.GetInstance("MetricGather");
         }
 
@@ -46,77 +44,83 @@ namespace Client.Collection
             sw.WriteLine("Run from {0} to {1}", startTime, finishTime);
             sw.WriteLine("===========================================");
 
-            // this is the end to end latency
-            if (this.endToEndLatencyCollection)
+            // collect() stops subscription to redis streams in every worker
+
+            var latencyGatherTasks = new List<Task<List<Latency>>>();
+
+            foreach (var customer in customers)
             {
-                // collect() stops subscription to redis streams in every worker
-
-                var latencyGatherTasks = new List<Task<List<Latency>>>();
-
-                foreach (var customer in customers)
-                {
-                    var customerWorker = this.orleansClient.GetGrain<ICustomerWorker>(customer.id);
-                    latencyGatherTasks.Add(customerWorker.Collect(startTime));
-                }
-
-                for (int i = 1; i <= numSellers; i++)
-                {
-                    var sellerWorker = this.orleansClient.GetGrain<ISellerWorker>(i);
-                    latencyGatherTasks.Add(sellerWorker.Collect(startTime));
-                }
-
-                latencyGatherTasks.Add(this.orleansClient.GetGrain<ISellerWorker>(0).Collect(startTime));
-
-                await Task.WhenAll(latencyGatherTasks);
-
-                Dictionary<TransactionType, List<int>> latencyCollPerTxType = new Dictionary<TransactionType, List<int>>();
-
-                var txTypeValues = Enum.GetValues(typeof(TransactionType)).Cast<TransactionType>().ToList();
-                foreach(var txType in txTypeValues)
-                {
-                    latencyCollPerTxType.Add(txType, new List<int>());
-                }
-
-                int maxTid = 0;
-                foreach (var list in latencyGatherTasks)
-                {
-                    foreach(var entry in list.Result)
-                    {
-                        latencyCollPerTxType[entry.type].Add(entry.period);
-                        if (entry.tid > maxTid) maxTid = entry.tid;
-                    }
-                }
-
-                // throughput
-                // getting the Shared.Workload.Take().tid - 1 does not mean the system has finished processing it
-                // therefore, we need to get the last (i.e., maximum) tid processed from the grains
-
-                // transactions per second
-                TimeSpan timeSpan = finishTime - startTime;
-                int txPerSecond = timeSpan.Seconds / maxTid;
-
-                sw.WriteLine("Number of seconds: {0}", timeSpan.Seconds);
-                sw.WriteLine("Number of completed transactions: {0}", maxTid);
-                sw.WriteLine("Transactions per second: {0}", txPerSecond);
-                sw.WriteLine("===========================================");
+                var customerWorker = this.orleansClient.GetGrain<ICustomerWorker>(customer.id);
+                latencyGatherTasks.Add(customerWorker.Collect(startTime));
             }
+
+            for (int i = 1; i <= numSellers; i++)
+            {
+                var sellerWorker = this.orleansClient.GetGrain<ISellerWorker>(i);
+                latencyGatherTasks.Add(sellerWorker.Collect(startTime));
+            }
+
+            latencyGatherTasks.Add(this.orleansClient.GetGrain<ISellerWorker>(0).Collect(startTime));
+
+            await Task.WhenAll(latencyGatherTasks);
+
+            Dictionary<TransactionType, List<double>> latencyCollPerTxType = new Dictionary<TransactionType, List<double>>();
+
+            var txTypeValues = Enum.GetValues(typeof(TransactionType)).Cast<TransactionType>().ToList();
+            foreach(var txType in txTypeValues)
+            {
+                latencyCollPerTxType.Add(txType, new List<double>());
+            }
+
+            int maxTid = 0;
+            foreach (var list in latencyGatherTasks)
+            {
+                foreach(var entry in list.Result)
+                {
+                    latencyCollPerTxType[entry.type].Add(entry.period);
+                    if (entry.tid > maxTid) maxTid = entry.tid;
+                }
+            }
+
+            // throughput
+            // getting the Shared.Workload.Take().tid - 1 does not mean the system has finished processing it
+            // therefore, we need to get the last (i.e., maximum) tid processed from the grains
+
+            // transactions per second
+            TimeSpan timeSpan = finishTime - startTime;
+            int secondsTotal = ((timeSpan.Minutes * 60) + timeSpan.Seconds);
+            int txPerSecond = maxTid / secondsTotal;
+
+            sw.WriteLine("Number of seconds: {0}", secondsTotal);
+            sw.WriteLine("Number of completed transactions: {0}", maxTid);
+            sw.WriteLine("Transactions per second: {0}", txPerSecond);
+            sw.WriteLine("===========================================");
+
+            // prometheus:
 
             // check whether prometheus is online
             string urlMetric = collectionConfig.baseUrl + "/" + collectionConfig.ready;
-            logger.LogInformation("Contacting metric collection API healthcheck on {1}", urlMetric);
+            logger.LogInformation("Contacting metric collection API healthcheck on {0}", urlMetric);
             HttpRequestMessage healthCheckMsg = new HttpRequestMessage(HttpMethod.Get, urlMetric);
-            HttpResponseMessage resp = HttpUtils.client.Send(healthCheckMsg);
 
-            // if so, get number of messages
-            if (resp.IsSuccessStatusCode)
+            try
             {
+                HttpResponseMessage resp = HttpUtils.client.Send(healthCheckMsg);
+
+                // if so, get number of messages
+                if (!resp.IsSuccessStatusCode)
+                {
+                    logger.LogError("It was not possible to contact metric collection API healthcheck on {0}", urlMetric);
+                    goto end_of_file;
+                }
+
                 // https://briancaos.wordpress.com/2022/02/24/c-datetime-to-unix-timestamps/
                 DateTimeOffset dto = new DateTimeOffset(finishTime);
                 string unixTimeMilliSeconds = dto.ToUnixTimeMilliseconds().ToString();
-                var colls = await GetFromPrometheus(collectionConfig, unixTimeMilliSeconds); 
+                var colls = await GetFromPrometheus(collectionConfig, unixTimeMilliSeconds);
 
                 sw.WriteLine("Ingress metrics:");
-                foreach(var entry in colls.ingressCountPerMs)
+                foreach (var entry in colls.ingressCountPerMs)
                 {
                     sw.WriteLine("App: {0} Count: {1}", entry.Key, entry.Value);
                 }
@@ -126,14 +130,16 @@ namespace Client.Collection
                 {
                     sw.WriteLine("App: {0} Count: {1}", entry.Key, entry.Value);
                 }
-
-            }
-            else
+                
+            }catch(Exception e)
             {
-                logger.LogError("It was not possible to contact {0} metric collection API healthcheck on {1}", urlMetric);
+                logger.LogError("It was not possible to contact metric collection API healthcheck on {0}. Error: {1}", urlMetric, e.Message);
             }
+
+            end_of_file:
 
             sw.WriteLine("===========    THE END   ==============");
+            sw.Flush();
             sw.Close();
 
         }

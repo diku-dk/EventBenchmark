@@ -23,9 +23,6 @@ namespace Client.Workload
 
         public int delayBetweenRequests { get; set; } = 1000;
 
-        // client perspective
-        public bool endToEndLatencyCollection { get; set; }
-
         /**
          * from highest to lowest. last entry must be 100
          * e.g. customer_session 70, price_update 95, delivery 100

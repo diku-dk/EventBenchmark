@@ -4,7 +4,6 @@ using Marketplace.Test;
 using Client.Streaming.Redis;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
-using Common.Streaming;
 using Common.Workload;
 using System.Text;
 using Tests.Events;
@@ -50,9 +49,12 @@ namespace Tests
                     JObject? d = JsonConvert.DeserializeObject<JObject>(entry.Values[0].Value.ToString());
                     if (d is not null)
                     {
-                        var str = d.SelectToken("['data']").ToString();
-                        ReserveStock? evt = JsonConvert.DeserializeObject<ReserveStock>(str, sett);
-                        Console.WriteLine(evt.instanceId);
+                        JToken? jtoken = d.SelectToken("['data']");
+                        if (jtoken is not null) { 
+                            var str = jtoken.ToString();
+                            ReserveStock? evt = JsonConvert.DeserializeObject<ReserveStock>(str, sett);
+                            if(evt is not null)  Console.WriteLine(evt.instanceId);
+                        }
                     }
                 }catch(Exception e)
                 {

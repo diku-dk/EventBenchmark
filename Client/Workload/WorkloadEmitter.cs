@@ -27,7 +27,9 @@ namespace Client.Workload
 
         private StreamSubscriptionHandle<CustomerWorkerStatusUpdate> customerWorkerSubscription;
 
-        private StreamSubscriptionHandle<SellerWorkerStatusUpdate> sellerWorkerSubscription;
+        private StreamSubscriptionHandle<int> sellerWorkerSubscription;
+
+        private StreamSubscriptionHandle<int> deliveryWorkerSubscription;
 
         private readonly ConcurrentDictionary<long, CustomerWorkerStatus> customerStatusCache;
 
@@ -79,6 +81,7 @@ namespace Client.Workload
 
             SetUpCustomerWorkerListener();
             SetUpSellerWorkerListener();
+            SetUpDeliveryWorkerListener();
 
             DateTime startTime = DateTime.Now;
 
@@ -96,7 +99,6 @@ namespace Client.Workload
 
             while (IsRunning())
             {
-              
                 // wait for results
                 Shared.ResultQueue.Take();
 
@@ -112,14 +114,18 @@ namespace Client.Workload
 
                 // throttle
                 if (this.delayBetweenRequests > 0)
+                {
                     await Task.Delay(this.delayBetweenRequests);
+                }
 
             }
 
             DateTime finishTime = DateTime.Now;
 
-            await customerWorkerSubscription.UnsubscribeAsync();
-            await sellerWorkerSubscription.UnsubscribeAsync();
+            await Task.WhenAll(
+             customerWorkerSubscription.UnsubscribeAsync(),
+             sellerWorkerSubscription.UnsubscribeAsync(),
+             deliveryWorkerSubscription.UnsubscribeAsync());
 
             return (startTime, finishTime);
         }
@@ -127,9 +133,7 @@ namespace Client.Workload
         private void SubmitTransaction()
         {
             long threadId = Environment.CurrentManagedThreadId;
-            this.logger.LogInformation("Thread ID {0} Submit transaction triggered", threadId);
             TransactionInput txId = Shared.Workload.Take();
-            this.logger.LogInformation("Thread ID {0} Transaction type {0}", threadId, txId.type.ToString());
             try
             {
                 long grainID;
@@ -184,7 +188,11 @@ namespace Client.Workload
                         _ = streamOutgoing.OnNextAsync(txId);
                         break;
                     }
-                    default: { throw new Exception("Thread ID " + threadId + " Unknown transaction type defined!"); }
+                    default:
+                    {
+                        this.logger.LogError("Thread ID " + threadId + " Unknown transaction type defined!");
+                        break;
+                    }
                 }
             }
             catch (Exception e)
@@ -196,11 +204,15 @@ namespace Client.Workload
 
         private Task UpdateCustomerStatusAsync(CustomerWorkerStatusUpdate update, StreamSequenceToken token = null)
         {
+            if (update.result)
+            {
+                Shared.ResultQueue.Add(0);
+                return Task.CompletedTask;
+            }
             var old = this.customerStatusCache[update.customerId];
             this.logger.LogInformation("Attempt to update customer worker {0} status in cache. Previous {1} Update {2}",
                 update.customerId, old, update.status);
             this.customerStatusCache[update.customerId] = update.status;
-            Shared.ResultQueue.Add(0);
             return Task.CompletedTask;
         }
 
@@ -210,7 +222,7 @@ namespace Client.Workload
             this.customerWorkerSubscription = await resultStream.SubscribeAsync(UpdateCustomerStatusAsync);
         }
 
-        private Task UpdateSellerStatusAsync(SellerWorkerStatusUpdate update, StreamSequenceToken token = null)
+        private Task AddToResultQueue(int tid, StreamSequenceToken token = null)
         {
             Shared.ResultQueue.Add(0);
             return Task.CompletedTask;
@@ -218,8 +230,14 @@ namespace Client.Workload
 
         private async void SetUpSellerWorkerListener()
         {
-            IAsyncStream<SellerWorkerStatusUpdate> resultStream = streamProvider.GetStream<SellerWorkerStatusUpdate>(StreamingConstants.SellerStreamId, StreamingConstants.TransactionStreamNameSpace);
-            this.sellerWorkerSubscription = await resultStream.SubscribeAsync(UpdateSellerStatusAsync);
+            IAsyncStream<int> resultStream = streamProvider.GetStream<int>(StreamingConstants.SellerStreamId, StreamingConstants.TransactionStreamNameSpace);
+            this.sellerWorkerSubscription = await resultStream.SubscribeAsync(AddToResultQueue);
+        }
+
+        private async void SetUpDeliveryWorkerListener()
+        {
+            IAsyncStream<int> resultStream = streamProvider.GetStream<int>(StreamingConstants.DeliveryStreamId, StreamingConstants.TransactionStreamNameSpace);
+            this.deliveryWorkerSubscription = await resultStream.SubscribeAsync(AddToResultQueue);
         }
 
     }

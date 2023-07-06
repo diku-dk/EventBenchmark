@@ -4,7 +4,7 @@
 	(
         int tid,
 		TransactionType type,
-		int period
+		double period
 	);
 }
 

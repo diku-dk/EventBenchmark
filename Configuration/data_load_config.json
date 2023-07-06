@@ -1,7 +1,7 @@
 ﻿{
     "connectionString": "Data Source=file.db",
-    "numCustomers": 10,
-    "numProducts": 50,
+    "numCustomers": 500,
+    "numProducts": 1000,
     "avgNumProdPerSeller": 5,
     "createSchema": true
 }

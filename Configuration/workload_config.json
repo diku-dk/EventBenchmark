@@ -10,9 +10,8 @@
   // worker does not need to know that
   "customerDistribution": "NON_UNIFORM",
   "executionTime": 60000, // 1 minute by default
-  "delayBetweenRequests": 10000,
+  "delayBetweenRequests": 0,
   "concurrencyLevel": 1, // 10000,
-  "endToEndLatencyCollection": true,
   "streamingConfig": {
     "type": "REDIS",
     "host": "localhost",

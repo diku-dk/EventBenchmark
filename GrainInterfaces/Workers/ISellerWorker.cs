@@ -11,7 +11,7 @@ namespace GrainInterfaces.Workers
 {
 	public interface ISellerWorker : IGrainWithIntegerKey
 	{
-        public Task Init(SellerWorkerConfig sellerConfig, List<Product> products, bool endToEndLatencyCollection, string connection);
+        public Task Init(SellerWorkerConfig sellerConfig, List<Product> products, string redisConnection);
 
         public Task<List<Latency>> Collect(DateTime startTime);
 

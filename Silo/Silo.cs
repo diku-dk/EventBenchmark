@@ -24,7 +24,7 @@ var builder = new HostBuilder()
             {
                 logging.ClearProviders();
                 logging.AddConsole();
-                logging.SetMinimumLevel(LogLevel.Information);
+                logging.SetMinimumLevel(LogLevel.Warning);
             })
         ;
     });

@@ -51,9 +51,5 @@
     <Folder Include="Collection\" />
     <Folder Include="Cleaning\" />
   </ItemGroup>
-  <ItemGroup>
-    <None Update="..\Configuration\workflow_config.json">
-      <Link>workflow_config.json</Link>
-    </None>
-  </ItemGroup>
+  
 </Project>

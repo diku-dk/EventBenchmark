@@ -3,6 +3,6 @@
   "dataLoad": false,
   "ingestion": false,
   "transactionSubmission": false,
-  "collection": true,
-  "cleanup": false
+  "collection": false,
+  "cleanup": true
 }
