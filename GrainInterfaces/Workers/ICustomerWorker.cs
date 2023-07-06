@@ -10,8 +10,10 @@ namespace GrainInterfaces.Workers
 {
 	public interface ICustomerWorker : IGrainWithIntegerKey
 	{
-        public Task Init(CustomerWorkerConfig config, Customer customer, string redisConnection);
+        public Task Init(CustomerWorkerConfig config, Customer customer);
 
         public Task<List<Latency>> Collect(DateTime startTime);
+
+        Task RegisterFinishedTransaction(TransactionOutput output);
     }
 }

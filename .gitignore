@@ -116,3 +116,5 @@ local.properties
 *.db
 *.db.wal
 testdb
+
+Configuration/results*.txt

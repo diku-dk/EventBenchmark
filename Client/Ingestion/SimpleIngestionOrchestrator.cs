@@ -3,7 +3,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Reflection;
-using System.Reflection.Emit;
 using System.Threading.Tasks;
 using Client.Ingestion.Config;
 using Common.Http;
@@ -17,15 +16,13 @@ namespace Client.Ingestion
 	{
 
 		private readonly IngestionConfig config;
-        private readonly BlockingCollection<JObject> tuples;
 
         public SimpleIngestionOrchestrator(IngestionConfig config)
 		{
 			this.config = config;
-            this.tuples = new BlockingCollection<JObject>();
         }
 
-		public void Run()
+		public async Task Run()
 		{
             Console.WriteLine("Ingestion process is about to start.");
 
@@ -43,28 +40,35 @@ namespace Client.Ingestion
                     command.CommandText = "select * from "+table.Key+";";
                     var queryResult = command.ExecuteReader();
 
-                    Task t1 = Task.Run(() => Produce(queryResult));
+                    BlockingCollection<JObject> tuples = new BlockingCollection<JObject>();
+
+                    Task t1 = Task.Run(() => Produce(tuples, queryResult));
 
                     long rowCount = GetRowCount(queryResult);
-                    Task t2 = Task.Run(() => Consume(table.Value, rowCount));
+
+                    TaskCompletionSource tcs = new TaskCompletionSource();
+
+                    Task t2 = Task.Run(() => Consume(tuples, table.Value, rowCount, tcs));
 
                     // spawning several threads leads to corrupted state. guess it is related to the shared queue...
                     if (config.distributionStrategy == IngestionDistributionStrategy.SINGLE_WORKER)
                     {
-                        Task.WaitAll(t1, t2);
+                        // await Task.WhenAll(t1, t2);
+                        await tcs.Task;
                         Console.WriteLine("Finished loading table {0}", table);
                     }
                     else
                     {
-                        tasksToWait.Add(t1);
-                        tasksToWait.Add(t2);
+                        // tasksToWait.Add(t1);
+                        // tasksToWait.Add(t2);
+                        tasksToWait.Add(tcs.Task);
                     }
  
                 }
 
                 if(tasksToWait.Count > 0)
                 {
-                    Task.WhenAll(tasksToWait);
+                    await Task.WhenAll(tasksToWait);
                     Console.WriteLine("Finished loading all tables");
                 }
 
@@ -73,7 +77,7 @@ namespace Client.Ingestion
             Console.WriteLine("Ingestion process has terminated.");
         }
 
-        private void Produce(DuckDBDataReader queryResult)
+        private void Produce(BlockingCollection<JObject> tuples, DuckDBDataReader queryResult)
         {
             while (queryResult.Read())
             {
@@ -84,7 +88,7 @@ namespace Client.Ingestion
                     var val = queryResult.GetValue(ordinal);
                     obj[column] = JToken.FromObject(val);
                 }
-                this.tuples.Add(obj);
+                tuples.Add(obj);
             }
         }
 
@@ -96,13 +100,13 @@ namespace Client.Ingestion
             return (long)field?.GetValue(queryResult);
         }
 
-        private void Consume(string url, long rowCount) {
+        private void Consume(BlockingCollection<JObject> tuples, string url, long rowCount, TaskCompletionSource tcs)
+        {
             int currRow = 1;
-            string strObj = null;
             do
             {
-                var obj = this.tuples.Take();
-                strObj = JsonConvert.SerializeObject(obj); 
+                var obj = tuples.Take();
+                string strObj = JsonConvert.SerializeObject(obj); 
            
                 HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, url);
                 message.Content = HttpUtils.BuildPayload(strObj);
@@ -118,7 +122,7 @@ namespace Client.Ingestion
 
                 currRow++;
             } while (currRow <= rowCount);
-
+            tcs.SetResult();
         }
 
 	}

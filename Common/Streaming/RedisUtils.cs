@@ -120,11 +120,11 @@ namespace Client.Streaming.Redis
             catch (TaskCanceledException) { }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.ToString());
+                logger.LogError(ex.ToString());
             }
             finally
             {
-                Console.WriteLine($"Stopped consuming from stream {streamName}");
+                logger.LogInformation($"Stopped consuming from stream {streamName}");
             }
         }
 

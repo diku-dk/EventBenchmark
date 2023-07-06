@@ -3,7 +3,7 @@
   "transactionDistribution": {
     // "CUSTOMER_SESSION": 100 // 70,
     // "UPDATE_DELIVERY": 100
-    "PRICE_UPDATE": 50,
+    "PRICE_UPDATE": 95,
     "DELETE_PRODUCT": 100
   },
   // not inside customer config because customer
@@ -11,7 +11,7 @@
   "customerDistribution": "NON_UNIFORM",
   "executionTime": 60000, // 1 minute by default
   "delayBetweenRequests": 0,
-  "concurrencyLevel": 1, // 10000,
+  "concurrencyLevel": 5, // 10000,
   "streamingConfig": {
     "type": "REDIS",
     "host": "localhost",

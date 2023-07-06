@@ -20,9 +20,7 @@ using Common.Distribution;
 using Common.Requests;
 using Common.Workload;
 using Common.Workload.Metrics;
-using Client.Streaming.Redis;
 using System.Threading;
-using Newtonsoft.Json.Linq;
 
 namespace Grains.Workers
 {
@@ -90,7 +88,7 @@ namespace Grains.Workers
             this.txStream = streamProvider.GetStream<CustomerWorkerStatusUpdate>(StreamingConstants.CustomerStreamId, StreamingConstants.TransactionStreamNameSpace);
         }
 
-        public Task Init(CustomerWorkerConfig config, Customer customer, string redisConnection)
+        public Task Init(CustomerWorkerConfig config, Customer customer)
         {
             this.logger.LogInformation("Customer worker {0} Init", this.customerId);
             this.config = config;
@@ -100,35 +98,6 @@ namespace Grains.Workers
                 this.config.sellerDistribution == DistributionType.UNIFORM ?
                 new UniformLongGenerator(this.config.sellerRange.min, this.config.sellerRange.max) :
                 new ZipfianGenerator(this.config.sellerRange.min, this.config.sellerRange.max);
-
-            if (redisConnection is not null)
-            {
-                var channel = new StringBuilder(TransactionType.CUSTOMER_SESSION.ToString()).Append('_').Append(customerId).ToString();
-                Task.Run(() => RedisUtils.Subscribe(redisConnection, channel, token.Token, entry =>
-                {
-                    // This code runs on the thread pool scheduler, not on Orleans task scheduler
-                    var now = DateTime.Now;
-                    int tid = -1;
-                    // parse redis value so we can know which transaction has finished
-                    try
-                    {
-                        JObject d = JsonConvert.DeserializeObject<JObject>(entry.Values[0].Value.ToString());
-                        TransactionMark mark = JsonConvert.DeserializeObject<TransactionMark>(d.SelectToken("['data']").ToString());
-                        finishedTransactions.Add(mark.tid, new TransactionOutput(mark.tid, now));
-                        tid = mark.tid;
-                        this.logger.LogInformation("Customer worker {0}: Processed the transaction mark {1} at {2}", customer, tid, now);
-                    }
-                    catch (Exception e)
-                    {
-                        this.logger.LogWarning("Customer worker {0}: Error processing transaction mark event: {1}", customerId, e.Message);
-                    }
-                    finally
-                    {
-                        _ = txStream.OnNextAsync(new CustomerWorkerStatusUpdate(customerId, status, true));
-                    }
-                }));
-            }
-
             return Task.CompletedTask;
         }
 
@@ -460,6 +429,12 @@ namespace Grains.Workers
                 }
             }
             return Task.FromResult(latencyList);
+        }
+
+        public Task RegisterFinishedTransaction(TransactionOutput output)
+        {
+            finishedTransactions.Add(output.tid, output);
+            return Task.CompletedTask;
         }
 
     }

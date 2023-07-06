@@ -20,6 +20,12 @@ using Common.Infra;
 using Client.Collection;
 using System.Linq;
 using Client.Cleaning;
+using Common.Workload.Metrics;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System.IO;
+using System.Text;
+using System.Threading;
 
 namespace Client.Workflow
 {
@@ -110,7 +116,7 @@ namespace Client.Workflow
             if (this.workflowConfig.ingestion)
             {
                 var ingestionOrchestrator = new SimpleIngestionOrchestrator(ingestionConfig);
-                ingestionOrchestrator.Run();
+                await ingestionOrchestrator.Run();
             }
 
             if (this.workflowConfig.transactionSubmission)
@@ -134,7 +140,21 @@ namespace Client.Workflow
                 var customerRange = new Interval(1, customers.Count());
 
                 // initialize all workers
-                await Prepare(orleansClient, customers, numSellers, connection);
+                await BeforeSubmission(orleansClient, customers, numSellers, connection);
+
+                // eventual compltion transactions
+                List<TransactionType> transactions = new() { TransactionType.CUSTOMER_SESSION, TransactionType.PRICE_UPDATE, TransactionType.DELETE_PRODUCT };
+                string redisConnection = string.Format("{0}:{1}", workloadConfig.streamingConfig.host, workloadConfig.streamingConfig.port);
+
+                List<CancellationTokenSource> tokens = new(3);
+                List<Task> listeningTasks = new(3);
+                foreach (var type in transactions)
+                {
+                    var channel = new StringBuilder(nameof(TransactionMark)).Append('_').Append(type.ToString()).ToString();
+                    var token = new CancellationTokenSource();
+                    tokens.Add(token);
+                    listeningTasks.Add(SubscribeToTransactionResult(orleansClient, redisConnection, channel, token));
+                }
 
                 // setup transaction orchestrator
                 WorkloadOrchestrator workloadOrchestrator = new WorkloadOrchestrator(orleansClient, this.workloadConfig, customerRange);
@@ -145,6 +165,13 @@ namespace Client.Workflow
 
                 // listen for cluster client disconnect and stop the sleep if necessary... Task.WhenAny...
                 await Task.WhenAny(workloadTask, OrleansClientFactory._siloFailedTask.Task);
+
+                foreach(var token in tokens)
+                {
+                    token.Cancel();
+                }
+
+                await Task.WhenAll(listeningTasks);
 
                 // set up data collection for metrics
                 if (this.workflowConfig.collection)
@@ -183,7 +210,7 @@ namespace Client.Workflow
 
         }
 
-        public async Task Prepare(IClusterClient orleansClient, List<Customer> customers, long numSellers, DuckDBConnection connection)
+        public async Task BeforeSubmission(IClusterClient orleansClient, List<Customer> customers, long numSellers, DuckDBConnection connection)
         {
             var endValue = DuckDbUtils.Count(connection, "products");
             if (endValue < workloadConfig.customerWorkerConfig.maxNumberKeysToBrowse || endValue < workloadConfig.customerWorkerConfig.maxNumberKeysToAddToCart)
@@ -194,8 +221,6 @@ namespace Client.Workflow
             // defined dynamically
             workloadConfig.customerWorkerConfig.sellerRange = new Interval(1, (int)numSellers);
 
-            string redisConnection = string.Format("{0}:{1}", workloadConfig.streamingConfig.host, workloadConfig.streamingConfig.port);
-
             // activate all customer workers
             List<Task> tasks = new();
 
@@ -203,7 +228,7 @@ namespace Client.Workflow
             foreach (var customer in customers)
             {
                 customerWorker = orleansClient.GetGrain<ICustomerWorker>(customer.id);
-                tasks.Add(customerWorker.Init(workloadConfig.customerWorkerConfig, customer, redisConnection));
+                tasks.Add(customerWorker.Init(workloadConfig.customerWorkerConfig, customer));
             }
             await Task.WhenAll(tasks);
 
@@ -215,14 +240,44 @@ namespace Client.Workflow
             {
                 List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
                 sellerWorker = orleansClient.GetGrain<ISellerWorker>(i);
-                tasks.Add(sellerWorker.Init(workloadConfig.sellerWorkerConfig, products, redisConnection));
+                tasks.Add(sellerWorker.Init(workloadConfig.sellerWorkerConfig, products));
             }
             await Task.WhenAll(tasks);
 
             // activate delivery worker
             var deliveryWorker = orleansClient.GetGrain<IDeliveryWorker>(0);
             await deliveryWorker.Init(workloadConfig.deliveryWorkerConfig);
+        }
 
+        private Task SubscribeToTransactionResult(IClusterClient orleansClient, string redisConnection, string channel, CancellationTokenSource token)
+        {
+            return Task.Run(() => RedisUtils.Subscribe(redisConnection, channel, token.Token, entry =>
+            {
+                var now = DateTime.Now;
+                try
+                {
+                    JObject d = JsonConvert.DeserializeObject<JObject>(entry.Values[0].Value.ToString());
+                    TransactionMark mark = JsonConvert.DeserializeObject<TransactionMark>(d.SelectToken("['data']").ToString());
+
+                    if(mark.type == TransactionType.CUSTOMER_SESSION)
+                    {
+                        orleansClient.GetGrain<ICustomerWorker>(mark.actorId).RegisterFinishedTransaction(new TransactionOutput(mark.tid, now));
+                    } else { 
+                        orleansClient.GetGrain<ISellerWorker>(mark.actorId).RegisterFinishedTransaction(new TransactionOutput(mark.tid, now));
+                    }
+                    this.logger.LogInformation("Processed the transaction mark {0} at {1}", mark.tid, now);
+                }
+                catch (Exception e)
+                {
+                    this.logger.LogWarning("Error processing transaction mark event: {0}", e.Message);
+                }
+                finally
+                {
+                    // let emitter aware this request has finished
+                    Shared.ResultQueue.Add(0);
+                }
+            }));
+            
         }
 
     }

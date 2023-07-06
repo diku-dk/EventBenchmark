@@ -89,10 +89,13 @@ namespace Client.Collection
             // transactions per second
             TimeSpan timeSpan = finishTime - startTime;
             int secondsTotal = ((timeSpan.Minutes * 60) + timeSpan.Seconds);
-            int txPerSecond = maxTid / secondsTotal;
+            decimal txPerSecond = decimal.Divide(maxTid , secondsTotal);
 
+            logger.LogInformation("Number of seconds: {0}", secondsTotal);
             sw.WriteLine("Number of seconds: {0}", secondsTotal);
+            logger.LogInformation("Number of completed transactions: {0}", maxTid);
             sw.WriteLine("Number of completed transactions: {0}", maxTid);
+            logger.LogInformation("Transactions per second: {0}", txPerSecond);
             sw.WriteLine("Transactions per second: {0}", txPerSecond);
             sw.WriteLine("===========================================");
 

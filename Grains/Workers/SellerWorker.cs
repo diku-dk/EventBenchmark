@@ -52,10 +52,6 @@ namespace Grains.Workers
         private readonly IDictionary<long,TransactionIdentifier> submittedTransactions;
         private readonly IDictionary<long, TransactionOutput> finishedTransactions;
 
-        private CancellationTokenSource token = new CancellationTokenSource();
-        private Task externalTask;
-        private string channel;
-
         public SellerWorker(ILogger<SellerWorker> logger)
         {
             this.logger = logger;
@@ -75,7 +71,7 @@ namespace Grains.Workers
 
         private static readonly ProductComparer productComparer = new ProductComparer();
 
-        public Task Init(SellerWorkerConfig sellerConfig, List<Product> products, string redisConnection)
+        public Task Init(SellerWorkerConfig sellerConfig, List<Product> products)
         {
             this.logger.LogInformation("Init -> Seller worker {0} with #{1} product(s).", this.sellerId, products.Count);
             this.config = sellerConfig;
@@ -91,34 +87,6 @@ namespace Grains.Workers
                 this.config.keyDistribution == DistributionType.UNIFORM ?
                  new UniformLongGenerator(firstId, lastId) :
                  new ZipfianGenerator(firstId, lastId);
-
-            if (redisConnection is not null) {
-                this.channel = new StringBuilder(nameof(TransactionMark)).Append('_').Append(sellerId).ToString();
-                this.externalTask = Task.Run(() => RedisUtils.Subscribe(redisConnection, channel, token.Token, entry =>
-                {
-                    var now = DateTime.Now;
-                    
-                    int tid = -1;
-                    try
-                    {
-                        JObject d = JsonConvert.DeserializeObject<JObject>(entry.Values[0].Value.ToString());
-                        TransactionMark mark = JsonConvert.DeserializeObject<TransactionMark>(d.SelectToken("['data']").ToString());
-                        finishedTransactions.Add(mark.tid, new TransactionOutput(mark.tid, now));
-                        tid = mark.tid;
-                        this.logger.LogInformation("Seller worker {0}: Processed the transaction mark {1} at {2}", sellerId, tid, now);
-                    }
-                    catch (Exception e)
-                    {
-                        this.logger.LogWarning("Seller worker {0}: Error processing transaction mark event: {1}", sellerId, e.Message);
-                    }
-                    finally
-                    {
-                        // let emitter aware this request has finished
-                        _ = txStream.OnNextAsync(tid);
-                    }
-                }));
-            }
-
             return Task.CompletedTask;
         }
 
@@ -313,8 +281,6 @@ namespace Grains.Workers
 
         public Task<List<Latency>> Collect(DateTime startTime)
         {
-            this.token.Cancel();
-
             var targetValues = submittedTransactions.Values.Where(e => e.timestamp.CompareTo(startTime) >= 0);
             var latencyList = new List<Latency>(submittedTransactions.Count());
             foreach (var entry in targetValues)
@@ -329,5 +295,10 @@ namespace Grains.Workers
             return Task.FromResult(latencyList);
         }
 
+        public Task RegisterFinishedTransaction(TransactionOutput output)
+        {
+            finishedTransactions.Add(output.tid, output);
+            return Task.CompletedTask;
+        }
     }
 }

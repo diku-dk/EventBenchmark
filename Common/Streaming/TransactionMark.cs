@@ -2,6 +2,6 @@
 
 namespace Common.Streaming
 {
-    public record TransactionMark(int tid, TransactionType type);
+    public record TransactionMark(int tid, TransactionType type, int actorId);
 }
 

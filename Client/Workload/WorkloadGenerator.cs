@@ -28,7 +28,7 @@ namespace Client.Workload
 
 		public void Run()
 		{
-            
+            logger.LogInformation("[WorkloadGenerator] Starting generation of transactions at {0}", DateTime.Now);
             int initialNumTxs = concurrencyLevel + (int)(concurrencyLevel * 0.25);
 
             // TODO keep an histogram in memory so we can see whether the distibution is correct
@@ -36,14 +36,13 @@ namespace Client.Workload
 
             while (IsRunning())
             {
-                logger.LogInformation("[WorkloadGenerator] Will wait for signal at {0}", DateTime.Now.Millisecond);
                 // wait for queue to be exhausted enough
                 Shared.WaitHandle.WaitOne();
-                logger.LogInformation("[WorkloadGenerator] Received signal at {0}", DateTime.Now.Millisecond);
+                
                 Generate(concurrencyLevel);
             }
-			
-		}
+            logger.LogInformation("[WorkloadGenerator] Finishing generation of transactions at {0}", DateTime.Now);
+        }
 
         private void Generate(int num)
         {

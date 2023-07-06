@@ -11,12 +11,13 @@ namespace GrainInterfaces.Workers
 {
 	public interface ISellerWorker : IGrainWithIntegerKey
 	{
-        public Task Init(SellerWorkerConfig sellerConfig, List<Product> products, string redisConnection);
+        Task Init(SellerWorkerConfig sellerConfig, List<Product> products);
 
-        public Task<List<Latency>> Collect(DateTime startTime);
+        Task<List<Latency>> Collect(DateTime startTime);
 
         [AlwaysInterleave]
-        public Task<long> GetProductId();
+        Task<long> GetProductId();
 
+        Task RegisterFinishedTransaction(TransactionOutput output);
     }
 }
