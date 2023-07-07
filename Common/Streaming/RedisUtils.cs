@@ -48,7 +48,7 @@ namespace Client.Streaming.Redis
             }
         }
 
-        public static Task Subscribe(string connection, string stream, CancellationToken cancellation, Action<Entry> handler)
+        public static Task Subscribe(string connection, string stream, CancellationToken cancellation, Action<List<Entry>> handler)
         {
             return Listen(connection, stream, cancellation, handler);
         }
@@ -57,7 +57,7 @@ namespace Client.Streaming.Redis
             string connection,
             string streamName,
             CancellationToken cancellation,
-            Action<Entry> handler)
+            Action<List<Entry>> handler)
         {
 
             ILogger logger = LoggerProxy.GetInstance("RedisUtils");
@@ -93,6 +93,7 @@ namespace Client.Streaming.Redis
 
                     if (!result.IsNull)
                     {
+                        List<Entry> entries = new();
                         // should only be a single result if querying a single stream
                         foreach (RedisResult[] subresults in (RedisResult[])result)
                         {
@@ -111,9 +112,12 @@ namespace Client.Streaming.Redis
                                 }
 
                                 var entry = new Entry(name, id, pairs);
-                                handler(entry);
+                                entries.Add(entry);
                             }
                         }
+
+                        handler(entries);
+
                     }
                 }
             }

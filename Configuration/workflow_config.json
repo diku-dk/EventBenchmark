@@ -1,8 +1,8 @@
 ﻿{
   "healthCheck": false,
-  "dataLoad": true,
-  "ingestion": true,
-  "transactionSubmission": true,
-  "collection": true,
-  "cleanup": true
+  "dataLoad": false,
+  "ingestion": false,
+  "transactionSubmission": false,
+  "collection": false,
+  "cleanup": false
 }

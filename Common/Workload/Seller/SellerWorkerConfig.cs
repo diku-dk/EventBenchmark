@@ -11,9 +11,6 @@ namespace Common.Workload.Seller
         // the seller should know the dist of its own products
         public DistributionType keyDistribution { get; set; }
 
-        // 0 = keys 1 = category
-        public int[] typeUpdateDistribution { get; set; } = new int[] { 0, 1 };
-
         // the perc of increase
         public Interval adjustRange { get; set; } = new Interval(1, 20);
 
@@ -21,6 +18,8 @@ namespace Common.Workload.Seller
         public string sellerUrl { get; set; }
 
         public Interval delayBetweenRequestsRange { get; set; }
+
+        public bool interactive { get; set; }
     }
 }
 

@@ -1,6 +1,6 @@
 ﻿namespace Client.Ingestion.Config
 {
-    public enum IngestionDistributionStrategy
+    public enum IngestionStrategy
     {
         SINGLE_WORKER, // one worker performs everything
         TABLE_PER_WORKER, // naive

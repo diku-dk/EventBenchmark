@@ -11,6 +11,7 @@ using Client.Workload;
 using Common.Infra;
 using Client.Collection;
 using Client.Cleaning;
+using Client.Experiment;
 
 namespace Client
 {
@@ -18,13 +19,9 @@ namespace Client
     public record MasterConfig(WorkflowConfig workflowConfig, SyntheticDataSourceConfig syntheticDataConfig, IngestionConfig ingestionConfig,
         WorkloadConfig workloadConfig, CollectionConfig collectionConfig, CleaningConfig cleaningConfig);
 
-    /**
-     * Main method based on 
-     * http://sergeybykov.github.io/orleans/1.5/Documentation/Deployment-and-Operations/Docker-Deployment.html
-     */
     public class Program
     {
-        private static ILogger logger = LoggerProxy.GetInstance("Program");
+        private static readonly ILogger logger = LoggerProxy.GetInstance("Program");
 
         public static async Task Main_(string[] args)
         {
@@ -32,7 +29,7 @@ namespace Client
 
             // http://localhost:9090/api/v1/query?query=dapr_component_pubsub_ingress_count&time=1688568061.327
 
-            var res = await MetricGather.GetFromPrometheus(masterConfig.collectionConfig, "1688568061.327");
+            var res = await MetricGather.GetFromPrometheus(masterConfig.Item1.collectionConfig, "1688568061.327");
             /*
             var message = new HttpRequestMessage(HttpMethod.Get, "http://localhost:9090/api/v1/query?query=dapr_component_pubsub_egress_count{app_id=%22cart%22,topic=%22ReserveStock%22}&time=1688136844");
             // masterConfig.collectionConfig.baseUrl + "/" + masterConfig.collectionConfig.ingress_count);
@@ -55,14 +52,23 @@ namespace Client
         public static async Task Main(string[] args)
         {
             logger.LogInformation("Initializing benchmark driver...");
-            var masterConfig = BuildMasterConfig(args);
+            var masterConfig_ = BuildMasterConfig(args);
             logger.LogInformation("Configuration parsed.");
-            WorkflowOrchestrator orchestrator = new WorkflowOrchestrator(
-                masterConfig.workflowConfig, masterConfig.syntheticDataConfig, masterConfig.ingestionConfig,
-                masterConfig.workloadConfig, masterConfig.collectionConfig, masterConfig.cleaningConfig);
-            logger.LogInformation("Starting workflow...");
-            await orchestrator.Run();
-            logger.LogInformation("Workflow finished!");
+
+            if(masterConfig_.Item2 is not null)
+            {
+                logger.LogInformation("Starting experiment...");
+                await WorkflowOrchestrator.Run(masterConfig_.Item2);
+                logger.LogInformation("Experiment finished!");
+            } else
+            {
+                var masterConfig = masterConfig_.Item1;
+                logger.LogInformation("Starting workflow...");
+                await WorkflowOrchestrator.Run(masterConfig.workflowConfig, masterConfig.syntheticDataConfig, masterConfig.ingestionConfig,
+                    masterConfig.workloadConfig, masterConfig.collectionConfig, masterConfig.cleaningConfig);
+                logger.LogInformation("Workflow finished!");
+            }
+         
         }
 
         /**
@@ -70,7 +76,7 @@ namespace Client
          * 2 - parse config files
          * 3 - if files parsed are correct, then start orleans
          */
-        public static MasterConfig BuildMasterConfig(string[] args)
+        public static (MasterConfig, ExperimentConfig) BuildMasterConfig(string[] args)
         {
             string initDir = Directory.GetCurrentDirectory();
             string configFilesDir;
@@ -81,7 +87,23 @@ namespace Client
             {
                 configFilesDir = initDir;
             }
-            Environment.CurrentDirectory = (configFilesDir);
+            Environment.CurrentDirectory = configFilesDir;
+
+            if (File.Exists("experiment_config.json"))
+            {
+                /** =============== Workflow config file ================= */
+                logger.LogInformation("Init reading experiment configuration file...");
+                ExperimentConfig experimentConfig;
+                using (StreamReader r = new StreamReader("experiment_config.json"))
+                {
+                    string json = r.ReadToEnd();
+                    logger.LogInformation("experiment_config.json contents:\n {0}", json);
+                    experimentConfig = JsonConvert.DeserializeObject<ExperimentConfig>(json);
+                }
+                logger.LogInformation("Workflow configuration file read succesfully");
+                
+                return (null, experimentConfig);
+            }
 
             if (!File.Exists("workflow_config.json"))
             {
@@ -231,10 +253,9 @@ namespace Client
                 logger.LogInformation("Cleaning file read succesfully");
             }
 
-
             MasterConfig masterConfiguration = new MasterConfig(            
                 workflowConfig,dataLoadConfig, ingestionConfig, workloadConfig, collectionConfig, cleaningConfig);
-            return masterConfiguration;
+            return (masterConfiguration, null);
         }
 
     }

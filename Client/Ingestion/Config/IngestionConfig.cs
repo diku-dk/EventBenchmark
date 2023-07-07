@@ -9,7 +9,7 @@ namespace Client.Ingestion.Config
         public string connectionString { get; set; } = "Data Source=file.db"; // "DataSource=:memory:"
 
         // distribution of work strategy
-        public IngestionDistributionStrategy distributionStrategy { get; set; } = IngestionDistributionStrategy.SINGLE_WORKER;
+        public IngestionStrategy strategy { get; set; } = IngestionStrategy.SINGLE_WORKER;
 
         // number of logical processors by default
         public readonly int concurrencyLevel = Environment.ProcessorCount;

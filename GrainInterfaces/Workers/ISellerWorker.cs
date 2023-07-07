@@ -19,5 +19,8 @@ namespace GrainInterfaces.Workers
         Task<long> GetProductId();
 
         Task RegisterFinishedTransaction(TransactionOutput output);
+
+        [AlwaysInterleave]
+        Task<Product> GetProduct();
     }
 }

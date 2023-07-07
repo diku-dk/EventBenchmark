@@ -18,10 +18,6 @@ using Common.Distribution;
 using Common.Workload;
 using Common.Workload.Metrics;
 using Common.Requests;
-using Client.Streaming.Redis;
-using Newtonsoft.Json.Linq;
-using System.Text;
-using System.Threading;
 using System.Collections.Concurrent;
 using Orleans.Concurrency;
 
@@ -220,11 +216,14 @@ namespace Grains.Workers
                 return;
             }
 
-            // 1 - simulate seller browsing own main page (that will bring the product list)
-            var productsRetrieved = (await GetOwnProducts()).ToDictionary(k=>k.product_id,v=>v);
+            if (config.interactive)
+            {
+                // 1 - simulate seller browsing own main page (that will bring the product list)
+                var productsRetrieved = (await GetOwnProducts()).ToDictionary(k => k.product_id, v => v);
 
-            int delay = this.random.Next(this.config.delayBetweenRequestsRange.min, this.config.delayBetweenRequestsRange.max + 1);
-            await Task.Delay(delay);
+                int delay = this.random.Next(this.config.delayBetweenRequestsRange.min, this.config.delayBetweenRequestsRange.max + 1);
+                await Task.Delay(delay);
+            }
 
             // 2 - select one to submit the update (based on distribution)
             long selectedProduct = this.productIdGenerator.NextValue();
@@ -238,7 +237,7 @@ namespace Grains.Workers
             int percToAdjust = random.Next(config.adjustRange.min, config.adjustRange.max);
 
             // 3 - get new price
-            var currPrice = productsRetrieved[selectedProduct].price;
+            var currPrice = products.First(p=>p.product_id == selectedProduct).price;
             var newPrice = currPrice + ( (currPrice * percToAdjust) / 100 );
             
             // 4 - submit update
@@ -277,6 +276,12 @@ namespace Grains.Workers
         {
             long selectedProduct = this.productIdGenerator.NextValue();
             return Task.FromResult(selectedProduct);
+        }
+
+        public Task<Product> GetProduct()
+        {
+            long productId = this.productIdGenerator.NextValue();
+            return Task.FromResult( products.First(p => p.product_id == productId) );
         }
 
         public Task<List<Latency>> Collect(DateTime startTime)

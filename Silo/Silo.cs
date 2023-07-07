@@ -23,8 +23,7 @@ var builder = new HostBuilder()
             .ConfigureLogging(logging =>
             {
                 logging.ClearProviders();
-                // logging.AddConsole();
-                logging.AddSimpleConsole();
+                logging.AddConsole();
                 logging.SetMinimumLevel(LogLevel.Information);
             })
         ;

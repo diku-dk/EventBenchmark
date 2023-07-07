@@ -34,10 +34,11 @@
     "maxNumberVouchers": 10,
     "productUrl": "http://127.0.0.1:5008",
     "cartUrl": "http://127.0.0.1:5001",
-    "browsing": true
+    "interactive": true
   },
   "sellerWorkerConfig": {
     "keyDistribution": "NON_UNIFORM",
+    "interactive": false,
     "delayBetweenRequestsRange": {
       "min": 1,
       "max": 1000

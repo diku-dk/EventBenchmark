@@ -38,10 +38,7 @@ namespace Client.Workload
             ["low-stock-warning"] = StreamingConstants.SellerReactStreamId,
             // customer
             ["abandoned-cart"] = StreamingConstants.CustomerReactStreamId,
-            ["payment-rejected"] = StreamingConstants.CustomerReactStreamId,
-            ["out-of-stock"] = StreamingConstants.CustomerReactStreamId,
-            ["price-update"] = StreamingConstants.CustomerReactStreamId,
-            ["product-unavailable"] = StreamingConstants.CustomerReactStreamId,
+            ["payment-rejected"] = StreamingConstants.CustomerReactStreamId
         };
 
         public StreamingConfig streamingConfig { get; set; }

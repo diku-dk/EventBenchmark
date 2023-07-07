@@ -7,7 +7,7 @@ namespace Client.Cleaning
 	{
         public StreamingConfig streamingConfig { get; set; }
 
-        public IDictionary<string, string> mapMicroserviceToUrl;
+        public IDictionary<string, string> mapMicroserviceToUrl { get; set; }
 
         public const string cleanupEndpoint = "/cleanup";
 

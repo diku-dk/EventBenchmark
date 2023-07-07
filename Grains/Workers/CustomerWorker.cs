@@ -21,6 +21,7 @@ using Common.Requests;
 using Common.Workload;
 using Common.Workload.Metrics;
 using System.Threading;
+using Client.Streaming.Redis;
 
 namespace Grains.Workers
 {
@@ -114,6 +115,24 @@ namespace Grains.Workers
             return set;
         }
 
+        private async Task<List<Product>> DefineProductsToCheckout(int numberOfProducts)
+        {
+            List<Product> list = new(numberOfProducts);
+            ISellerWorker sellerWorker;
+            StringBuilder sb = new StringBuilder();
+            long sellerId;
+            for (int i = 0; i < numberOfProducts; i++)
+            {
+                sellerId = this.sellerIdGenerator.NextValue();
+                sellerWorker = GrainFactory.GetGrain<ISellerWorker>(sellerId);
+
+                // we dont measure the performance of the benchmark, only the system. as long as we can submit enough workload we are fine
+                var product = await sellerWorker.GetProduct();
+                list.Add(product);
+            }
+            return list;
+        }
+
         private async Task<ISet<(long sellerId,long productId)>> DefineKeysToBrowseAsync(int numberOfKeysToBrowse)
         {
             ISet<(long sellerId, long productId)> keyMap = new HashSet<(long sellerId, long productId)>(numberOfKeysToBrowse);
@@ -153,28 +172,38 @@ namespace Grains.Workers
 
             this.logger.LogInformation("Customer {0} number of keys to browse: {1}", customerId, numberOfKeysToBrowse);
 
-            var keyMap = await DefineKeysToBrowseAsync(numberOfKeysToBrowse);
 
-            await Browse(keyMap);
-
-            // TODO should we also model this behavior?
-            int numberOfKeysToCheckout =
-                random.Next(1, Math.Min(numberOfKeysToBrowse, this.config.maxNumberKeysToAddToCart) + 1);
-
-            // adding to cart
-            try
+            if (config.interactive)
             {
-                await AddItemsToCart(DefineKeysToCheckout(keyMap.ToList(), numberOfKeysToCheckout));
+                var keyMap = await DefineKeysToBrowseAsync(numberOfKeysToBrowse);
 
-                await GetCart();
+                await Browse(keyMap);
 
+                // TODO should we also model this behavior?
+                int numberOfKeysToCheckout =
+                    random.Next(1, Math.Min(numberOfKeysToBrowse, this.config.maxNumberKeysToAddToCart) + 1);
+
+                // adding to cart
+                try
+                {
+                    await AddItemsToCart(DefineKeysToCheckout(keyMap.ToList(), numberOfKeysToCheckout));
+
+                    await GetCart();
+
+                    await Checkout(tid);
+                }
+                catch (Exception e)
+                {
+                    this.logger.LogError(e.Message);
+                    this.status = CustomerWorkerStatus.CHECKOUT_FAILED;
+                    await InformFailedCheckout();
+                }
+            } else
+            {
+                int numberOfKeysToCheckout = random.Next(1, this.config.maxNumberKeysToAddToCart + 1);
+                var products = await DefineProductsToCheckout(numberOfKeysToCheckout);
+                await AddItemsToCart(products);
                 await Checkout(tid);
-            }
-            catch (Exception e)
-            {
-                this.logger.LogError(e.Message);
-                this.status = CustomerWorkerStatus.CHECKOUT_FAILED;
-                await InformFailedCheckout();
             }
             
         }
@@ -233,7 +262,7 @@ namespace Grains.Workers
             TransactionIdentifier txId = null;
             HttpResponseMessage resp = await Task.Run(() =>
             {
-                txId = new TransactionIdentifier(tid, TransactionType.DASHBOARD, DateTime.Now);
+                txId = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, DateTime.Now);
                 return HttpUtils.client.Send(message);
             });
 
@@ -255,7 +284,7 @@ namespace Grains.Workers
             {
                 resp = await Task.Run(() =>
                 {
-                    txId = new TransactionIdentifier(tid, TransactionType.DASHBOARD, DateTime.Now);
+                    txId = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, DateTime.Now);
                     return HttpUtils.client.Send(message);
                 });
             }
@@ -271,6 +300,30 @@ namespace Grains.Workers
             // very unlikely to have another price update (considering the distribution is low)
             await InformSucceededCheckout();
             
+        }
+
+        private async Task AddItemsToCart(List<Product> products)
+        {
+            foreach(var product in products)
+            {
+                await Task.Run(() =>
+                {
+                    HttpResponseMessage response;
+                    var qty = random.Next(this.config.minMaxQtyRange.min, this.config.minMaxQtyRange.max + 1);
+                    var payload = BuildCartItem(product, qty);
+                    try
+                    {
+                        HttpRequestMessage message2 = new HttpRequestMessage(HttpMethod.Patch, this.config.cartUrl + "/" + customerId + "/add");
+                        message2.Content = payload;
+                        this.logger.LogInformation("Customer {0}: Sending seller {1} product {2} payload to cart...", this.customerId, product.seller_id, product.product_id);
+                        response = HttpUtils.client.Send(message2);
+                    }
+                    catch (Exception e)
+                    {
+                        this.logger.LogWarning("Customer {0} Url {1} Seller {2} Key {3}: Exception Message: {5} ", customerId, this.config.productUrl, product.seller_id, product.product_id, e.Message);
+                    }
+                });
+            }
         }
 
         private async Task AddItemsToCart(ISet<(long sellerId, long productId)> keyMap)
@@ -352,9 +405,12 @@ namespace Grains.Workers
 
         private StringContent BuildCartItem(string productPayload, int quantity)
         {
-
             Product product = JsonConvert.DeserializeObject<Product>(productPayload);
+            return BuildCartItem(product, quantity);
+        }
 
+        private StringContent BuildCartItem(Product product, int quantity)
+        {
             // define voucher from distribution
             var vouchers = Array.Empty<decimal>();
             int probVoucher = this.random.Next(0, 101);

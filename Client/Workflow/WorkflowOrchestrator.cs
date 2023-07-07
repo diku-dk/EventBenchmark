@@ -23,48 +23,30 @@ using Client.Cleaning;
 using Common.Workload.Metrics;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using System.IO;
 using System.Text;
 using System.Threading;
+using Client.Experiment;
 
 namespace Client.Workflow
 {
 	public class WorkflowOrchestrator
 	{
 
-        private readonly WorkflowConfig workflowConfig;
+        private static readonly ILogger logger = LoggerProxy.GetInstance("WorkflowOrchestrator");
 
-        private readonly SyntheticDataSourceConfig syntheticDataConfig;
-
-        private readonly IngestionConfig ingestionConfig;
-
-        private readonly WorkloadConfig workloadConfig;
-
-        private readonly CollectionConfig collectionConfig;
-
-        private readonly CleaningConfig cleaningConfig;
-
-        private readonly ILogger logger;
-
-        public WorkflowOrchestrator(WorkflowConfig workflowConfig, SyntheticDataSourceConfig syntheticDataConfig, IngestionConfig ingestionConfig,
-            WorkloadConfig workloadConfig, CollectionConfig collectionConfig, CleaningConfig cleaningConfig)
-		{
-            this.workflowConfig = workflowConfig;
-            this.syntheticDataConfig = syntheticDataConfig;
-            this.ingestionConfig = ingestionConfig;
-            this.workloadConfig = workloadConfig;
-            this.collectionConfig = collectionConfig;
-            this.cleaningConfig = cleaningConfig;
-            this.logger = LoggerProxy.GetInstance("WorkflowOrchestrator");
+        public async static Task Run(ExperimentConfig config)
+        {
+            await Task.Delay(1000);
         }
 
         /**
-         * Initialize the first step
+         * Single run
          */
-        public async Task Run()
+        public async static Task Run(WorkflowConfig workflowConfig, SyntheticDataSourceConfig syntheticDataConfig, IngestionConfig ingestionConfig,
+            WorkloadConfig workloadConfig, CollectionConfig collectionConfig, CleaningConfig cleaningConfig)
         {
 
-            if (this.workflowConfig.healthCheck)
+            if (workflowConfig.healthCheck)
             {
                 var responses = new List<Task<HttpResponseMessage>>();
                 foreach (var tableUrl in ingestionConfig.mapTableToUrl)
@@ -96,10 +78,10 @@ namespace Client.Workflow
                 }
 
                 logger.LogInformation("Healthcheck succeeded for all URLs {1}", ingestionConfig.mapTableToUrl);
-                string redisConn = string.Format("{0}:{1}", this.workloadConfig.streamingConfig.host, this.workloadConfig.streamingConfig.port);
+                string redisConn = string.Format("{0}:{1}", workloadConfig.streamingConfig.host, workloadConfig.streamingConfig.port);
                 // https://stackoverflow.com/questions/27102351/how-do-you-handle-failed-redis-connections
                 // https://stackoverflow.com/questions/47348341/servicestack-redis-service-availability
-                if (this.workflowConfig.transactionSubmission && !RedisUtils.TestRedisConnection(redisConn))
+                if (workflowConfig.transactionSubmission && !RedisUtils.TestRedisConnection(redisConn))
                 {
                     logger.LogInformation("Healthcheck failed for Redis in URL {0}", redisConn);
                 }
@@ -107,19 +89,19 @@ namespace Client.Workflow
                 logger.LogInformation("Healthcheck process succeeded");
             }
 
-            if (this.workflowConfig.dataLoad)
+            if (workflowConfig.dataLoad)
             {
                 var syntheticDataGenerator = new SyntheticDataGenerator(syntheticDataConfig);
                 syntheticDataGenerator.Generate();
             }
 
-            if (this.workflowConfig.ingestion)
+            if (workflowConfig.ingestion)
             {
-                var ingestionOrchestrator = new SimpleIngestionOrchestrator(ingestionConfig);
+                var ingestionOrchestrator = new IngestionOrchestrator(ingestionConfig);
                 await ingestionOrchestrator.Run();
             }
 
-            if (this.workflowConfig.transactionSubmission)
+            if (workflowConfig.transactionSubmission)
             {
 
                 logger.LogInformation("Initializing Orleans client...");
@@ -133,14 +115,14 @@ namespace Client.Workflow
                 var streamProvider = orleansClient.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
 
                 // get number of products
-                using var connection = new DuckDBConnection(this.workloadConfig.connectionString);
+                using var connection = new DuckDBConnection(workloadConfig.connectionString);
                 connection.Open();
                 List<Customer> customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
                 long numSellers = DuckDbUtils.Count(connection, "sellers");
                 var customerRange = new Interval(1, customers.Count());
 
                 // initialize all workers
-                await BeforeSubmission(orleansClient, customers, numSellers, connection);
+                await BeforeSubmission(workloadConfig, orleansClient, customers, numSellers, connection);
 
                 // eventual compltion transactions
                 List<TransactionType> transactions = new() { TransactionType.CUSTOMER_SESSION, TransactionType.PRICE_UPDATE, TransactionType.DELETE_PRODUCT };
@@ -157,7 +139,7 @@ namespace Client.Workflow
                 }
 
                 // setup transaction orchestrator
-                WorkloadOrchestrator workloadOrchestrator = new WorkloadOrchestrator(orleansClient, this.workloadConfig, customerRange);
+                WorkloadOrchestrator workloadOrchestrator = new WorkloadOrchestrator(orleansClient, workloadConfig, customerRange);
 
                 var workloadTask = Task.Run(workloadOrchestrator.Run);
                 DateTime startTime = workloadTask.Result.startTime;
@@ -174,9 +156,9 @@ namespace Client.Workflow
                 await Task.WhenAll(listeningTasks);
 
                 // set up data collection for metrics
-                if (this.workflowConfig.collection)
+                if (workflowConfig.collection)
                 {
-                    MetricGather metricGather = new MetricGather(orleansClient, customers, numSellers, this.collectionConfig);
+                    MetricGather metricGather = new MetricGather(orleansClient, customers, numSellers, collectionConfig);
                     await metricGather.Collect(startTime, finishTime);
                 }
 
@@ -184,18 +166,18 @@ namespace Client.Workflow
                 logger.LogInformation("Orleans client finalized!");
             }
 
-            if (this.workflowConfig.cleanup)
+            if (workflowConfig.cleanup)
             {
                 // clean streams beforehand. make sure microservices do not receive events from previous runs
                 List<string> channelsToTrim = cleaningConfig.streamingConfig.streams.ToList();
-                string redisConnection = string.Format("{0}:{1}", this.cleaningConfig.streamingConfig.host, this.cleaningConfig.streamingConfig.port);
+                string redisConnection = string.Format("{0}:{1}", cleaningConfig.streamingConfig.host, cleaningConfig.streamingConfig.port);
                 logger.LogInformation("Triggering {0} stream cleanup on {1}", cleaningConfig.streamingConfig.type, redisConnection);
                 Task trimTasks = Task.Run(() => RedisUtils.TrimStreams(redisConnection, channelsToTrim));
                 await trimTasks; // should also iterate over all transaction mark streams and trim them
 
                 List<Task> responses = new();
                 // truncate duckdb tables
-                foreach(var entry in this.cleaningConfig.mapMicroserviceToUrl)
+                foreach(var entry in cleaningConfig.mapMicroserviceToUrl)
                 {
                     var urlCleanup = entry.Value + CleaningConfig.cleanupEndpoint;
                     logger.LogInformation("Triggering {0} cleanup on {1}", entry.Key, urlCleanup);
@@ -210,7 +192,7 @@ namespace Client.Workflow
 
         }
 
-        public async Task BeforeSubmission(IClusterClient orleansClient, List<Customer> customers, long numSellers, DuckDBConnection connection)
+        public static async Task BeforeSubmission(WorkloadConfig workloadConfig, IClusterClient orleansClient, List<Customer> customers, long numSellers, DuckDBConnection connection)
         {
             var endValue = DuckDbUtils.Count(connection, "products");
             if (endValue < workloadConfig.customerWorkerConfig.maxNumberKeysToBrowse || endValue < workloadConfig.customerWorkerConfig.maxNumberKeysToAddToCart)
@@ -249,32 +231,38 @@ namespace Client.Workflow
             await deliveryWorker.Init(workloadConfig.deliveryWorkerConfig);
         }
 
-        private Task SubscribeToTransactionResult(IClusterClient orleansClient, string redisConnection, string channel, CancellationTokenSource token)
+        private static Task SubscribeToTransactionResult(IClusterClient orleansClient, string redisConnection, string channel, CancellationTokenSource token)
         {
-            return Task.Run(() => RedisUtils.Subscribe(redisConnection, channel, token.Token, entry =>
+            return Task.Run(() => RedisUtils.Subscribe(redisConnection, channel, token.Token, entries =>
             {
                 var now = DateTime.Now;
-                try
+                foreach (var entry in entries)
                 {
-                    JObject d = JsonConvert.DeserializeObject<JObject>(entry.Values[0].Value.ToString());
-                    TransactionMark mark = JsonConvert.DeserializeObject<TransactionMark>(d.SelectToken("['data']").ToString());
-
-                    if(mark.type == TransactionType.CUSTOMER_SESSION)
+                    try
                     {
-                        orleansClient.GetGrain<ICustomerWorker>(mark.actorId).RegisterFinishedTransaction(new TransactionOutput(mark.tid, now));
-                    } else { 
-                        orleansClient.GetGrain<ISellerWorker>(mark.actorId).RegisterFinishedTransaction(new TransactionOutput(mark.tid, now));
+                        // Dapr event payload deserialziation
+                        JObject d = JsonConvert.DeserializeObject<JObject>(entry.Values[0].Value.ToString());
+                        TransactionMark mark = JsonConvert.DeserializeObject<TransactionMark>(d.SelectToken("['data']").ToString());
+
+                        if (mark.type == TransactionType.CUSTOMER_SESSION)
+                        {
+                            orleansClient.GetGrain<ICustomerWorker>(mark.actorId).RegisterFinishedTransaction(new TransactionOutput(mark.tid, now));
+                        }
+                        else
+                        {
+                            orleansClient.GetGrain<ISellerWorker>(mark.actorId).RegisterFinishedTransaction(new TransactionOutput(mark.tid, now));
+                        }
+                        logger.LogInformation("Processed the transaction mark {0} at {1}", mark.tid, now);
                     }
-                    this.logger.LogInformation("Processed the transaction mark {0} at {1}", mark.tid, now);
-                }
-                catch (Exception e)
-                {
-                    this.logger.LogWarning("Error processing transaction mark event: {0}", e.Message);
-                }
-                finally
-                {
-                    // let emitter aware this request has finished
-                    Shared.ResultQueue.Add(0);
+                    catch (Exception e)
+                    {
+                        logger.LogWarning("Error processing transaction mark event: {0}", e.Message);
+                    }
+                    finally
+                    {
+                        // let emitter aware this request has finished
+                        Shared.ResultQueue.Add(0);
+                    }
                 }
             }));
             

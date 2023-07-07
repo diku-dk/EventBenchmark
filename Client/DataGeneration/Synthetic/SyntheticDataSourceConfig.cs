@@ -1,22 +1,17 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using Orleans;
-
-namespace Client.DataGeneration
+﻿namespace Client.DataGeneration
 {
 	public class SyntheticDataSourceConfig
     {
 
-        public string connectionString = "Data Source=file.db"; // "DataSource=:memory:"
+        public string connectionString { get; set; } = "Data Source=file.db"; // "DataSource=:memory:"
 
-        public int numCustomers = 10;
+        public int numCustomers { get; set; } = 10;
 
-        public int numProducts = 50;
+        public int numProducts { get; set; } = 50;
 
-        public int avgNumProdPerSeller = 5;
+        public int avgNumProdPerSeller { get; set; } = 5;
 
-        public bool createSchema = true;
+        public bool createSchema { get; set; } = true;
 
     }
 }

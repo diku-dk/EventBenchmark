@@ -20,6 +20,7 @@
     <None Remove="Ingestion\Config\" />
     <None Remove="Collection\" />
     <None Remove="Cleaning\" />
+    <None Remove="Experiment\" />
   </ItemGroup>
 
   <ItemGroup>
@@ -50,6 +51,7 @@
     <Folder Include="Ingestion\Config\" />
     <Folder Include="Collection\" />
     <Folder Include="Cleaning\" />
+    <Folder Include="Experiment\" />
   </ItemGroup>
   
 </Project>
