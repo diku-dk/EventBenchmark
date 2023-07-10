@@ -34,5 +34,7 @@ namespace Common.Workload.Customer
         // flag that defines the behavior of the customer worker
         // whether it will checkout directly or browse several items before
         public bool interactive { get; set; }
+
+        public CustomerWorkerConfig() { }
     }
 }

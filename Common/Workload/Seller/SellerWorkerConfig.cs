@@ -20,6 +20,8 @@ namespace Common.Workload.Seller
         public Interval delayBetweenRequestsRange { get; set; }
 
         public bool interactive { get; set; }
+
+        public SellerWorkerConfig() { }
     }
 }
 

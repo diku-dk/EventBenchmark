@@ -7,6 +7,8 @@
     "strategy": "TABLE_PER_WORKER",
     "concurrencyLevel": 2,
     "mapTableToUrl": {
+      "sellers": "http://127.0.0.1:5006",
+      "customers": "http://127.0.0.1:5007",
       "stock_items": "http://127.0.0.1:5003",
       "products": "http://127.0.0.1:5008"
     }
@@ -23,6 +25,30 @@
       "customerDistribution": "UNIFORM",
       "sellerDistribution": "UNIFORM",
       "keyDistribution": "UNIFORM"
+    },
+    {
+      "numProducts": 10000,
+      "customerDistribution": "NON_UNIFORM",
+      "sellerDistribution": "NON_UNIFORM",
+      "keyDistribution": "NON_UNIFORM"
+    },
+    {
+      "numProducts": 10000,
+      "customerDistribution": "UNIFORM",
+      "sellerDistribution": "UNIFORM",
+      "keyDistribution": "UNIFORM"
+    },
+    {
+      "numProducts": 100000,
+      "customerDistribution": "NON_UNIFORM",
+      "sellerDistribution": "NON_UNIFORM",
+      "keyDistribution": "NON_UNIFORM"
+    },
+    {
+      "numProducts": 100000,
+      "customerDistribution": "UNIFORM",
+      "sellerDistribution": "UNIFORM",
+      "keyDistribution": "UNIFORM"
     }
   ],
   "postRunTasks": [
@@ -31,8 +57,28 @@
       "url": "http://127.0.0.1:5001/reset"
     },
     {
+      "name": "order",
+      "url": "http://127.0.0.1:5002/cleanup"
+    },
+    {
       "name": "stock",
       "url": "http://127.0.0.1:5003/reset"
+    },
+    {
+      "name": "payment",
+      "url": "http://127.0.0.1:5004/cleanup"
+    },
+    {
+      "name": "shipment",
+      "url": "http://127.0.0.1:5005/cleanup"
+    },
+    {
+      "name": "seller",
+      "url": "http://127.0.0.1:5006/reset"
+    },
+    {
+      "name": "customer",
+      "url": "http://127.0.0.1:5007/reset"
     },
     {
       "name": "product",
@@ -42,10 +88,10 @@
   "transactionDistribution": {
     // "CUSTOMER_SESSION": 100 // 70,
     // "UPDATE_DELIVERY": 100
-    "PRICE_UPDATE": 99,
+    "PRICE_UPDATE": 95,
     "DELETE_PRODUCT": 100
   },
-  "executionTime": 10000, // 1 minute by default
+  "executionTime": 60000, // 1 minute by default
   "delayBetweenRequests": 0,
   "concurrencyLevel": 5, // 10000,
   "streamingConfig": {

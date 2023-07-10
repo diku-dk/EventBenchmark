@@ -3,7 +3,7 @@
 	public class SyntheticDataSourceConfig
     {
 
-        public string connectionString { get; set; } = "Data Source=file.db"; // "DataSource=:memory:"
+        public string connectionString { get; set; } //= "Data Source=file.db"; // "DataSource=:memory:"
 
         public int numCustomers { get; set; } = 10;
 

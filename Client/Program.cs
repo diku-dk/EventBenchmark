@@ -101,8 +101,9 @@ namespace Client
                     experimentConfig = JsonConvert.DeserializeObject<ExperimentConfig>(json);
                 }
                 logger.LogInformation("Workflow configuration file read succesfully");
-                
-                return (null, experimentConfig);
+
+                if(experimentConfig.enabled)
+                    return (null, experimentConfig);
             }
 
             if (!File.Exists("workflow_config.json"))

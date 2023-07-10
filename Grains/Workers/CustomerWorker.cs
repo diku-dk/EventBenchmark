@@ -21,7 +21,7 @@ using Common.Requests;
 using Common.Workload;
 using Common.Workload.Metrics;
 using System.Threading;
-using Client.Streaming.Redis;
+using Orleans.Concurrency;
 
 namespace Grains.Workers
 {
@@ -31,6 +31,7 @@ namespace Grains.Workers
      * Nice example of tasks in a customer session:
      * https://github.com/GoogleCloudPlatform/microservices-demo/blob/main/src/loadgenerator/locustfile.py
      */
+    [Reentrant]
     public sealed class CustomerWorker : Grain, ICustomerWorker
     {
         private readonly Random random;
@@ -99,6 +100,10 @@ namespace Grains.Workers
                 this.config.sellerDistribution == DistributionType.UNIFORM ?
                 new UniformLongGenerator(this.config.sellerRange.min, this.config.sellerRange.max) :
                 new ZipfianGenerator(this.config.sellerRange.min, this.config.sellerRange.max);
+
+            this.submittedTransactions.Clear();
+            this.finishedTransactions.Clear();
+
             return Task.CompletedTask;
         }
 
@@ -119,7 +124,6 @@ namespace Grains.Workers
         {
             List<Product> list = new(numberOfProducts);
             ISellerWorker sellerWorker;
-            StringBuilder sb = new StringBuilder();
             long sellerId;
             for (int i = 0; i < numberOfProducts; i++)
             {
@@ -172,7 +176,6 @@ namespace Grains.Workers
 
             this.logger.LogInformation("Customer {0} number of keys to browse: {1}", customerId, numberOfKeysToBrowse);
 
-
             if (config.interactive)
             {
                 var keyMap = await DefineKeysToBrowseAsync(numberOfKeysToBrowse);
@@ -187,9 +190,7 @@ namespace Grains.Workers
                 try
                 {
                     await AddItemsToCart(DefineKeysToCheckout(keyMap.ToList(), numberOfKeysToCheckout));
-
                     await GetCart();
-
                     await Checkout(tid);
                 }
                 catch (Exception e)
@@ -306,6 +307,7 @@ namespace Grains.Workers
         {
             foreach(var product in products)
             {
+                this.logger.LogInformation("Customer {0}: Adding seller {1} product {2} to cart", this.customerId, product.seller_id, product.product_id);
                 await Task.Run(() =>
                 {
                     HttpResponseMessage response;
@@ -323,6 +325,8 @@ namespace Grains.Workers
                         this.logger.LogWarning("Customer {0} Url {1} Seller {2} Key {3}: Exception Message: {5} ", customerId, this.config.productUrl, product.seller_id, product.product_id, e.Message);
                     }
                 });
+                int delay = this.random.Next(this.config.delayBetweenRequestsRange.min, this.config.delayBetweenRequestsRange.max + 1);
+                await Task.Delay(delay);
             }
         }
 

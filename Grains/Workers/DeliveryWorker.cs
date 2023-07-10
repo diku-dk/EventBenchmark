@@ -42,6 +42,8 @@ namespace Grains.Workers
         public Task Init(DeliveryWorkerConfig config)
         {
             this.config = config;
+            this.submittedTransactions.Clear();
+            this.finishedTransactions.Clear();
             return Task.CompletedTask;
         }
 

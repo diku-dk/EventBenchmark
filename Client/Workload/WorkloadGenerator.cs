@@ -16,31 +16,43 @@ namespace Client.Workload
         private readonly int concurrencyLevel;
 
         private readonly Random random;
-        private readonly ILogger logger;
+        private static readonly ILogger logger = LoggerProxy.GetInstance("WorkloadGenerator");
 
         public WorkloadGenerator(IDictionary<TransactionType, int> workloadDistribution, int concurrencyLevel) : base()
         {
 			this.concurrencyLevel = concurrencyLevel;
             this.workloadDistribution = workloadDistribution.ToList();
             this.random = new Random();
-            this.logger = LoggerProxy.GetInstance("WorkloadGenerator");
+        }
+
+        public void Prepare()
+        {
+            
+            int initialNumTxs = concurrencyLevel + (int)(concurrencyLevel * 0.25);
+
+            // TODO keep an histogram in memory so we can see whether the distibution is correct
+            Generate(initialNumTxs);
+            logger.LogInformation("[WorkloadGenerator] Prepared at {0}", DateTime.Now);
         }
 
 		public void Run()
 		{
             logger.LogInformation("[WorkloadGenerator] Starting generation of transactions at {0}", DateTime.Now);
-            int initialNumTxs = concurrencyLevel + (int)(concurrencyLevel * 0.25);
 
-            // TODO keep an histogram in memory so we can see whether the distibution is correct
-            Generate(initialNumTxs);
+            // wait for queue to be exhausted enough
+            Shared.WaitHandle.Take();
 
             while (IsRunning())
             {
-                // wait for queue to be exhausted enough
-                Shared.WaitHandle.WaitOne();
-                
                 Generate(concurrencyLevel);
+                logger.LogInformation("[WorkloadGenerator] Sleeping at {0}", DateTime.Now);
+                Shared.WaitHandle.Take();
+                logger.LogInformation("[WorkloadGenerator] Woke at {0}", DateTime.Now);
             }
+
+            // clean
+            while (Shared.Workload.TryTake(out _)) { }
+
             logger.LogInformation("[WorkloadGenerator] Finishing generation of transactions at {0}", DateTime.Now);
         }
 

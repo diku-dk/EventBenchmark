@@ -44,7 +44,7 @@
         "topic": "DeliveryNotification"
       }
     ],
-      "ingress_count": "query?query=dapr_component_pubsub_ingress_count",
+    "ingress_count": "query?query=dapr_component_pubsub_ingress_count",
     "ingress_topics": [
       {
         "app_id": "cart",

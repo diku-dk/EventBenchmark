@@ -31,7 +31,7 @@ namespace Client.DataGeneration
             }
         }
 
-        public override void Generate()
+        public override void Generate(bool genCustomer = false)
         {
             using var connection = new DuckDBConnection(config.connectionString);
             connection.Open();
@@ -72,11 +72,14 @@ namespace Client.DataGeneration
             }
 
             // customers
-            int currCustomer = 1;
-            while(currCustomer <= config.numCustomers)
+            if (genCustomer)
             {
-                GenerateCustomer(command, currCustomer);
-                currCustomer++;
+                int currCustomer = 1;
+                while (currCustomer <= config.numCustomers)
+                {
+                    GenerateCustomer(command, currCustomer);
+                    currCustomer++;
+                }
             }
 
             Console.WriteLine("Synthetic data generation has terminated.");

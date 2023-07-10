@@ -1,14 +1,7 @@
-﻿using Common.Ingestion.DTO;
-using DuckDB.NET.Data;
+﻿using DuckDB.NET.Data;
 using System;
-using System.Collections.Generic;
-using System.Diagnostics.Metrics;
 using System.IO;
-using System.Linq;
-using System.Reflection;
-using System.Reflection.Emit;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace Client.DataGeneration.Real
 {
@@ -24,7 +17,7 @@ namespace Client.DataGeneration.Real
             this.config = config;
         }
 
-        public override void Generate()
+        public override void Generate(bool genCustomer = false)
         {
 
             // make sure all files exist first
@@ -75,7 +68,8 @@ namespace Client.DataGeneration.Real
             LoadProducts(connection);
 
             // customers
-            LoadCustomers(connection);
+            if(genCustomer)
+                LoadCustomers(connection);
 
             command.CommandText = "ALTER TABLE categories_aux RENAME TO categories;";
             command.ExecuteNonQuery();

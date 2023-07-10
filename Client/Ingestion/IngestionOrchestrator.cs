@@ -20,12 +20,11 @@ namespace Client.Ingestion
 	{
 
 		private readonly IngestionConfig config;
-        private readonly ILogger logger;
+        private static readonly ILogger logger = LoggerProxy.GetInstance("SimpleIngestionOrchestrator");
 
         public IngestionOrchestrator(IngestionConfig config)
 		{
 			this.config = config;
-            this.logger = LoggerProxy.GetInstance("SimpleIngestionOrchestrator");
         }
 
 		public async Task Run()

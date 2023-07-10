@@ -4,49 +4,45 @@ using Common.Workload;
 using Common.Infra;
 using Microsoft.Extensions.Logging;
 using System;
+using Common.Distribution;
+using System.Collections.Generic;
 
 namespace Client.Workload
 {
-
     public class WorkloadOrchestrator
     {
-        private readonly IClusterClient orleansClient;
-        private readonly WorkloadConfig workloadConfig;
-        private readonly Interval customerRange;
-        private readonly ILogger logger;
+        private readonly static ILogger logger = LoggerProxy.GetInstance("WorkloadOrchestrator");
 
-        public WorkloadOrchestrator(IClusterClient orleansClient, WorkloadConfig workloadConfig, Interval customerRange)
-        {
-            this.orleansClient = orleansClient;
-            this.workloadConfig = workloadConfig;
-            this.customerRange = customerRange;
-            this.logger = LoggerProxy.GetInstance("WorkloadOrchestrator");
-        }
-
-        public async Task<(DateTime startTime, DateTime finishTime)> Run()
+        public static async Task<(DateTime startTime, DateTime finishTime)> Run(IClusterClient orleansClient, IDictionary<TransactionType, int> transactionDistribution, int concurrencyLevel,
+            DistributionType sellerDistribution, Interval sellerRange, DistributionType customerDistribution, Interval customerRange, int delayBetweenRequests, int executionTime)
         {
             logger.LogInformation("Workload orchestrator started.");
 
             WorkloadGenerator workloadGen = new WorkloadGenerator(
-                this.workloadConfig.transactionDistribution, this.workloadConfig.concurrencyLevel);
+                transactionDistribution, concurrencyLevel);
+
+            // makes sure there are transactions
+            workloadGen.Prepare();
 
             Task genTask = Task.Run(workloadGen.Run);
 
             WorkloadEmitter emitter = new WorkloadEmitter(
                 orleansClient,
-                workloadConfig.customerWorkerConfig.sellerDistribution,
-                workloadConfig.customerWorkerConfig.sellerRange,
-                workloadConfig.customerDistribution,
+                sellerDistribution,
+                sellerRange,
+                customerDistribution,
                 customerRange,
-                workloadConfig.concurrencyLevel,
-                this.workloadConfig.delayBetweenRequests);
+                concurrencyLevel,
+                delayBetweenRequests);
 
             Task<(DateTime startTime, DateTime finishTime)> emitTask = Task.Run(emitter.Run);
 
-            await Task.Delay(this.workloadConfig.executionTime);
+            await Task.Delay(executionTime);
 
-            workloadGen.Stop();
             emitter.Stop();
+            workloadGen.Stop();
+
+            await Task.WhenAll(genTask, emitTask);
 
             logger.LogInformation("Workload orchestrator has finished.");
 

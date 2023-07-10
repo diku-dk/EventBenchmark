@@ -39,6 +39,8 @@ namespace Client.Collection
 		public async Task Collect(DateTime startTime, DateTime finishTime)
 		{
 
+            logger.LogInformation("[MetricGather] Starting collecting metrics...");
+
             StreamWriter sw = new StreamWriter(string.Format("results_{0}_{1}.txt", startTime.Millisecond, finishTime.Millisecond));
 
             sw.WriteLine("Run from {0} to {1}", startTime, finishTime);
@@ -48,19 +50,22 @@ namespace Client.Collection
 
             var latencyGatherTasks = new List<Task<List<Latency>>>();
 
+            // customer workers
             foreach (var customer in customers)
             {
                 var customerWorker = this.orleansClient.GetGrain<ICustomerWorker>(customer.id);
                 latencyGatherTasks.Add(customerWorker.Collect(startTime));
             }
 
+            // seller workers
             for (int i = 1; i <= numSellers; i++)
             {
                 var sellerWorker = this.orleansClient.GetGrain<ISellerWorker>(i);
                 latencyGatherTasks.Add(sellerWorker.Collect(startTime));
             }
 
-            latencyGatherTasks.Add(this.orleansClient.GetGrain<ISellerWorker>(0).Collect(startTime));
+            // delivery worker
+            latencyGatherTasks.Add(this.orleansClient.GetGrain<IDeliveryWorker>(0).Collect(startTime));
 
             await Task.WhenAll(latencyGatherTasks);
 
@@ -82,6 +87,16 @@ namespace Client.Collection
                 }
             }
 
+            foreach(var entry in latencyCollPerTxType)
+            {
+                double avg = 0;
+                if(entry.Value.Count() > 0){
+                    avg = entry.Value.Average();
+                }
+                logger.LogInformation("Transaction: {0} - Average end-to-end latency: {1}", entry.Key, avg);
+                sw.WriteLine("Transaction: {0} - Average end-to-end latency: {1}", entry.Key, avg);
+            }
+
             // throughput
             // getting the Shared.Workload.Take().tid - 1 does not mean the system has finished processing it
             // therefore, we need to get the last (i.e., maximum) tid processed from the grains
@@ -100,6 +115,10 @@ namespace Client.Collection
             sw.WriteLine("===========================================");
 
             // prometheus:
+            if(collectionConfig is null)
+            {
+                goto end_of_file;
+            }
 
             // check whether prometheus is online
             string urlMetric = collectionConfig.baseUrl + "/" + collectionConfig.ready;
@@ -141,9 +160,11 @@ namespace Client.Collection
 
             end_of_file:
 
-            sw.WriteLine("===========    THE END   ==============");
+            sw.WriteLine("=================    THE END   ================");
             sw.Flush();
             sw.Close();
+
+            logger.LogInformation("[MetricGather] Finished collecting metrics.");
 
         }
 

@@ -5,7 +5,6 @@ using Common.Entities;
 using Common.Workload.Metrics;
 using Common.Workload.Seller;
 using Orleans;
-using Orleans.Concurrency;
 
 namespace GrainInterfaces.Workers
 {
@@ -15,12 +14,10 @@ namespace GrainInterfaces.Workers
 
         Task<List<Latency>> Collect(DateTime startTime);
 
-        [AlwaysInterleave]
         Task<long> GetProductId();
 
         Task RegisterFinishedTransaction(TransactionOutput output);
 
-        [AlwaysInterleave]
         Task<Product> GetProduct();
     }
 }

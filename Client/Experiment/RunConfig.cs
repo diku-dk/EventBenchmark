@@ -4,7 +4,7 @@ namespace Client.Experiment
 {
 	public class RunConfig
 	{
-        public int numCustomers { get; set; }
+        public int numProducts { get; set; }
 
         public DistributionType customerDistribution { get; set; }
 

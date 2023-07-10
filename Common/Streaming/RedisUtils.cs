@@ -75,7 +75,7 @@ namespace Client.Streaming.Redis
             {
                 var db = redis.GetDatabase();
 
-                var currentId = "$"; // "0-0" listen from start and "$" listen for new messages
+                var currentId = "0-0"; // "0-0" listen from start and "$" listen for new messages
                 while (!cancellation.IsCancellationRequested)
                 {
                     var arguments = new List<object>

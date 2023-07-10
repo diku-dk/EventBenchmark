@@ -69,7 +69,7 @@ namespace Grains.Workers
 
         public Task Init(SellerWorkerConfig sellerConfig, List<Product> products)
         {
-            this.logger.LogInformation("Init -> Seller worker {0} with #{1} product(s).", this.sellerId, products.Count);
+            this.logger.LogInformation("Init -> Seller worker {0} with #{1} product(s) [interactive mode: t/f]: {2}", this.sellerId, products.Count, sellerConfig.interactive);
             this.config = sellerConfig;
             this.products = products;
 
@@ -83,6 +83,11 @@ namespace Grains.Workers
                 this.config.keyDistribution == DistributionType.UNIFORM ?
                  new UniformLongGenerator(firstId, lastId) :
                  new ZipfianGenerator(firstId, lastId);
+
+            this.submittedTransactions.Clear();
+            this.finishedTransactions.Clear();
+            this.deletedProducts.Clear();
+
             return Task.CompletedTask;
         }
 
@@ -155,9 +160,10 @@ namespace Grains.Workers
 
         private async Task DeleteProduct(int tid)
         {
-            if(this.deletedProducts.Count() == this.products.Count())
+            this.logger.LogInformation("Seller {0}: Started delete product", this.sellerId);
+            if (this.deletedProducts.Count() == this.products.Count())
             {
-                this.logger.LogWarning("All products already deleted by seller {0}", this.sellerId);
+                this.logger.LogWarning("Seller {0}: All products already deleted by ", this.sellerId);
                 // to ensure emitter send other transactions
                 _ = txStream.OnNextAsync(tid);
                 return;
@@ -165,9 +171,17 @@ namespace Grains.Workers
             
             long selectedProduct = this.productIdGenerator.NextValue();
 
+            int count = 1;
             while (deletedProducts.ContainsKey(selectedProduct))
             {
+                if(count == 10)
+                {
+                    this.logger.LogWarning("Seller {0}: Cannot define a product to delete! Cancelling this request!", this.sellerId);
+                    _ = txStream.OnNextAsync(tid);
+                    return;
+                }
                 selectedProduct = this.productIdGenerator.NextValue();
+                count++;
             }
 
             await Task.Run(() =>
@@ -175,7 +189,7 @@ namespace Grains.Workers
                 try
                 {
                     this.logger.LogInformation("Seller {0}: Product {1} will be deleted...", this.sellerId, selectedProduct);
-                    var obj = JsonConvert.SerializeObject(new DeleteProduct(sellerId, selectedProduct, tid));
+                    var obj = JsonConvert.SerializeObject(new DeleteProduct(this.sellerId, selectedProduct, tid));
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Delete, config.productUrl);
                     message.Content = HttpUtils.BuildPayload(obj);
                     this.submittedTransactions.Add(tid, new TransactionIdentifier(tid, TransactionType.DELETE_PRODUCT, DateTime.Now));
@@ -206,7 +220,7 @@ namespace Grains.Workers
         private async Task UpdatePrice(int tid)
         {
             // to simulate how a seller would interact with the platform
-            this.logger.LogInformation("Seller {0}: Started price update.", this.sellerId);
+            this.logger.LogInformation("Seller {0}: Started price update", this.sellerId);
 
             if(this.deletedProducts.Count() == this.products.Count())
             {
@@ -227,11 +241,19 @@ namespace Grains.Workers
 
             // 2 - select one to submit the update (based on distribution)
             long selectedProduct = this.productIdGenerator.NextValue();
-
-            while (this.deletedProducts.ContainsKey(selectedProduct))
+            int count = 1;
+            while (deletedProducts.ContainsKey(selectedProduct))
             {
+                if (count == 10)
+                {
+                    this.logger.LogWarning("Seller {0}: Cannot define a product to delete! Cancelling this request!", this.sellerId);
+                    _ = txStream.OnNextAsync(tid);
+                    return;
+                }
                 selectedProduct = this.productIdGenerator.NextValue();
+                count++;
             }
+
 
             // define perc to raise
             int percToAdjust = random.Next(config.adjustRange.min, config.adjustRange.max);

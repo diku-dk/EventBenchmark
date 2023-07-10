@@ -78,33 +78,44 @@ namespace Client.Workload
 
 		public async Task<(DateTime startTime, DateTime finishTime)> Run()
 		{
-            SetUpCustomerWorkerListener();
-            SetUpSellerWorkerListener();
-            SetUpDeliveryWorkerListener();
+            await Task.WhenAll(
+                SetUpCustomerWorkerListener(),
+                SetUpSellerWorkerListener(),
+                SetUpDeliveryWorkerListener());
 
             DateTime startTime = DateTime.Now;
 
             int submitted = 0;
+            logger.LogWarning("[Workload emitter] Started sending first batch of transactions...");
             while (submitted < concurrencyLevel)
             {
-                SubmitTransaction();
+                var txId = Shared.Workload.Take();
+                SubmitTransaction(txId);
                 submitted++;
             }
 
             // signal the queue has been drained
-            Shared.WaitHandle.Set();
+            Shared.WaitHandle.Add(0);
+
+            logger.LogWarning("[Workload emitter] Started sending remaining transactions...");
 
             while (IsRunning())
             {
                 // wait for results
+                logger.LogWarning("[Workload emitter] Retrieving a result...");
                 Shared.ResultQueue.Take();
 
-                SubmitTransaction();
+                logger.LogWarning("[Workload emitter] Retrieving a transaction...");
+                var txId = Shared.Workload.Take();
+                SubmitTransaction(txId);
                 submitted++;
 
-                if(submitted % concurrencyLevel == 0)
+                logger.LogWarning("[Workload emitter] Transaction submitted.");
+
+                if (submitted % concurrencyLevel == 0)
                 {
-                    Shared.WaitHandle.Set();
+                    logger.LogWarning("[Workload emitter] Requesting more transactions to generator...");
+                    Shared.WaitHandle.Add(0);
                 }
 
                 // throttle
@@ -117,6 +128,9 @@ namespace Client.Workload
 
             DateTime finishTime = DateTime.Now;
 
+            // clean result queue
+            Shared.ResultQueue.GetConsumingEnumerable();
+
             await Task.WhenAll(
                 customerWorkerSubscription.UnsubscribeAsync(),
                 sellerWorkerSubscription.UnsubscribeAsync(),
@@ -125,10 +139,10 @@ namespace Client.Workload
             return (startTime, finishTime);
         }
 
-        private void SubmitTransaction()
+        private void SubmitTransaction(TransactionInput txId)
         {
             long threadId = Environment.CurrentManagedThreadId;
-            TransactionInput txId = Shared.Workload.Take();
+
             this.logger.LogInformation("Sending a new {0} transaction with ID {1}", txId.type, txId.tid);
             try
             {
@@ -141,10 +155,17 @@ namespace Client.Workload
                     {
                         grainID = this.keyGeneratorPerWorkloadType[txId.type].NextValue();
                         // but make sure there is no active session for the customer. if so, pick another customer
+                        int count = 1;
                         while (this.customerStatusCache.ContainsKey(grainID) &&
                                 customerStatusCache[grainID] == CustomerWorkerStatus.BROWSING)
                         {
+                            if(count == 10)
+                            {
+                                logger.LogWarning("[Workload emitter] Could not find an available customer! Perhaps should increase the number of customer next time?");
+                                return;
+                            }
                             grainID = this.keyGeneratorPerWorkloadType[txId.type].NextValue();
+                            count++;
                         }
                         var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConstants.CustomerStreamId, grainID.ToString());
                         this.customerStatusCache[grainID] = CustomerWorkerStatus.BROWSING;
@@ -169,7 +190,9 @@ namespace Client.Workload
                     case TransactionType.PRICE_UPDATE:
                     {
                         grainID = this.keyGeneratorPerWorkloadType[txId.type].NextValue();
-                        var streamOutgoing = this.streamProvider.GetStream<TransactionInput>(StreamingConstants.SellerStreamId, grainID.ToString());
+                        var grainIDStr = grainID.ToString();
+                        logger.LogInformation("Seller worker {0} will be spawned!", grainIDStr);
+                        var streamOutgoing = this.streamProvider.GetStream<TransactionInput>(StreamingConstants.SellerStreamId, grainIDStr);
                         _ = streamOutgoing.OnNextAsync(txId);
                         break;
                     }
@@ -177,7 +200,9 @@ namespace Client.Workload
                     case TransactionType.DELETE_PRODUCT:
                     {
                         grainID = this.keyGeneratorPerWorkloadType[txId.type].NextValue();
-                        var streamOutgoing = this.streamProvider.GetStream<TransactionInput>(StreamingConstants.SellerStreamId, grainID.ToString());
+                        var grainIDStr = grainID.ToString();
+                        logger.LogInformation("Seller worker {0} will be spawned!", grainIDStr);
+                        var streamOutgoing = this.streamProvider.GetStream<TransactionInput>(StreamingConstants.SellerStreamId, grainIDStr);
                         _ = streamOutgoing.OnNextAsync(txId);
                         break;
                     }
@@ -204,7 +229,7 @@ namespace Client.Workload
             return Task.CompletedTask;
         }
 
-        private async void SetUpCustomerWorkerListener()
+        private async Task SetUpCustomerWorkerListener()
         {
             IAsyncStream<CustomerWorkerStatusUpdate> resultStream = streamProvider.GetStream<CustomerWorkerStatusUpdate>(StreamingConstants.CustomerStreamId, StreamingConstants.TransactionStreamNameSpace);
             this.customerWorkerSubscription = await resultStream.SubscribeAsync(UpdateCustomerStatusAsync);
@@ -216,13 +241,13 @@ namespace Client.Workload
             return Task.CompletedTask;
         }
 
-        private async void SetUpSellerWorkerListener()
+        private async Task SetUpSellerWorkerListener()
         {
              IAsyncStream<int> resultStream = streamProvider.GetStream<int>(StreamingConstants.SellerStreamId, StreamingConstants.TransactionStreamNameSpace);
              this.sellerWorkerSubscription = await resultStream.SubscribeAsync(AddToResultQueue);
         }
 
-        private async void SetUpDeliveryWorkerListener()
+        private async Task SetUpDeliveryWorkerListener()
         {
             IAsyncStream<int> resultStream = streamProvider.GetStream<int>(StreamingConstants.DeliveryStreamId, StreamingConstants.TransactionStreamNameSpace);
             this.deliveryWorkerSubscription = await resultStream.SubscribeAsync(AddToResultQueue);

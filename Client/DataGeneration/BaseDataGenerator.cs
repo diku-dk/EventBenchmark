@@ -45,9 +45,11 @@ namespace Client.DataGeneration
                     "card_number, card_security_number, card_expiration, card_holder_name, card_type, " +
                     "success_payment_count, failed_payment_count, delivery_count, abandoned_cart_count, data) VALUES ";
 
+        public abstract void Generate(bool genCustomer = false);
+
         protected void GenerateStockItem(DuckDbCommand command, int productId, int sellerId)
         {
-            var quantity = Numeric(2, false);
+            int quantity = 10000;// Numeric(2, false);
             var ytd = Numeric(1, false);
             var data = faker.Lorem.Sentence();
 
@@ -208,8 +210,6 @@ namespace Client.DataGeneration
             command.CommandText = sb.ToString();
             command.ExecuteNonQuery();
         }
-
-        public abstract void Generate();
 
         protected static string RemoveBadCharacter(string str)
         {

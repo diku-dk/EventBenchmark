@@ -22,7 +22,7 @@ namespace Client.Experiment
 
         public List<RunConfig> runs { get; set; }
 
-        public List<PostRunConfig> postRunConfig { get; set; }
+        public List<PostRunTask> postRunTasks { get; set; }
 
         public IDictionary<TransactionType, int> transactionDistribution { get; set; }
 
@@ -39,7 +39,6 @@ namespace Client.Experiment
         public SellerWorkerConfig sellerWorkerConfig { get; set; }
 
         public DeliveryWorkerConfig deliveryWorkerConfig { get; set; }
-
     }
 }
 
