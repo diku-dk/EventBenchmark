@@ -5,9 +5,6 @@ using System.Text;
 
 namespace Client.DataGeneration.Real
 {
-    /**
-     * 
-     */
     public sealed class RealDataGenerator : BaseDataGenerator
     {
         private readonly OlistDataSourceConfiguration config;
@@ -17,7 +14,7 @@ namespace Client.DataGeneration.Real
             this.config = config;
         }
 
-        public override void Generate(bool genCustomer = false)
+        public override void Generate(DuckDBConnection connection, bool genCustomer = false)
         {
 
             // make sure all files exist first
@@ -29,8 +26,6 @@ namespace Client.DataGeneration.Real
                 }
             }
 
-            using var connection = new DuckDBConnection(config.connectionString);
-            connection.Open();
             var command = connection.CreateCommand();
             var sb = new StringBuilder();
             foreach (var entry in config.mapTableToFileName)

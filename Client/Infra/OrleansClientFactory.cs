@@ -38,7 +38,7 @@ namespace Client.Infra
                                 {
                                     logging.ClearProviders();
                                     logging.AddConsole();
-                                    logging.SetMinimumLevel(LogLevel.Warning);
+                                    logging.SetMinimumLevel(LogLevel.Error);
                                 })
                                 .AddSimpleMessageStreamProvider(StreamingConstants.DefaultStreamProvider, options =>
                                 {

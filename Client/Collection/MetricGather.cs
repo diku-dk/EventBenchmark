@@ -24,7 +24,7 @@ namespace Client.Collection
         private readonly List<Customer> customers;
         private readonly long numSellers;
         private readonly CollectionConfig collectionConfig;
-        private readonly ILogger logger;
+        private static readonly ILogger logger = LoggerProxy.GetInstance("MetricGather");
 
         public MetricGather(IClusterClient orleansClient, List<Customer> customers, long numSellers,
             CollectionConfig collectionConfig)
@@ -33,16 +33,20 @@ namespace Client.Collection
             this.customers = customers;
             this.numSellers = numSellers;
             this.collectionConfig = collectionConfig;
-            this.logger = LoggerProxy.GetInstance("MetricGather");
         }
 
-		public async Task Collect(DateTime startTime, DateTime finishTime)
-		{
+        public async Task Collect(DateTime startTime, DateTime finishTime, string runName = null)
+        {
 
-            logger.LogInformation("[MetricGather] Starting collecting metrics...");
+            logger.LogInformation("[MetricGather] Starting collecting metrics for run between {0} and {1}", startTime, finishTime);
 
-            StreamWriter sw = new StreamWriter(string.Format("results_{0}_{1}.txt", startTime.Millisecond, finishTime.Millisecond));
-
+            StreamWriter sw;
+            if (runName is not null)
+                sw = new StreamWriter(string.Format("results_{0}.txt", runName));
+            else {
+                string unixTimeMilliSeconds = new DateTimeOffset(startTime).ToUnixTimeMilliseconds().ToString();
+                sw = new StreamWriter(string.Format("results_{0}.txt", unixTimeMilliSeconds));
+            }
             sw.WriteLine("Run from {0} to {1}", startTime, finishTime);
             sw.WriteLine("===========================================");
 
@@ -77,14 +81,14 @@ namespace Client.Collection
                 latencyCollPerTxType.Add(txType, new List<double>());
             }
 
-            int maxTid = 0;
+            int countTid = 0;
             foreach (var list in latencyGatherTasks)
             {
                 foreach(var entry in list.Result)
                 {
                     latencyCollPerTxType[entry.type].Add(entry.period);
-                    if (entry.tid > maxTid) maxTid = entry.tid;
                 }
+                countTid = countTid + list.Result.Count();
             }
 
             foreach(var entry in latencyCollPerTxType)
@@ -93,23 +97,21 @@ namespace Client.Collection
                 if(entry.Value.Count() > 0){
                     avg = entry.Value.Average();
                 }
-                logger.LogInformation("Transaction: {0} - Average end-to-end latency: {1}", entry.Key, avg);
-                sw.WriteLine("Transaction: {0} - Average end-to-end latency: {1}", entry.Key, avg);
+                logger.LogInformation("Transaction: {0} - Average end-to-end latency: {1}", entry.Key, avg.ToString());
+                sw.WriteLine("Transaction: {0} - Average end-to-end latency: {1}", entry.Key, avg.ToString());
             }
 
-            // throughput
-            // getting the Shared.Workload.Take().tid - 1 does not mean the system has finished processing it
-            // therefore, we need to get the last (i.e., maximum) tid processed from the grains
+            // TODO calculate percentiles
 
             // transactions per second
             TimeSpan timeSpan = finishTime - startTime;
             int secondsTotal = ((timeSpan.Minutes * 60) + timeSpan.Seconds);
-            decimal txPerSecond = decimal.Divide(maxTid , secondsTotal);
+            decimal txPerSecond = decimal.Divide(countTid, secondsTotal);
 
             logger.LogInformation("Number of seconds: {0}", secondsTotal);
             sw.WriteLine("Number of seconds: {0}", secondsTotal);
-            logger.LogInformation("Number of completed transactions: {0}", maxTid);
-            sw.WriteLine("Number of completed transactions: {0}", maxTid);
+            logger.LogInformation("Number of completed transactions: {0}", countTid);
+            sw.WriteLine("Number of completed transactions: {0}", countTid);
             logger.LogInformation("Transactions per second: {0}", txPerSecond);
             sw.WriteLine("Transactions per second: {0}", txPerSecond);
             sw.WriteLine("===========================================");
@@ -190,8 +192,6 @@ namespace Client.Collection
             // http://localhost:9090/api/v1/query?query=dapr_component_pubsub_egress_count&name=ReserveInventory
             // http://localhost:9090/api/v1/query?query=dapr_component_pubsub_egress_count{app_id="cart"}&time=1688136844
             // http://localhost:9090/api/v1/query?query=dapr_component_pubsub_egress_count{app_id="cart",topic="ReserveStock"}&time=1688136844
-
-          
 
             var ingressCountPerMs = new Dictionary<string, long>();
             HttpRequestMessage message;

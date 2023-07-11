@@ -41,8 +41,13 @@ namespace Client.Workflow
 
         public async static Task Run(ExperimentConfig config)
         {
-            SyntheticDataSourceConfig previousData = null;
+            SyntheticDataSourceConfig previousData = new()
+            {
+                numProducts = 0
+            };
+
             int runIdx = 0;
+            int lastRunIdx = config.runs.Count() - 1;
 
             logger.LogInformation("Initializing Orleans client...");
             var orleansClient = await OrleansClientFactory.Connect();
@@ -54,6 +59,7 @@ namespace Client.Workflow
             logger.LogInformation("Orleans client initialized!");
 
             using var connection = new DuckDBConnection(config.connectionString);
+            connection.Open();
 
             var streamProvider = orleansClient.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
             List<Customer> customers = null;
@@ -63,10 +69,16 @@ namespace Client.Workflow
             List<CancellationTokenSource> tokens = new(3);
             List<Task> listeningTasks = new(3);
 
-
             foreach (var run in config.runs)
             {
-                logger.LogInformation("Run #{0} started at {0}", runIdx, DateTime.Now);
+                logger.LogInformation("Run #{0} started at {0}", runIdx, DateTime.UtcNow);
+
+                // clean result queue
+                logger.LogInformation("Cleaning shared queues...");
+                while (Shared.ResultQueue.TryTake(out _));
+                // clean to restart TID counting
+                while (Shared.Workload.TryTake(out _)) { }
+                logger.LogInformation("Finished cleaning shared queues.");
 
                 if (runIdx == 0 || run.numProducts != previousData.numProducts)
                 {
@@ -96,36 +108,24 @@ namespace Client.Workflow
                             listeningTasks.Add(SubscribeToTransactionResult(orleansClient, redisConnection, channel, token));
                         }
 
-                        syntheticDataGenerator.Generate(true);
+                        syntheticDataGenerator.Generate(connection, true);
+                        // customers are fixed accross runs
+                        customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
                     }
                     else
                     {
-                        syntheticDataGenerator.Generate(false);
+                        syntheticDataGenerator.Generate(connection, false);
                     }
 
-                    config.ingestionConfig.connectionString = config.connectionString;
                     var ingestionOrchestrator = new IngestionOrchestrator(config.ingestionConfig);
-                    await ingestionOrchestrator.Run();
+                    await ingestionOrchestrator.Run(connection);
 
                     // get number of sellers
-                    connection.Open();
-                    customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
                     numSellers = DuckDbUtils.Count(connection, "sellers");
-
                 }
 
                 await PrepareWorkers(config.customerWorkerConfig, config.sellerWorkerConfig,
                     config.deliveryWorkerConfig, orleansClient, customers, numSellers, connection);
-
-                //List<CancellationTokenSource> tokens = new(3);
-                //List<Task> listeningTasks = new(3);
-                //foreach (var type in transactions)
-                //{
-                //    var channel = new StringBuilder(nameof(TransactionMark)).Append('_').Append(type.ToString()).ToString();
-                //    var token = new CancellationTokenSource();
-                //    tokens.Add(token);
-                //    listeningTasks.Add(SubscribeToTransactionResult(orleansClient, redisConnection, channel, token));
-                //}
 
                 var workloadTask = await Task.Run(() => WorkloadOrchestrator.Run(
                             orleansClient, config.transactionDistribution, config.concurrencyLevel, config.customerWorkerConfig.sellerDistribution,
@@ -133,35 +133,52 @@ namespace Client.Workflow
                 DateTime startTime = workloadTask.startTime;
                 DateTime finishTime = workloadTask.finishTime;
 
-                //foreach (var token in tokens)
-                //{
-                //    token.Cancel();
-                //}
-
-                //await Task.WhenAll(listeningTasks);
-
                 // set up data collection for metrics
                 // TODO send the distributions and the config (customers,sellers, etc) so it can be written to the file
                 MetricGather metricGather = new MetricGather(orleansClient, customers, numSellers, null);
-                await metricGather.Collect(startTime, finishTime);
+                await metricGather.Collect(startTime, finishTime, runIdx.ToString());
 
                 // trim first to avoid receiving events after the post run task
                 await TrimStreams(config.streamingConfig.host, config.streamingConfig.port, config.streamingConfig.streams.ToList());
 
                 // reset data in microservices - post run
-                var responses = new List<Task<HttpResponseMessage>>();
-                logger.LogInformation("Post run tasks started");
-                foreach (var task in config.postRunTasks)
+                if (runIdx < lastRunIdx)
                 {
-                    HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
-                    logger.LogInformation("Post run task to URL {0}", task.url);
-                    responses.Add(HttpUtils.client.SendAsync(message));
+                    logger.LogInformation("Post run tasks started");
+                    var responses = new List<Task<HttpResponseMessage>>();
+                    // must call the cleanup if next run changes number of products
+                    if (runIdx < (lastRunIdx - 1) && config.runs[runIdx + 1].numProducts != run.numProducts)
+                    {
+                        logger.LogInformation("Next run changes the number of products.");
+                        foreach (var task in config.postExperimentTasks)
+                        {
+                            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
+                            logger.LogInformation("Post run task to URL {0}", task.url);
+                            responses.Add(HttpUtils.client.SendAsync(message));
+                        }
+                    }
+                    else
+                    {
+                        logger.LogInformation("Next run does not change the number of products.");
+                        foreach (var task in config.postRunTasks)
+                        {
+                            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
+                            logger.LogInformation("Post run task to URL {0}", task.url);
+                            responses.Add(HttpUtils.client.SendAsync(message));
+                        }
+                    }
+                    await Task.WhenAll(responses);
+                    logger.LogInformation("Post run tasks finished");
                 }
-                logger.LogInformation("Post run tasks finished");
 
-                logger.LogInformation("Run #{0} finished at {1}", runIdx, DateTime.Now);
+                logger.LogInformation("Run #{0} finished at {1}", runIdx, DateTime.UtcNow);
                 runIdx++;
 
+                if (runIdx < lastRunIdx)
+                {
+                    logger.LogInformation("Starting new run in {0} seconds...", config.delayBetweenRuns / 1000);
+                    await Task.Delay(config.delayBetweenRuns);
+                }
             }
 
             foreach (var token in tokens)
@@ -174,6 +191,19 @@ namespace Client.Workflow
             await orleansClient.Close();
             logger.LogInformation("Orleans client finalized!");
 
+            
+            logger.LogInformation("Starting cleanup tasks");
+            var resps = new List<Task<HttpResponseMessage>>();
+            foreach (var task in config.postExperimentTasks)
+            {
+                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
+                logger.LogInformation("Post experiment task to URL {0}", task.url);
+                resps.Add(HttpUtils.client.SendAsync(message));
+            }
+            await Task.WhenAll(resps);
+            logger.LogInformation("Post experiment tasks finished");
+
+            logger.LogInformation("Experiment finished");
         }
 
         /**
@@ -228,14 +258,22 @@ namespace Client.Workflow
 
             if (workflowConfig.dataLoad)
             {
-                var syntheticDataGenerator = new SyntheticDataGenerator(syntheticDataConfig);
-                syntheticDataGenerator.Generate();
+                using (DuckDBConnection connection = new DuckDBConnection(syntheticDataConfig.connectionString))
+                {
+                    var syntheticDataGenerator = new SyntheticDataGenerator(syntheticDataConfig);
+                    connection.Open();
+                    syntheticDataGenerator.Generate(connection);
+                }
             }
 
             if (workflowConfig.ingestion)
             {
-                var ingestionOrchestrator = new IngestionOrchestrator(ingestionConfig);
-                await ingestionOrchestrator.Run();
+                using (DuckDBConnection connection = new DuckDBConnection(ingestionConfig.connectionString))
+                {
+                    var ingestionOrchestrator = new IngestionOrchestrator(ingestionConfig);
+                    connection.Open();
+                    await ingestionOrchestrator.Run(connection);
+                }
             }
 
             if (workflowConfig.transactionSubmission)
@@ -364,22 +402,20 @@ namespace Client.Workflow
             // activate all customer workers
             List<Task> tasks = new();
 
-            ICustomerWorker customerWorker = null;
             foreach (var customer in customers)
             {
-                customerWorker = orleansClient.GetGrain<ICustomerWorker>(customer.id);
+                var customerWorker = orleansClient.GetGrain<ICustomerWorker>(customer.id);
                 tasks.Add(customerWorker.Init(customerWorkerConfig, customer));
             }
             await Task.WhenAll(tasks);
 
             // make sure to activate all sellers so they can respond to customers when required
             // another solution is making them read from the microservice itself...
-            ISellerWorker sellerWorker = null;
             tasks.Clear();
             for (int i = 1; i <= numSellers; i++)
             {
                 List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
-                sellerWorker = orleansClient.GetGrain<ISellerWorker>(i);
+                var sellerWorker = orleansClient.GetGrain<ISellerWorker>(i);
                 tasks.Add(sellerWorker.Init(sellerWorkerConfig, products));
             }
             await Task.WhenAll(tasks);
@@ -393,9 +429,9 @@ namespace Client.Workflow
 
         private static Task SubscribeToTransactionResult(IClusterClient orleansClient, string redisConnection, string channel, CancellationTokenSource token)
         {
-            return Task.Run(() => RedisUtils.Subscribe(redisConnection, channel, token.Token, entries =>
+            return Task.Factory.StartNew(() => RedisUtils.Subscribe(redisConnection, channel, token.Token, entries =>
             {
-                var now = DateTime.Now;
+                var now = DateTime.UtcNow;
                 foreach (var entry in entries)
                 {
                     try
@@ -412,7 +448,7 @@ namespace Client.Workflow
                         {
                             orleansClient.GetGrain<ISellerWorker>(mark.actorId).RegisterFinishedTransaction(new TransactionOutput(mark.tid, now));
                         }
-                        logger.LogInformation("Processed the transaction mark {0} | {1} at {2}", mark.tid, mark.type, now);
+                        // logger.LogInformation("Processed the transaction mark {0} | {1} at {2}", mark.tid, mark.type, now);
                     }
                     catch (Exception e)
                     {
@@ -424,7 +460,7 @@ namespace Client.Workflow
                         Shared.ResultQueue.Add(0);
                     }
                 }
-            }));
+            }), TaskCreationOptions.LongRunning);
             
         }
 

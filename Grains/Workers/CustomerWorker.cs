@@ -20,7 +20,6 @@ using Common.Distribution;
 using Common.Requests;
 using Common.Workload;
 using Common.Workload.Metrics;
-using System.Threading;
 using Orleans.Concurrency;
 
 namespace Grains.Workers
@@ -58,14 +57,11 @@ namespace Grains.Workers
 
         private readonly ILogger<CustomerWorker> logger;
 
-        private readonly CancellationTokenSource token;
-
         public CustomerWorker(ILogger<CustomerWorker> logger)
         {
             this.logger = logger;
             this.random = new Random();
             this.status = CustomerWorkerStatus.IDLE;
-            this.token = new CancellationTokenSource();
             this.submittedTransactions = new Dictionary<long, TransactionIdentifier>();
             this.finishedTransactions = new Dictionary<long, TransactionOutput>();
         }
@@ -96,7 +92,7 @@ namespace Grains.Workers
             this.config = config;
             this.customer = customer;
             this.sellerIdGenerator = this.config.sellerDistribution == DistributionType.NON_UNIFORM ?
-                new NonUniformDistribution( (int)(this.config.sellerRange.max * 0.3), this.config.sellerRange.min, this.config.sellerRange.max) :
+                new NonUniformDistribution( (int)(this.config.sellerRange.max * 0.5), this.config.sellerRange.min, this.config.sellerRange.max) :
                 this.config.sellerDistribution == DistributionType.UNIFORM ?
                 new UniformLongGenerator(this.config.sellerRange.min, this.config.sellerRange.max) :
                 new ZipfianGenerator(this.config.sellerRange.min, this.config.sellerRange.max);
@@ -263,7 +259,7 @@ namespace Grains.Workers
             TransactionIdentifier txId = null;
             HttpResponseMessage resp = await Task.Run(() =>
             {
-                txId = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, DateTime.Now);
+                txId = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, DateTime.UtcNow);
                 return HttpUtils.client.Send(message);
             });
 
@@ -285,7 +281,7 @@ namespace Grains.Workers
             {
                 resp = await Task.Run(() =>
                 {
-                    txId = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, DateTime.Now);
+                    txId = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, DateTime.UtcNow);
                     return HttpUtils.client.Send(message);
                 });
             }
@@ -474,9 +470,6 @@ namespace Grains.Workers
 
         public Task<List<Latency>> Collect(DateTime startTime)
         {
-            // unsubscribe redis
-            this.token.Cancel();
-
             var targetValues = submittedTransactions.Values.Where(e => e.timestamp.CompareTo(startTime) >= 0);
             var latencyList = new List<Latency>(submittedTransactions.Count());
             foreach (var entry in targetValues)

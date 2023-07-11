@@ -24,6 +24,10 @@ namespace Client.Experiment
 
         public List<PostRunTask> postRunTasks { get; set; }
 
+        public List<PostRunTask> postExperimentTasks { get; set; }
+
+        public int delayBetweenRuns { get; set; }
+
         public IDictionary<TransactionType, int> transactionDistribution { get; set; }
 
         public int executionTime { get; set; }

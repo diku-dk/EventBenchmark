@@ -6,6 +6,8 @@ using System.Text;
 using Bogus;
 using Bogus.Extensions.Brazil;
 using Common.Entities;
+using Microsoft.Extensions.Logging;
+using Common.Infra;
 
 namespace Client.DataGeneration
 {
@@ -22,6 +24,8 @@ namespace Client.DataGeneration
         protected readonly long baseTicks = maxDate.Ticks - minDate.Ticks;
 
         protected readonly Faker faker = new Faker();
+
+        protected static readonly ILogger logger = LoggerProxy.GetInstance("DataGenerator");
 
         protected readonly Dictionary<string, string> mapTableToCreateStmt = new()
         {
@@ -45,7 +49,7 @@ namespace Client.DataGeneration
                     "card_number, card_security_number, card_expiration, card_holder_name, card_type, " +
                     "success_payment_count, failed_payment_count, delivery_count, abandoned_cart_count, data) VALUES ";
 
-        public abstract void Generate(bool genCustomer = false);
+        public abstract void Generate(DuckDBConnection conection, bool genCustomer = false);
 
         protected void GenerateStockItem(DuckDbCommand command, int productId, int sellerId)
         {
@@ -63,7 +67,7 @@ namespace Client.DataGeneration
             sb.Append(ytd).Append(',');
             sb.Append('\'').Append(data).Append("');");
 
-            Console.WriteLine(sb.ToString());
+            logger.LogDebug(sb.ToString());
 
             command.CommandText = sb.ToString();
             command.ExecuteNonQuery();
@@ -128,7 +132,7 @@ namespace Client.DataGeneration
             sb.Append(0).Append(','); // abandoned carts
             sb.Append('\'').Append(C_DATA).Append("');");
 
-            Console.WriteLine(sb.ToString());
+            logger.LogDebug(sb.ToString());
 
             command.CommandText = sb.ToString();
             command.ExecuteNonQuery();
@@ -171,7 +175,7 @@ namespace Client.DataGeneration
             sb.Append('\'').Append(geolocation.zipcode).Append("',");
             sb.Append(0).Append(");");
             
-            Console.WriteLine(sb.ToString());
+            logger.LogDebug(sb.ToString());
 
             command.CommandText = sb.ToString();
             command.ExecuteNonQuery();
@@ -192,7 +196,7 @@ namespace Client.DataGeneration
             var description = RemoveBadCharacter( faker.Commerce.ProductDescription() );
             var sb = new StringBuilder(baseProductQuery);
 
-            DateTime now = DateTime.Now;
+            DateTime now = DateTime.UtcNow;
 
             sb.Append('(').Append(sellerId).Append(',');
             sb.Append(productId).Append(',');
@@ -205,7 +209,7 @@ namespace Client.DataGeneration
             sb.Append("TRUE").Append(',');
             sb.Append('\'').Append("approved").Append("');");
 
-            Console.WriteLine(sb.ToString());
+            logger.LogDebug(sb.ToString());
 
             command.CommandText = sb.ToString();
             command.ExecuteNonQuery();

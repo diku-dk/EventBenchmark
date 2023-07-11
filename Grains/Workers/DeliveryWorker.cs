@@ -73,11 +73,11 @@ namespace Grains.Workers
                 try
                 {
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, config.shipmentUrl + "/" + tid);
-                    this.submittedTransactions.Add(tid, new TransactionIdentifier(tid, TransactionType.UPDATE_DELIVERY, DateTime.Now));
+                    this.submittedTransactions.Add(tid, new TransactionIdentifier(tid, TransactionType.UPDATE_DELIVERY, DateTime.UtcNow));
                     var resp = HttpUtils.client.Send(message);
                     if (resp.IsSuccessStatusCode)
                     {
-                        this.finishedTransactions.Add(tid, new TransactionOutput(tid, DateTime.Now));
+                        this.finishedTransactions.Add(tid, new TransactionOutput(tid, DateTime.UtcNow));
                     }
                 }
                 catch(Exception e)

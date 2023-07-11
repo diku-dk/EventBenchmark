@@ -24,7 +24,7 @@ namespace Client.Workload
             // makes sure there are transactions
             workloadGen.Prepare();
 
-            Task genTask = Task.Run(workloadGen.Run);
+            Task genTask = Task.Factory.StartNew(workloadGen.Run, TaskCreationOptions.PreferFairness);
 
             WorkloadEmitter emitter = new WorkloadEmitter(
                 orleansClient,
@@ -33,21 +33,26 @@ namespace Client.Workload
                 customerDistribution,
                 customerRange,
                 concurrencyLevel,
+                executionTime,
                 delayBetweenRequests);
 
-            Task<(DateTime startTime, DateTime finishTime)> emitTask = Task.Run(emitter.Run);
+            Task<(DateTime startTime, DateTime finishTime)> emitTask =
+                Task.Run(emitter.Run);
+            // var emitTask = await Task.Factory.StartNew(emitter.Run, TaskCreationOptions.LongRunning);
 
-            await Task.Delay(executionTime);
+            // await Task.Delay(executionTime);
+            await emitTask;
 
-            emitter.Stop();
             workloadGen.Stop();
+            // to make sure the generator leaves the loop
+            Shared.WaitHandle.Add(0);
 
-            await Task.WhenAll(genTask, emitTask);
+            // await Task.WhenAll(genTask, emitTask);
 
             logger.LogInformation("Workload orchestrator has finished.");
 
+            // return emitter.GetStartAndFinishTime();
             return emitTask.Result;
-
         }
 
     }

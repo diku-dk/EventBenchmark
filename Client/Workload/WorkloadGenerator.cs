@@ -27,33 +27,34 @@ namespace Client.Workload
 
         public void Prepare()
         {
-            
-            int initialNumTxs = concurrencyLevel + (int)(concurrencyLevel * 0.25);
+
+            // int initialNumTxs = concurrencyLevel + (int)(concurrencyLevel * 0.5);
+
+            int initialNumTxs = concurrencyLevel * 10000;
+
+            logger.LogInformation("[WorkloadGenerator] Preparing at {0} with {1} transactions", DateTime.UtcNow, initialNumTxs);
 
             // TODO keep an histogram in memory so we can see whether the distibution is correct
             Generate(initialNumTxs);
-            logger.LogInformation("[WorkloadGenerator] Prepared at {0}", DateTime.Now);
+            logger.LogInformation("[WorkloadGenerator] Finished preparing at {0}", DateTime.UtcNow);
         }
 
 		public void Run()
 		{
-            logger.LogInformation("[WorkloadGenerator] Starting generation of transactions at {0}", DateTime.Now);
+            logger.LogInformation("[WorkloadGenerator] Starting generation of transactions at {0}", DateTime.UtcNow);
 
             // wait for queue to be exhausted enough
             Shared.WaitHandle.Take();
 
             while (IsRunning())
             {
-                Generate(concurrencyLevel);
-                logger.LogInformation("[WorkloadGenerator] Sleeping at {0}", DateTime.Now);
+                Generate(concurrencyLevel * 10000);
+                logger.LogInformation("[WorkloadGenerator] Sleeping at {0}", DateTime.UtcNow);
                 Shared.WaitHandle.Take();
-                logger.LogInformation("[WorkloadGenerator] Woke at {0}", DateTime.Now);
+                logger.LogInformation("[WorkloadGenerator] Woke at {0}", DateTime.UtcNow);
             }
 
-            // clean
-            while (Shared.Workload.TryTake(out _)) { }
-
-            logger.LogInformation("[WorkloadGenerator] Finishing generation of transactions at {0}", DateTime.Now);
+            logger.LogInformation("[WorkloadGenerator] Finishing generation of transactions at {0}", DateTime.UtcNow);
         }
 
         private void Generate(int num)
@@ -61,8 +62,8 @@ namespace Client.Workload
             for (int i = 0; i < num; i++)
             {
                 TransactionType tx = PickTransactionFromDistribution();
-                Shared.Workload.Add(new TransactionInput(tid,tx));
-                tid++;
+                Shared.Workload.Add(new TransactionInput(tid, tx));
+                this.tid++;
             }
         }
 

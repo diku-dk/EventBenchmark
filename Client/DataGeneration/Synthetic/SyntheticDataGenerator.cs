@@ -1,4 +1,5 @@
 ﻿using DuckDB.NET.Data;
+using Microsoft.Extensions.Logging;
 using System;
 
 namespace Client.DataGeneration
@@ -31,22 +32,21 @@ namespace Client.DataGeneration
             }
         }
 
-        public override void Generate(bool genCustomer = false)
+        public override void Generate(DuckDBConnection connection, bool genCustomer = false)
         {
-            using var connection = new DuckDBConnection(config.connectionString);
-            connection.Open();
-
             if (config.createSchema)
             {
                 Prepare(connection);
             }
+
+            logger.LogInformation("Synthetic data generation started.");
 
             // products, stock, and link to respective sellers
             int remainingProducts = config.numProducts;
 
             int currSellerId = 1;
             int currProductId = 1;
-            int numProductsForSeller = 0;
+            int numProductsForSeller;
 
             var command = connection.CreateCommand();
 
@@ -67,7 +67,7 @@ namespace Client.DataGeneration
                     currProductId++;
                 }
 
-                remainingProducts = remainingProducts - numProductsForSeller;
+                remainingProducts -= numProductsForSeller;
                 currSellerId++;
             }
 
@@ -82,7 +82,7 @@ namespace Client.DataGeneration
                 }
             }
 
-            Console.WriteLine("Synthetic data generation has terminated.");
+            logger.LogInformation("Synthetic data generation has terminated.");
 
         }
       

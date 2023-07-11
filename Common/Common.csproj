@@ -18,8 +18,6 @@
     <None Remove="Entity\CartStatus.config" />
     <None Remove="Entities\" />
     <None Remove="Http\" />
-    <None Remove="Ingestion\" />
-    <None Remove="Ingestion\DTO\" />
     <None Remove="Workload\Metrics\" />
     <None Remove="Workload\Delivery\" />
   </ItemGroup>
@@ -32,8 +30,6 @@
     <Folder Include="Infra\" />
     <Folder Include="Entities\" />
     <Folder Include="Http\" />
-    <Folder Include="Ingestion\" />
-    <Folder Include="Ingestion\DTO\" />
     <Folder Include="Workload\Metrics\" />
     <Folder Include="Workload\Delivery\" />
   </ItemGroup>

@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace Client.Ingestion.Config
 {
@@ -9,10 +8,10 @@ namespace Client.Ingestion.Config
         public string connectionString { get; set; } //= "Data Source=file.db"; // "DataSource=:memory:"
 
         // distribution of work strategy
-        public IngestionStrategy strategy { get; set; } = IngestionStrategy.SINGLE_WORKER;
+        public IngestionStrategy strategy { get; set; }
 
         // number of logical processors by default
-        public readonly int concurrencyLevel = Environment.ProcessorCount;
+        public int concurrencyLevel { get; set; }
 
         public IDictionary<string, string> mapTableToUrl;
 

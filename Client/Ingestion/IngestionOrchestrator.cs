@@ -20,74 +20,77 @@ namespace Client.Ingestion
 	{
 
 		private readonly IngestionConfig config;
-        private static readonly ILogger logger = LoggerProxy.GetInstance("SimpleIngestionOrchestrator");
+        private static readonly ILogger logger = LoggerProxy.GetInstance(nameof(IngestionOrchestrator));
 
         public IngestionOrchestrator(IngestionConfig config)
 		{
 			this.config = config;
+            if(this.config.concurrencyLevel == 0)
+            {
+                this.config.concurrencyLevel = Environment.ProcessorCount;
+                logger.LogInformation("Set concurrency level of ingestion to processor count: {0}", this.config.concurrencyLevel);
+            }
         }
 
-		public async Task Run()
+		public async Task Run(DuckDBConnection connection)
 		{
-            logger.LogInformation("Ingestion process is about to start.");
+            var startTime = DateTime.UtcNow;
+            logger.LogInformation("Ingestion process starting at {0} with strategy {1}", startTime, config.strategy.ToString());
 
-            using (var duckDBConnection = new DuckDBConnection(config.connectionString))
+            var command = connection.CreateCommand();
+
+            List<Task> tasksToWait = new();
+
+            foreach (var table in config.mapTableToUrl)
             {
-                duckDBConnection.Open();
-                var command = duckDBConnection.CreateCommand();
+                logger.LogInformation("Ingesting table {0} at {1}", table, DateTime.UtcNow);
 
-                List<Task> tasksToWait = new();
+                command.CommandText = "select * from "+table.Key+";";
+                var queryResult = command.ExecuteReader();
 
-                foreach (var table in config.mapTableToUrl)
+                BlockingCollection<JObject> tuples = new BlockingCollection<JObject>();
+
+                Task t1 = Task.Run(() => Produce(tuples, queryResult));
+
+                long rowCount = GetRowCount(queryResult);
+
+                if (config.strategy == IngestionStrategy.TABLE_PER_WORKER)
                 {
-                    logger.LogInformation("Ingesting table {0}", table);
+                    TaskCompletionSource tcs = new TaskCompletionSource();
+                    Task t = Task.Run(() => Consume(tuples, table.Value, rowCount, tcs));
+                    tasksToWait.Add(tcs.Task);
+                }
+                else if (config.strategy == IngestionStrategy.WORKER_PER_CPU)
+                {
 
-                    command.CommandText = "select * from "+table.Key+";";
-                    var queryResult = command.ExecuteReader();
-
-                    BlockingCollection<JObject> tuples = new BlockingCollection<JObject>();
-
-                    Task t1 = Task.Run(() => Produce(tuples, queryResult));
-
-                    long rowCount = GetRowCount(queryResult);
-
-                    if (config.strategy == IngestionStrategy.TABLE_PER_WORKER)
-                    {
+                    for (int i = 0; i < config.concurrencyLevel; i++) {
                         TaskCompletionSource tcs = new TaskCompletionSource();
-                        Task t = Task.Run(() => Consume(tuples, table.Value, rowCount, tcs));
+                        Task t = Task.Run(() => ConsumeShared(tuples, table.Value, rowCount, tcs));
                         tasksToWait.Add(tcs.Task);
                     }
-                    else if (config.strategy == IngestionStrategy.DISTRIBUTE_RECORDS_PER_NUM_CPUS)
-                    {
-                        for (int i = 0; i < config.concurrencyLevel; i++) {
-                            TaskCompletionSource tcs = new TaskCompletionSource();
-                            Task t = Task.Run(() => ConsumeShared(tuples, table.Value, rowCount, tcs));
-                            tasksToWait.Add(tcs.Task);
-                        }
-                        await Task.WhenAll(tasksToWait);
-                        totalCount = 0;
-                        tasksToWait.Clear();
-                        logger.LogInformation("Finished loading table {0}", table);
-                    }
-                    else // default to single worker
-                    {
-                        TaskCompletionSource tcs = new TaskCompletionSource();
-                        Task t = Task.Run(() => Consume(tuples, table.Value, rowCount, tcs));
-                        await tcs.Task;
-                        logger.LogInformation("Finished loading table {0}", table);
-                    }
- 
-                }
-
-                if(tasksToWait.Count > 0)
-                {
                     await Task.WhenAll(tasksToWait);
-                    logger.LogInformation("Finished loading all tables");
+                    totalCount = 0;
+                    tasksToWait.Clear();
+                    logger.LogInformation("Finished loading table {0} at {1}", table, DateTime.UtcNow);
                 }
-
+                else // default to single worker
+                {
+                    TaskCompletionSource tcs = new TaskCompletionSource();
+                    Task t = Task.Run(() => Consume(tuples, table.Value, rowCount, tcs));
+                    await tcs.Task;
+                    logger.LogInformation("Finished loading table {0}", table);
+                }
+ 
             }
 
-            logger.LogInformation("Ingestion process has terminated.");
+            if(tasksToWait.Count > 0)
+            {
+                await Task.WhenAll(tasksToWait);
+                logger.LogInformation("Finished loading all tables");
+            }
+
+            TimeSpan span = DateTime.UtcNow - startTime;
+            logger.LogInformation("Ingestion process has terminated in {0} seconds", span.TotalSeconds);
         }
 
         private void Produce(BlockingCollection<JObject> tuples, DuckDBDataReader queryResult)
@@ -117,6 +120,7 @@ namespace Client.Ingestion
 
         private void ConsumeShared(BlockingCollection<JObject> tuples, string url, long rowCount, TaskCompletionSource tcs)
         {
+            // logger.LogInformation("Ingestion worker ID {0} has started", Environment.CurrentManagedThreadId);
             JObject jobject;
             do
             {
@@ -127,6 +131,7 @@ namespace Client.Ingestion
                     ConvertAndSend(jobject, url);
                 }
             } while (Volatile.Read(ref totalCount) < rowCount);
+            // logger.LogInformation("Ingestion worker ID {0} has finished", Environment.CurrentManagedThreadId);
             tcs.SetResult();
         }
 

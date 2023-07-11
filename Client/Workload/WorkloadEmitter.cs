@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Common.Distribution;
 using Common.Distribution.YCSB;
@@ -16,7 +17,7 @@ using Orleans.Streams;
 namespace Client.Workload
 {
 
-    public class WorkloadEmitter : Stoppable
+    public class WorkloadEmitter
 	{
 
         private readonly IClusterClient orleansClient;
@@ -33,6 +34,7 @@ namespace Client.Workload
 
         private StreamSubscriptionHandle<int> deliveryWorkerSubscription;
 
+        private readonly int executionTime;
         private readonly int concurrencyLevel;
 
         private readonly int delayBetweenRequests;
@@ -45,21 +47,23 @@ namespace Client.Workload
                                 DistributionType customerDistribution,
                                 Interval customerRange,
                                 int concurrencyLevel,
+                                int executionTime,
                                 int delayBetweenRequests) : base()
         {
             this.orleansClient = clusterClient;
             this.streamProvider = orleansClient.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
             this.concurrencyLevel = concurrencyLevel;
+            this.executionTime = executionTime;
             this.delayBetweenRequests = delayBetweenRequests;
 
             NumberGenerator sellerIdGenerator = sellerDistribution ==
-                                DistributionType.NON_UNIFORM ? new NonUniformDistribution((int)(sellerRange.max * 0.3), sellerRange.min, sellerRange.max) :
+                                DistributionType.NON_UNIFORM ? new NonUniformDistribution((int)(sellerRange.max * 0.5), sellerRange.min, sellerRange.max) :
                                 sellerDistribution == DistributionType.UNIFORM ?
                                 new UniformLongGenerator(sellerRange.min, sellerRange.max) :
                                 new ZipfianGenerator(sellerRange.min, sellerRange.max);
 
             NumberGenerator customerIdGenerator = customerDistribution ==
-                                DistributionType.NON_UNIFORM ? new NonUniformDistribution((int)(customerRange.max * 0.3), customerRange.min, customerRange.max) :
+                                DistributionType.NON_UNIFORM ? new NonUniformDistribution((int)(customerRange.max * 0.5), customerRange.min, customerRange.max) :
                                 customerDistribution == DistributionType.UNIFORM ?
                                     new UniformLongGenerator(customerRange.min, customerRange.max) :
                                     new ZipfianGenerator(customerRange.min, customerRange.max);
@@ -83,10 +87,13 @@ namespace Client.Workload
                 SetUpSellerWorkerListener(),
                 SetUpDeliveryWorkerListener());
 
-            DateTime startTime = DateTime.Now;
-
             int submitted = 0;
-            logger.LogWarning("[Workload emitter] Started sending first batch of transactions...");
+            logger.LogInformation("[Workload emitter] Started sending batch of transactions...");
+
+            Stopwatch s = new Stopwatch();
+            s.Start();
+            var startTime = DateTime.UtcNow;
+
             while (submitted < concurrencyLevel)
             {
                 var txId = Shared.Workload.Take();
@@ -95,26 +102,27 @@ namespace Client.Workload
             }
 
             // signal the queue has been drained
-            Shared.WaitHandle.Add(0);
+            // Shared.WaitHandle.Add(0);
 
-            logger.LogWarning("[Workload emitter] Started sending remaining transactions...");
+            logger.LogInformation("[Workload emitter] Started waiting for results to send remaining transactions...");
 
-            while (IsRunning())
+            while (s.Elapsed < TimeSpan.FromMilliseconds(executionTime))
             {
                 // wait for results
-                logger.LogWarning("[Workload emitter] Retrieving a result...");
+                // logger.LogInformation("[Workload emitter] Retrieving a result...");
                 Shared.ResultQueue.Take();
 
-                logger.LogWarning("[Workload emitter] Retrieving a transaction...");
+                // logger.LogInformation("[Workload emitter] Retrieving a transaction...");
                 var txId = Shared.Workload.Take();
                 SubmitTransaction(txId);
                 submitted++;
 
-                logger.LogWarning("[Workload emitter] Transaction submitted.");
+                // logger.LogInformation("[Workload emitter] Transaction submitted.");
 
-                if (submitted % concurrencyLevel == 0)
+                if (Shared.Workload.Count < concurrencyLevel)
                 {
-                    logger.LogWarning("[Workload emitter] Requesting more transactions to generator...");
+                    // ideally we should never enter here
+                    logger.LogWarning("[Workload emitter] Requesting more transactions to worload generator...");
                     Shared.WaitHandle.Add(0);
                 }
 
@@ -126,10 +134,10 @@ namespace Client.Workload
 
             }
 
-            DateTime finishTime = DateTime.Now;
+            var finishTime = DateTime.UtcNow;
+            s.Stop();
 
-            // clean result queue
-            Shared.ResultQueue.GetConsumingEnumerable();
+            logger.LogInformation("[Workload emitter] Finished at {0}. Last TID submitted was {1}", finishTime, submitted);
 
             await Task.WhenAll(
                 customerWorkerSubscription.UnsubscribeAsync(),
@@ -143,7 +151,7 @@ namespace Client.Workload
         {
             long threadId = Environment.CurrentManagedThreadId;
 
-            this.logger.LogInformation("Sending a new {0} transaction with ID {1}", txId.type, txId.tid);
+            // this.logger.LogInformation("Sending a new {0} transaction with ID {1}", txId.type, txId.tid);
             try
             {
                 long grainID;
@@ -191,7 +199,7 @@ namespace Client.Workload
                     {
                         grainID = this.keyGeneratorPerWorkloadType[txId.type].NextValue();
                         var grainIDStr = grainID.ToString();
-                        logger.LogInformation("Seller worker {0} will be spawned!", grainIDStr);
+                        // logger.LogInformation("Seller worker {0} will be spawned!", grainIDStr);
                         var streamOutgoing = this.streamProvider.GetStream<TransactionInput>(StreamingConstants.SellerStreamId, grainIDStr);
                         _ = streamOutgoing.OnNextAsync(txId);
                         break;
@@ -201,7 +209,7 @@ namespace Client.Workload
                     {
                         grainID = this.keyGeneratorPerWorkloadType[txId.type].NextValue();
                         var grainIDStr = grainID.ToString();
-                        logger.LogInformation("Seller worker {0} will be spawned!", grainIDStr);
+                        // logger.LogInformation("Seller worker {0} will be spawned!", grainIDStr);
                         var streamOutgoing = this.streamProvider.GetStream<TransactionInput>(StreamingConstants.SellerStreamId, grainIDStr);
                         _ = streamOutgoing.OnNextAsync(txId);
                         break;

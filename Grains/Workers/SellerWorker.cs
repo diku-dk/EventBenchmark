@@ -79,7 +79,7 @@ namespace Grains.Workers
 
             this.logger.LogInformation("Init -> Seller worker {0} first {1} last {2}.", this.sellerId, this.products.ElementAt(0).product_id, lastId);
 
-            this.productIdGenerator = this.config.keyDistribution == DistributionType.NON_UNIFORM ? new NonUniformDistribution((int)(((lastId - firstId) * 0.3) + firstId), firstId, lastId) :
+            this.productIdGenerator = this.config.keyDistribution == DistributionType.NON_UNIFORM ? new NonUniformDistribution((int)(((lastId - firstId) * 0.5) + firstId), firstId, lastId) :
                 this.config.keyDistribution == DistributionType.UNIFORM ?
                  new UniformLongGenerator(firstId, lastId) :
                  new ZipfianGenerator(firstId, lastId);
@@ -140,10 +140,10 @@ namespace Grains.Workers
                 {
                     this.logger.LogInformation("Seller {0}: Dashboard will be queried...", this.sellerId);
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, config.sellerUrl + "/" + this.sellerId);
-                    this.submittedTransactions.Add(tid, new TransactionIdentifier(tid, TransactionType.DASHBOARD, DateTime.Now));
+                    this.submittedTransactions.Add(tid, new TransactionIdentifier(tid, TransactionType.DASHBOARD, DateTime.UtcNow));
                     var response = HttpUtils.client.Send(message);
                     response.EnsureSuccessStatusCode();
-                    this.finishedTransactions.Add(tid, new TransactionOutput(tid, DateTime.Now));
+                    this.finishedTransactions.Add(tid, new TransactionOutput(tid, DateTime.UtcNow));
                     this.logger.LogInformation("Seller {0}: Dashboard retrieved.", this.sellerId);
                 }
                 catch (Exception e)
@@ -183,6 +183,7 @@ namespace Grains.Workers
                 selectedProduct = this.productIdGenerator.NextValue();
                 count++;
             }
+            this.deletedProducts.Add(selectedProduct, 0);
 
             await Task.Run(() =>
             {
@@ -192,14 +193,15 @@ namespace Grains.Workers
                     var obj = JsonConvert.SerializeObject(new DeleteProduct(this.sellerId, selectedProduct, tid));
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Delete, config.productUrl);
                     message.Content = HttpUtils.BuildPayload(obj);
-                    this.submittedTransactions.Add(tid, new TransactionIdentifier(tid, TransactionType.DELETE_PRODUCT, DateTime.Now));
+                    this.submittedTransactions.Add(tid, new TransactionIdentifier(tid, TransactionType.DELETE_PRODUCT, DateTime.UtcNow));
                     var response = HttpUtils.client.Send(message);
                     response.EnsureSuccessStatusCode();
-                    this.deletedProducts.Add(selectedProduct, 0);
+                    
                     this.logger.LogInformation("Seller {0}: Product {1} deleted.", this.sellerId, selectedProduct);
                 }
                 catch (Exception e) {
                     this.logger.LogError("Seller {0}: Product {1} could not be deleted: {2}", this.sellerId, selectedProduct, e.Message);
+                    this.deletedProducts.Remove(selectedProduct);
                 }
             });
         }
@@ -269,7 +271,7 @@ namespace Grains.Workers
                 HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Patch, config.productUrl);
                 string serializedObject = JsonConvert.SerializeObject(new UpdatePrice(this.sellerId, selectedProduct, newPrice, tid));
                 request.Content = HttpUtils.BuildPayload(serializedObject);
-                this.submittedTransactions.Add(tid, new TransactionIdentifier(tid, TransactionType.PRICE_UPDATE, DateTime.Now));
+                this.submittedTransactions.Add(tid, new TransactionIdentifier(tid, TransactionType.PRICE_UPDATE, DateTime.UtcNow));
                 return HttpUtils.client.Send(request);
             });
 

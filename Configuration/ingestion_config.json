@@ -1,7 +1,7 @@
 ﻿{
   "connectionString": "Data Source=file.db",
-  "distributionStrategy": "TABLE_PER_WORKER", //optional. values: "SINGLE_WORKER" or "TABLE_PER_WORKER"
-  "concurrencyLevel": 2, // optional
+  "strategy": "WORKER_PER_CPU", //optional. values: "SINGLE_WORKER" or "TABLE_PER_WORKER" or "WORKER_PER_CPU"
+  "concurrencyLevel": 8,
   "mapTableToUrl": {
     //"sellers": "http://127.0.0.1:5006",
     //"customers": "http://127.0.0.1:5007",
