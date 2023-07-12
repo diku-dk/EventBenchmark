@@ -50,8 +50,6 @@ namespace Client.Collection
             sw.WriteLine("Run from {0} to {1}", startTime, finishTime);
             sw.WriteLine("===========================================");
 
-            // collect() stops subscription to redis streams in every worker
-
             var latencyGatherTasks = new List<Task<List<Latency>>>();
 
             // customer workers
@@ -73,7 +71,7 @@ namespace Client.Collection
 
             await Task.WhenAll(latencyGatherTasks);
 
-            Dictionary<TransactionType, List<double>> latencyCollPerTxType = new Dictionary<TransactionType, List<double>>();
+            Dictionary<TransactionType, List<double>> latencyCollPerTxType = new();
 
             var txTypeValues = Enum.GetValues(typeof(TransactionType)).Cast<TransactionType>().ToList();
             foreach(var txType in txTypeValues)
@@ -88,13 +86,13 @@ namespace Client.Collection
                 {
                     latencyCollPerTxType[entry.type].Add(entry.period);
                 }
-                countTid = countTid + list.Result.Count();
+                countTid += list.Result.Count;
             }
 
             foreach(var entry in latencyCollPerTxType)
             {
                 double avg = 0;
-                if(entry.Value.Count() > 0){
+                if(entry.Value.Count > 0){
                     avg = entry.Value.Average();
                 }
                 logger.LogInformation("Transaction: {0} - Average end-to-end latency: {1}", entry.Key, avg.ToString());

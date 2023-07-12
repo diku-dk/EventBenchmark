@@ -303,9 +303,10 @@ namespace Grains.Workers
         {
             foreach(var product in products)
             {
-                this.logger.LogInformation("Customer {0}: Adding seller {1} product {2} to cart", this.customerId, product.seller_id, product.product_id);
+                
                 await Task.Run(() =>
                 {
+                    this.logger.LogInformation("Customer {0}: Adding seller {1} product {2} to cart", this.customerId, product.seller_id, product.product_id);
                     HttpResponseMessage response;
                     var qty = random.Next(this.config.minMaxQtyRange.min, this.config.minMaxQtyRange.max + 1);
                     var payload = BuildCartItem(product, qty);
@@ -313,7 +314,6 @@ namespace Grains.Workers
                     {
                         HttpRequestMessage message2 = new HttpRequestMessage(HttpMethod.Patch, this.config.cartUrl + "/" + customerId + "/add");
                         message2.Content = payload;
-                        this.logger.LogInformation("Customer {0}: Sending seller {1} product {2} payload to cart...", this.customerId, product.seller_id, product.product_id);
                         response = HttpUtils.client.Send(message2);
                     }
                     catch (Exception e)

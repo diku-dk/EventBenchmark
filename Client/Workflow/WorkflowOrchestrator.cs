@@ -97,6 +97,16 @@ namespace Client.Workflow
                         // if trash from last runs are active...
                         await TrimStreams(config.streamingConfig.host, config.streamingConfig.port, config.streamingConfig.streams.ToList());
 
+                        // cleanup databases
+                        var resps_ = new List<Task<HttpResponseMessage>>();
+                        foreach (var task in config.postExperimentTasks)
+                        {
+                            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
+                            logger.LogInformation("Pre experiment task to URL {0}", task.url);
+                            resps_.Add(HttpUtils.client.SendAsync(message));
+                        }
+                        await Task.WhenAll(resps_);
+
                         // eventual completion transactions
                         string redisConnection = string.Format("{0}:{1}", config.streamingConfig.host, config.streamingConfig.port);
 
@@ -191,8 +201,7 @@ namespace Client.Workflow
             await orleansClient.Close();
             logger.LogInformation("Orleans client finalized!");
 
-            
-            logger.LogInformation("Starting cleanup tasks");
+            logger.LogInformation("Post experiment cleanup tasks started.");
             var resps = new List<Task<HttpResponseMessage>>();
             foreach (var task in config.postExperimentTasks)
             {
@@ -201,7 +210,7 @@ namespace Client.Workflow
                 resps.Add(HttpUtils.client.SendAsync(message));
             }
             await Task.WhenAll(resps);
-            logger.LogInformation("Post experiment tasks finished");
+            logger.LogInformation("Post experiment cleanup tasks finished");
 
             logger.LogInformation("Experiment finished");
         }

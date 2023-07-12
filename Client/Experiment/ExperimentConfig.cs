@@ -32,6 +32,8 @@ namespace Client.Experiment
 
         public int executionTime { get; set; }
 
+        public int epoch { get; set; }
+
         public int delayBetweenRequests { get; set; }
 
         public int concurrencyLevel { get; set; }

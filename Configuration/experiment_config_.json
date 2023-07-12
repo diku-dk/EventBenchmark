@@ -1,16 +1,16 @@
 ﻿{
   "enabled": true,
-  "connectionString": "Data Source=file.db",
+  "connectionString": "DataSource=:memory:",
   "numCustomers": 1000,
-  "avgNumProdPerSeller": 15,
+  "avgNumProdPerSeller": 10,
   "ingestionConfig": {
-    "strategy": "TABLE_PER_WORKER",
-    "concurrencyLevel": 2,
+    "strategy": "WORKER_PER_CPU",
+    "concurrencyLevel": 6,
     "mapTableToUrl": {
-      "sellers": "http://127.0.0.1:5006",
-      "customers": "http://127.0.0.1:5007",
-      "stock_items": "http://127.0.0.1:5003",
-      "products": "http://127.0.0.1:5008"
+      "sellers": "http://dapr:5006",
+      "customers": "http://dapr:5007",
+      "stock_items": "http://dapr:5003",
+      "products": "http://dapr:5008"
     }
   },
   "runs": [
@@ -37,66 +37,95 @@
       "customerDistribution": "UNIFORM",
       "sellerDistribution": "UNIFORM",
       "keyDistribution": "UNIFORM"
-    },
-    {
-      "numProducts": 100000,
-      "customerDistribution": "NON_UNIFORM",
-      "sellerDistribution": "NON_UNIFORM",
-      "keyDistribution": "NON_UNIFORM"
-    },
-    {
-      "numProducts": 100000,
-      "customerDistribution": "UNIFORM",
-      "sellerDistribution": "UNIFORM",
-      "keyDistribution": "UNIFORM"
     }
   ],
   "postRunTasks": [
     {
       "name": "cart",
-      "url": "http://127.0.0.1:5001/reset"
+      "url": "http://dapr:5001/reset"
     },
     {
       "name": "order",
-      "url": "http://127.0.0.1:5002/cleanup"
+      "url": "http://dapr:5002/cleanup"
     },
     {
       "name": "stock",
-      "url": "http://127.0.0.1:5003/reset"
+      "url": "http://dapr:5003/reset"
     },
     {
       "name": "payment",
-      "url": "http://127.0.0.1:5004/cleanup"
+      "url": "http://dapr:5004/cleanup"
     },
     {
       "name": "shipment",
-      "url": "http://127.0.0.1:5005/cleanup"
+      "url": "http://dapr:5005/cleanup"
     },
     {
       "name": "seller",
-      "url": "http://127.0.0.1:5006/reset"
+      "url": "http://dapr:5006/reset"
     },
     {
       "name": "customer",
-      "url": "http://127.0.0.1:5007/reset"
+      "url": "http://dapr:5007/reset"
     },
     {
       "name": "product",
-      "url": "http://127.0.0.1:5008/reset"
+      "url": "http://dapr:5008/reset"
     }
   ],
+  "postExperimentTasks": [
+    {
+      "name": "cart",
+      "url": "http://dapr:5001/cleanup"
+    },
+    {
+      "name": "order",
+      "url": "http://dapr:5002/cleanup"
+    },
+    {
+      "name": "stock",
+      "url": "http://dapr:5003/cleanup"
+    },
+    {
+      "name": "product",
+      "url": "http://dapr:5008/cleanup"
+    },
+    {
+      "name": "payment",
+      "url": "http://dapr:5004/cleanup"
+    },
+    {
+      "name": "shipment",
+      "url": "http://dapr:5005/cleanup"
+    },
+    {
+      "name": "seller",
+      "url": "http://dapr:5006/cleanup"
+    },
+    {
+      "name": "customer",
+      "url": "http://dapr:5007/cleanup"
+    },
+    {
+      "name": "product",
+      "url": "http://dapr:5008/cleanup"
+    }
+  ],
+  "delayBetweenRuns": 15000,
   "transactionDistribution": {
-    // "CUSTOMER_SESSION": 100 // 70,
-    // "UPDATE_DELIVERY": 100
-    "PRICE_UPDATE": 95,
-    "DELETE_PRODUCT": 100
+    "CUSTOMER_SESSION": 70,
+    "DASHBOARD": 75,
+    "PRICE_UPDATE": 82,
+    "DELETE_PRODUCT": 85,
+    "UPDATE_DELIVERY": 100
   },
-  "executionTime": 60000, // 1 minute by default
+  "executionTime": 360000,
+  "epoch": 2000,
   "delayBetweenRequests": 0,
-  "concurrencyLevel": 5, // 10000,
+  "concurrencyLevel": 16,
   "streamingConfig": {
     "type": "REDIS",
-    "host": "localhost",
+    "host": "redis",
     "port": 6379,
     "streams": [
       "DeliveryNotification",
@@ -125,8 +154,8 @@
     "checkoutProbability": 100,
     "voucherProbability": 5,
     "maxNumberVouchers": 10,
-    "productUrl": "http://127.0.0.1:5008",
-    "cartUrl": "http://127.0.0.1:5001",
+    "productUrl": "http://dapr:5008",
+    "cartUrl": "http://dapr:5001",
     "interactive": false
   },
   "sellerWorkerConfig": {
@@ -135,11 +164,10 @@
       "min": 1,
       "max": 1000
     },
-    "sellerUrl": "http://127.0.0.1:5006",
-    "productUrl": "http://127.0.0.1:5008"
+    "sellerUrl": "http://dapr:5006",
+    "productUrl": "http://dapr:5008"
   },
   "deliveryWorkerConfig": {
-    "shipmentUrl": "http://127.0.0.1:5005"
+    "shipmentUrl": "http://dapr:5005"
   }
 }
-

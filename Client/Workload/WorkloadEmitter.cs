@@ -72,6 +72,7 @@ namespace Client.Workload
             {
                 [TransactionType.PRICE_UPDATE] = sellerIdGenerator,
                 [TransactionType.DELETE_PRODUCT] = sellerIdGenerator,
+                [TransactionType.DASHBOARD] = sellerIdGenerator,
                 [TransactionType.CUSTOMER_SESSION] = customerIdGenerator
             };
 
@@ -88,7 +89,7 @@ namespace Client.Workload
                 SetUpDeliveryWorkerListener());
 
             int submitted = 0;
-            logger.LogInformation("[Workload emitter] Started sending batch of transactions...");
+            logger.LogInformation("[Workload emitter] Started sending batch of transactions with concurrency level {0}", this.concurrencyLevel);
 
             Stopwatch s = new Stopwatch();
             s.Start();
@@ -110,26 +111,30 @@ namespace Client.Workload
             {
                 // wait for results
                 // logger.LogInformation("[Workload emitter] Retrieving a result...");
-                Shared.ResultQueue.Take();
 
-                // logger.LogInformation("[Workload emitter] Retrieving a transaction...");
-                var txId = Shared.Workload.Take();
-                SubmitTransaction(txId);
-                submitted++;
-
-                // logger.LogInformation("[Workload emitter] Transaction submitted.");
-
-                if (Shared.Workload.Count < concurrencyLevel)
+                // if to avoid emitter hanging out forever
+                if (Shared.ResultQueue.TryTake(out int tid))
                 {
-                    // ideally we should never enter here
-                    logger.LogWarning("[Workload emitter] Requesting more transactions to worload generator...");
-                    Shared.WaitHandle.Add(0);
-                }
 
-                // throttle
-                if (this.delayBetweenRequests > 0)
-                {
-                    await Task.Delay(this.delayBetweenRequests);
+                    // logger.LogInformation("[Workload emitter] Retrieving a transaction...");
+                    var txId = Shared.Workload.Take();
+                    SubmitTransaction(txId);
+                    submitted++;
+
+                    // logger.LogInformation("[Workload emitter] Transaction submitted.");
+
+                    if (Shared.Workload.Count < concurrencyLevel)
+                    {
+                        // ideally we should never enter here
+                        logger.LogWarning("[Workload emitter] Requesting more transactions to worload generator...");
+                        Shared.WaitHandle.Add(0);
+                    }
+
+                    // throttle
+                    if (this.delayBetweenRequests > 0)
+                    {
+                        await Task.Delay(this.delayBetweenRequests);
+                    }
                 }
 
             }
@@ -149,8 +154,6 @@ namespace Client.Workload
 
         private void SubmitTransaction(TransactionInput txId)
         {
-            long threadId = Environment.CurrentManagedThreadId;
-
             // this.logger.LogInformation("Sending a new {0} transaction with ID {1}", txId.type, txId.tid);
             try
             {
@@ -216,6 +219,7 @@ namespace Client.Workload
                     }
                     default:
                     {
+                        long threadId = Environment.CurrentManagedThreadId;
                         this.logger.LogError("Thread ID " + threadId + " Unknown transaction type defined!");
                         break;
                     }
@@ -223,6 +227,7 @@ namespace Client.Workload
             }
             catch (Exception e)
             {
+                long threadId = Environment.CurrentManagedThreadId;
                 this.logger.LogError("Thread ID {0} Error caught in SubmitTransaction: {1}", threadId, e.Message);
             }
 
@@ -231,7 +236,7 @@ namespace Client.Workload
         private Task UpdateCustomerStatusAsync(CustomerWorkerStatusUpdate update, StreamSequenceToken token = null)
         {
             var old = this.customerStatusCache[update.customerId];
-            this.logger.LogInformation("Attempt to update customer worker {0} status in cache. Previous {1} Update {2}",
+            this.logger.LogDebug("Attempt to update customer worker {0} status in cache. Previous {1} Update {2}",
                 update.customerId, old, update.status);
             this.customerStatusCache[update.customerId] = update.status;
             return Task.CompletedTask;
@@ -245,7 +250,7 @@ namespace Client.Workload
 
         private Task AddToResultQueue(int tid, StreamSequenceToken token = null)
         {
-            Shared.ResultQueue.Add(0);
+            Shared.ResultQueue.Add(tid);
             return Task.CompletedTask;
         }
 

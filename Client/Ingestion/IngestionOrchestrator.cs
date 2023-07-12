@@ -54,6 +54,12 @@ namespace Client.Ingestion
 
                 long rowCount = GetRowCount(queryResult);
 
+                if(rowCount == 0)
+                {
+                    logger.LogWarning("Table {0} is empty!", table);
+                    continue;
+                }
+
                 if (config.strategy == IngestionStrategy.TABLE_PER_WORKER)
                 {
                     TaskCompletionSource tcs = new TaskCompletionSource();

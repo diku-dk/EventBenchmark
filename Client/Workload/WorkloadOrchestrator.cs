@@ -36,22 +36,16 @@ namespace Client.Workload
                 executionTime,
                 delayBetweenRequests);
 
-            Task<(DateTime startTime, DateTime finishTime)> emitTask =
-                Task.Run(emitter.Run);
-            // var emitTask = await Task.Factory.StartNew(emitter.Run, TaskCreationOptions.LongRunning);
+            Task<(DateTime startTime, DateTime finishTime)> emitTask = Task.Run(emitter.Run);
 
-            // await Task.Delay(executionTime);
             await emitTask;
 
             workloadGen.Stop();
             // to make sure the generator leaves the loop
             Shared.WaitHandle.Add(0);
 
-            // await Task.WhenAll(genTask, emitTask);
-
             logger.LogInformation("Workload orchestrator has finished.");
 
-            // return emitter.GetStartAndFinishTime();
             return emitTask.Result;
         }
 
