@@ -10,6 +10,7 @@ using Common.Workload.Seller;
 using Microsoft.Extensions.Logging;
 using Orleans.Streams;
 using Orleans.Runtime;
+using System;
 
 namespace Client.Workload
 {
@@ -18,6 +19,9 @@ namespace Client.Workload
 	{
 
         private readonly IClusterClient orleansClient;
+
+        private readonly IDictionary<TransactionType, int> transactionDistribution;
+        private readonly Random random;
 
         private readonly IStreamProvider streamProvider;
 
@@ -33,6 +37,7 @@ namespace Client.Workload
         private readonly ILogger logger;
 
         public WorkloadEmitter(IClusterClient clusterClient,
+                                IDictionary<TransactionType,int> transactionDistribution,
                                 DistributionType sellerDistribution,
                                 Interval sellerRange,
                                 DistributionType customerDistribution,
@@ -42,6 +47,8 @@ namespace Client.Workload
                                 int delayBetweenRequests) : base()
         {
             this.orleansClient = clusterClient;
+            this.transactionDistribution = transactionDistribution;
+            this.random = new Random();
             this.streamProvider = orleansClient.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
             this.concurrencyLevel = concurrencyLevel;
             this.executionTime = executionTime;
@@ -74,7 +81,7 @@ namespace Client.Workload
 
 		public async Task<(DateTime startTime, DateTime finishTime)> Run()
 		{
-            int submitted = 0;
+            int currentTid = 1;
             logger.LogInformation("[Workload emitter] Started sending batch of transactions with concurrency level {0}", this.concurrencyLevel);
 
             Stopwatch s = new Stopwatch();
@@ -83,9 +90,10 @@ namespace Client.Workload
 
             List<Task> tasks = new(concurrencyLevel+1);
 
-            while (submitted < concurrencyLevel)
+            while (currentTid <= concurrencyLevel)
             {
-                var txId = Shared.Workload.Take();
+                TransactionType tx = PickTransactionFromDistribution();
+                var txId = new TransactionInput(currentTid, tx);
 
                 if (txId.type == TransactionType.CUSTOMER_SESSION)
                 {
@@ -95,7 +103,7 @@ namespace Client.Workload
                     tasks.Add(Task.Run(() => SubmitNonCustomerTransaction(txId)));
                 }
 
-                submitted++;
+                currentTid++;
             }
 
             logger.LogInformation("[Workload emitter] Started waiting for results to send remaining transactions...");
@@ -109,7 +117,8 @@ namespace Client.Workload
                 tasks.Remove(taskRes);
 
                 // logger.LogInformation("[Workload emitter] Retrieving a transaction...");
-                var txId = Shared.Workload.Take();
+                TransactionType tx = PickTransactionFromDistribution();
+                var txId = new TransactionInput(currentTid, tx);
 
                 if (txId.type == TransactionType.CUSTOMER_SESSION)
                 {
@@ -120,16 +129,16 @@ namespace Client.Workload
                     tasks.Add(Task.Run(() => SubmitNonCustomerTransaction(txId)));
                 }
 
-                submitted++;
+                currentTid++;
 
                 // logger.LogInformation("[Workload emitter] Transaction submitted.");
 
-                if (Shared.Workload.Count < concurrencyLevel)
-                {
-                    // ideally we should never enter here
-                    logger.LogWarning("[Workload emitter] Requesting more transactions to workload generator...");
-                    Shared.WaitHandle.Add(0);
-                }
+                //if (Shared.Workload.Count < concurrencyLevel)
+                //{
+                //    // ideally we should never enter here
+                //    logger.LogWarning("[Workload emitter] Requesting more transactions to workload generator...");
+                //    Shared.WaitHandle.Add(0);
+                //}
 
                 // throttle
                 if (this.delayBetweenRequests > 0)
@@ -142,9 +151,22 @@ namespace Client.Workload
             var finishTime = DateTime.UtcNow;
             s.Stop();
 
-            logger.LogInformation("[Workload emitter] Finished at {0}. Last TID submitted was {1}", finishTime, submitted);
+            logger.LogInformation("[Workload emitter] Finished at {0}. Last TID submitted was {1}", finishTime, currentTid);
 
             return (startTime, finishTime);
+        }
+
+        private TransactionType PickTransactionFromDistribution()
+        {
+            int x = this.random.Next(0, 101);
+            foreach (var entry in transactionDistribution)
+            {
+                if (x <= entry.Value)
+                {
+                    return entry.Key;
+                }
+            }
+            return TransactionType.NONE;
         }
 
         private async Task SubmitCustomerSession(TransactionInput txId)

@@ -9,6 +9,7 @@
         PRICE_UPDATE,
         DELETE_PRODUCT, // could be a very rare tx
         // 
-        UPDATE_DELIVERY
+        UPDATE_DELIVERY,
+        NONE
     }
 }

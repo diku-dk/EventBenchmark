@@ -73,7 +73,7 @@
   "executionTime": 10000,
   "epoch": 2000,
   "delayBetweenRequests": 0,
-  "concurrencyLevel": 8,
+  "concurrencyLevel": 16,
   "streamingConfig": {
     "type": "REDIS",
     "host": "localhost",

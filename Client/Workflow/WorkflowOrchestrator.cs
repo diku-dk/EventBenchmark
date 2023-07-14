@@ -62,12 +62,12 @@ namespace Client.Workflow
             List<CancellationTokenSource> tokens = new(3);
             List<Task> listeningTasks = new(3);
 
-            WorkloadGenerator workloadGen = new WorkloadGenerator(config.transactionDistribution, config.concurrencyLevel);
+            // WorkloadGenerator workloadGen = new WorkloadGenerator(config.transactionDistribution, config.concurrencyLevel);
 
             // makes sure there are transactions
-            workloadGen.Prepare();
+            // workloadGen.Prepare();
 
-            Task genTask = Task.Factory.StartNew(workloadGen.Run, TaskCreationOptions.LongRunning);
+            // Task genTask = Task.Factory.StartNew(workloadGen.Run, TaskCreationOptions.LongRunning);
 
             foreach (var run in config.runs)
             {
@@ -146,6 +146,7 @@ namespace Client.Workflow
 
                 WorkloadEmitter emitter = new WorkloadEmitter(
                     orleansClient,
+                    config.transactionDistribution,
                     run.sellerDistribution,
                     config.customerWorkerConfig.sellerRange,
                     run.customerDistribution,
@@ -154,14 +155,13 @@ namespace Client.Workflow
                     config.executionTime,
                     config.delayBetweenRequests);
 
-                Task<(DateTime startTime, DateTime finishTime)> emitTask = Task.Run(emitter.Run);
+                var emitTask = await emitter.Run();
 
-                await emitTask;
-                DateTime startTime = emitTask.Result.startTime;
-                DateTime finishTime = emitTask.Result.finishTime;
+                DateTime startTime = emitTask.startTime;
+                DateTime finishTime = emitTask.finishTime;
 
                 logger.LogInformation("Waiting 10 seconds for results to arrive from Redis...");
-                await Task.Delay(TimeSpan.FromSeconds(30));
+                await Task.Delay(TimeSpan.FromSeconds(10));
 
                 // set up data collection for metrics
                 // TODO send the distributions and the config (customers,sellers, etc) so it can be written to the file
@@ -211,9 +211,9 @@ namespace Client.Workflow
                 }
             }
 
-            workloadGen.Stop();
+            //workloadGen.Stop();
             // to make sure the generator leaves the loop
-            Shared.WaitHandle.Add(0);
+            //Shared.WaitHandle.Add(0);
 
             foreach (var token in tokens)
             {
@@ -346,15 +346,15 @@ namespace Client.Workflow
                     listeningTasks.Add(SubscribeToTransactionResult(orleansClient, redisConnection, channel, token));
                 }
 
-                WorkloadGenerator workloadGen = new WorkloadGenerator(workloadConfig.transactionDistribution, workloadConfig.concurrencyLevel);
+                //WorkloadGenerator workloadGen = new WorkloadGenerator(workloadConfig.transactionDistribution, workloadConfig.concurrencyLevel);
 
-                // makes sure there are transactions
-                workloadGen.Prepare();
+                //// makes sure there are transactions
+                //workloadGen.Prepare();
 
-                Task genTask = Task.Factory.StartNew(workloadGen.Run, TaskCreationOptions.LongRunning);
+                //Task genTask = Task.Factory.StartNew(workloadGen.Run, TaskCreationOptions.LongRunning);
 
                 // setup transaction orchestrator
-                WorkloadEmitter emitter = new WorkloadEmitter( orleansClient, workloadConfig.customerWorkerConfig.sellerDistribution,
+                WorkloadEmitter emitter = new WorkloadEmitter( orleansClient, workloadConfig.transactionDistribution, workloadConfig.customerWorkerConfig.sellerDistribution,
                     workloadConfig.customerWorkerConfig.sellerRange, workloadConfig.customerDistribution, customerRange,
                     workloadConfig.concurrencyLevel, workloadConfig.executionTime, workloadConfig.delayBetweenRequests);
 
@@ -380,9 +380,9 @@ namespace Client.Workflow
                     await metricGather.Collect(startTime, finishTime);
                 }
 
-                workloadGen.Stop();
-                // to make sure the generator leaves the loop
-                Shared.WaitHandle.Add(0);
+                //workloadGen.Stop();
+                //// to make sure the generator leaves the loop
+                //Shared.WaitHandle.Add(0);
 
                 // await orleansClient.Close();
                 // logger.LogInformation("Orleans client finalized!");

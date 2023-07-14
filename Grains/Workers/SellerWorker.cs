@@ -61,7 +61,7 @@ namespace Grains.Workers
 
         public Task Init(SellerWorkerConfig sellerConfig, List<Product> products)
         {
-            this.logger.LogInformation("Init -> Seller worker {0} with #{1} product(s) [interactive mode: t/f]: {2}", this.sellerId, products.Count, sellerConfig.interactive);
+            this.logger.LogDebug("Init -> Seller worker {0} with #{1} product(s) [interactive mode: t/f]: {2}", this.sellerId, products.Count, sellerConfig.interactive);
             this.config = sellerConfig;
             this.products = products;
 
@@ -69,7 +69,7 @@ namespace Grains.Workers
             int firstId = (int)this.products[0].product_id;
             int lastId = (int)this.products.ElementAt(this.products.Count - 1).product_id;
 
-            this.logger.LogInformation("Init -> Seller worker {0} first {1} last {2}.", this.sellerId, this.products.ElementAt(0).product_id, lastId);
+            this.logger.LogDebug("Init -> Seller worker {0} first {1} last {2}.", this.sellerId, this.products.ElementAt(0).product_id, lastId);
 
             this.productIdGenerator = this.config.keyDistribution == DistributionType.NON_UNIFORM ? new NonUniformDistribution((int)(((lastId - firstId) * 0.3) + firstId), firstId, lastId) :
                 this.config.keyDistribution == DistributionType.UNIFORM ?
@@ -87,7 +87,6 @@ namespace Grains.Workers
         {
             this.sellerId = this.GetPrimaryKeyLong();
             this.streamProvider = this.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
-
             var workloadStream = streamProvider.GetStream<TransactionInput>(StreamingConstants.SellerWorkerNameSpace, this.sellerId.ToString());
             var subscriptionHandles_ = await workloadStream.GetAllSubscriptionHandles();
             if (subscriptionHandles_.Count > 0)

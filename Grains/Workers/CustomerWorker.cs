@@ -20,7 +20,6 @@ namespace Grains.Workers
 {
 
     [Reentrant]
-    [ImplicitStreamSubscription]
     public sealed class CustomerWorker : Grain, ICustomerWorker
     {
         private readonly Random random;
@@ -54,7 +53,15 @@ namespace Grains.Workers
             var streamProvider = this.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
             var streamId = StreamId.Create(StreamingConstants.CustomerWorkerNameSpace, customerId.ToString());
             var stream = streamProvider.GetStream<int>(streamId);
-            await stream.SubscribeAsync(Run);
+            var subscriptionHandles_ = await stream.GetAllSubscriptionHandles();
+            if (subscriptionHandles_.Count > 0)
+            {
+                foreach (var subscriptionHandle in subscriptionHandles_)
+                {
+                    await subscriptionHandle.ResumeAsync(Run);
+                }
+            }
+            await stream.SubscribeAsync<int>(Run);
         }
 
         public Task Init(CustomerWorkerConfig config, Customer customer)
