@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Net.Http;
-using System.Threading.Tasks;
-using Client.DataGeneration;
+﻿using Client.DataGeneration;
 using Client.Infra;
 using Client.Ingestion;
 using Common.Http;
@@ -10,25 +6,22 @@ using Common.Workload;
 using Common.Entities;
 using Common.Streaming;
 using DuckDB.NET.Data;
-using GrainInterfaces.Workers;
 using Microsoft.Extensions.Logging;
-using Orleans;
 using Client.Workload;
 using Client.Ingestion.Config;
 using Client.Streaming.Redis;
 using Common.Infra;
 using Client.Collection;
-using System.Linq;
 using Client.Cleaning;
 using Common.Workload.Metrics;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Text;
-using System.Threading;
 using Client.Experiment;
 using Common.Workload.Customer;
 using Common.Workload.Seller;
 using Common.Workload.Delivery;
+using Grains.WorkerInterfaces;
 
 namespace Client.Workflow
 {
@@ -69,16 +62,27 @@ namespace Client.Workflow
             List<CancellationTokenSource> tokens = new(3);
             List<Task> listeningTasks = new(3);
 
+            WorkloadGenerator workloadGen = new WorkloadGenerator(config.transactionDistribution, config.concurrencyLevel);
+
+            // makes sure there are transactions
+            workloadGen.Prepare();
+
+            Task genTask = Task.Factory.StartNew(workloadGen.Run, TaskCreationOptions.LongRunning);
+
             foreach (var run in config.runs)
             {
                 logger.LogInformation("Run #{0} started at {0}", runIdx, DateTime.UtcNow);
 
                 // clean result queue
-                logger.LogInformation("Cleaning shared queues...");
-                while (Shared.ResultQueue.TryTake(out _));
+                //logger.LogInformation("Cleaning shared queues...");
+                // while (Shared.ResultQueue.TryTake(out _));
                 // clean to restart TID counting
-                while (Shared.Workload.TryTake(out _)) { }
-                logger.LogInformation("Finished cleaning shared queues.");
+                //while (Shared.Workload.TryTake(out _)) { }
+                //logger.LogInformation("Finished cleaning shared queues.");
+
+                // set the distributions accordingly
+                config.customerWorkerConfig.sellerDistribution = run.sellerDistribution;
+                config.sellerWorkerConfig.keyDistribution = run.keyDistribution;
 
                 if (runIdx == 0 || run.numProducts != previousData.numProducts)
                 {
@@ -112,10 +116,13 @@ namespace Client.Workflow
 
                         foreach (var type in transactions)
                         {
-                            var channel = new StringBuilder(nameof(TransactionMark)).Append('_').Append(type.ToString()).ToString();
-                            var token = new CancellationTokenSource();
-                            tokens.Add(token);
-                            listeningTasks.Add(SubscribeToTransactionResult(orleansClient, redisConnection, channel, token));
+                            if (config.transactionDistribution.ContainsKey(type))
+                            {
+                                var channel = new StringBuilder(nameof(TransactionMark)).Append('_').Append(type.ToString()).ToString();
+                                var token = new CancellationTokenSource();
+                                tokens.Add(token);
+                                listeningTasks.Add(SubscribeToTransactionResult(orleansClient, redisConnection, channel, token));
+                            }
                         }
 
                         syntheticDataGenerator.Generate(connection, true);
@@ -134,14 +141,27 @@ namespace Client.Workflow
                     numSellers = DuckDbUtils.Count(connection, "sellers");
                 }
 
-                await PrepareWorkers(config.customerWorkerConfig, config.sellerWorkerConfig,
-                    config.deliveryWorkerConfig, orleansClient, customers, numSellers, connection);
+                await PrepareWorkers(orleansClient, config.transactionDistribution, config.customerWorkerConfig, config.sellerWorkerConfig,
+                    config.deliveryWorkerConfig, customers, numSellers, connection);
 
-                var workloadTask = await Task.Run(() => WorkloadOrchestrator.Run(
-                            orleansClient, config.transactionDistribution, config.concurrencyLevel, config.customerWorkerConfig.sellerDistribution,
-                            config.customerWorkerConfig.sellerRange, run.customerDistribution, customerRange, config.delayBetweenRequests, config.executionTime));
-                DateTime startTime = workloadTask.startTime;
-                DateTime finishTime = workloadTask.finishTime;
+                WorkloadEmitter emitter = new WorkloadEmitter(
+                    orleansClient,
+                    run.sellerDistribution,
+                    config.customerWorkerConfig.sellerRange,
+                    run.customerDistribution,
+                    customerRange,
+                    config.concurrencyLevel,
+                    config.executionTime,
+                    config.delayBetweenRequests);
+
+                Task<(DateTime startTime, DateTime finishTime)> emitTask = Task.Run(emitter.Run);
+
+                await emitTask;
+                DateTime startTime = emitTask.Result.startTime;
+                DateTime finishTime = emitTask.Result.finishTime;
+
+                logger.LogInformation("Waiting 10 seconds for results to arrive from Redis...");
+                await Task.Delay(TimeSpan.FromSeconds(30));
 
                 // set up data collection for metrics
                 // TODO send the distributions and the config (customers,sellers, etc) so it can be written to the file
@@ -191,6 +211,10 @@ namespace Client.Workflow
                 }
             }
 
+            workloadGen.Stop();
+            // to make sure the generator leaves the loop
+            Shared.WaitHandle.Add(0);
+
             foreach (var token in tokens)
             {
                 token.Cancel();
@@ -198,8 +222,8 @@ namespace Client.Workflow
 
             await Task.WhenAll(listeningTasks);
 
-            await orleansClient.Close();
-            logger.LogInformation("Orleans client finalized!");
+            // await orleansClient.();
+            // logger.LogInformation("Orleans client finalized!");
 
             logger.LogInformation("Post experiment cleanup tasks started.");
             var resps = new List<Task<HttpResponseMessage>>();
@@ -306,8 +330,8 @@ namespace Client.Workflow
                 var customerRange = new Interval(1, customers.Count());
 
                 // initialize all workers
-                await PrepareWorkers(workloadConfig.customerWorkerConfig, workloadConfig.sellerWorkerConfig,
-                    workloadConfig.deliveryWorkerConfig, orleansClient, customers, numSellers, connection);
+                await PrepareWorkers(orleansClient, workloadConfig.transactionDistribution, workloadConfig.customerWorkerConfig, workloadConfig.sellerWorkerConfig,
+                    workloadConfig.deliveryWorkerConfig, customers, numSellers, connection);
 
                 // eventual completion transactions
                 string redisConnection = string.Format("{0}:{1}", workloadConfig.streamingConfig.host, workloadConfig.streamingConfig.port);
@@ -322,16 +346,27 @@ namespace Client.Workflow
                     listeningTasks.Add(SubscribeToTransactionResult(orleansClient, redisConnection, channel, token));
                 }
 
+                WorkloadGenerator workloadGen = new WorkloadGenerator(workloadConfig.transactionDistribution, workloadConfig.concurrencyLevel);
+
+                // makes sure there are transactions
+                workloadGen.Prepare();
+
+                Task genTask = Task.Factory.StartNew(workloadGen.Run, TaskCreationOptions.LongRunning);
+
                 // setup transaction orchestrator
-                var workloadTask = Task.Run( ()=> WorkloadOrchestrator.Run( orleansClient, workloadConfig.transactionDistribution, workloadConfig.concurrencyLevel, workloadConfig.customerWorkerConfig.sellerDistribution,
-                    workloadConfig.customerWorkerConfig.sellerRange, workloadConfig.customerDistribution, customerRange, workloadConfig.delayBetweenRequests, workloadConfig.executionTime));
-                DateTime startTime = workloadTask.Result.startTime;
-                DateTime finishTime = workloadTask.Result.finishTime;
+                WorkloadEmitter emitter = new WorkloadEmitter( orleansClient, workloadConfig.customerWorkerConfig.sellerDistribution,
+                    workloadConfig.customerWorkerConfig.sellerRange, workloadConfig.customerDistribution, customerRange,
+                    workloadConfig.concurrencyLevel, workloadConfig.executionTime, workloadConfig.delayBetweenRequests);
+
+                Task<(DateTime startTime, DateTime finishTime)> emitTask = Task.Run(emitter.Run);
 
                 // listen for cluster client disconnect and stop the sleep if necessary... Task.WhenAny...
-                await Task.WhenAny(workloadTask, OrleansClientFactory._siloFailedTask.Task);
+                await Task.WhenAny(emitTask, OrleansClientFactory._siloFailedTask.Task);
 
-                foreach(var token in tokens)
+                DateTime startTime = emitTask.Result.startTime;
+                DateTime finishTime = emitTask.Result.finishTime;
+
+                foreach (var token in tokens)
                 {
                     token.Cancel();
                 }
@@ -345,8 +380,12 @@ namespace Client.Workflow
                     await metricGather.Collect(startTime, finishTime);
                 }
 
-                await orleansClient.Close();
-                logger.LogInformation("Orleans client finalized!");
+                workloadGen.Stop();
+                // to make sure the generator leaves the loop
+                Shared.WaitHandle.Add(0);
+
+                // await orleansClient.Close();
+                // logger.LogInformation("Orleans client finalized!");
             }
 
             if (workflowConfig.cleanup)
@@ -394,45 +433,53 @@ namespace Client.Workflow
             // DuckDbUtils.DeleteAll(connection, "products", "seller_id = " + i);
         }
 
-        public static async Task PrepareWorkers(CustomerWorkerConfig customerWorkerConfig, SellerWorkerConfig sellerWorkerConfig, DeliveryWorkerConfig deliveryWorkerConfig,
-            IClusterClient orleansClient, List<Customer> customers, long numSellers, DuckDBConnection connection)
+        public static async Task PrepareWorkers(IClusterClient orleansClient, IDictionary<TransactionType,int> transactionDistribution,
+             CustomerWorkerConfig customerWorkerConfig, SellerWorkerConfig sellerWorkerConfig, DeliveryWorkerConfig deliveryWorkerConfig,
+             List<Customer> customers, long numSellers, DuckDBConnection connection)
         {
             logger.LogInformation("Preparing workers...");
-
-            var endValue = DuckDbUtils.Count(connection, "products");
-            if (endValue < customerWorkerConfig.maxNumberKeysToBrowse || endValue < customerWorkerConfig.maxNumberKeysToAddToCart)
-            {
-                throw new Exception("Number of available products < possible number of keys to checkout. That may lead to customer grain looping forever!");
-            }
+            List<Task> tasks = new();
 
             // defined dynamically
             customerWorkerConfig.sellerRange = new Interval(1, (int)numSellers);
 
             // activate all customer workers
-            List<Task> tasks = new();
-
-            foreach (var customer in customers)
+            if (transactionDistribution.ContainsKey(TransactionType.CUSTOMER_SESSION))
             {
-                var customerWorker = orleansClient.GetGrain<ICustomerWorker>(customer.id);
-                tasks.Add(customerWorker.Init(customerWorkerConfig, customer));
+                var endValue = DuckDbUtils.Count(connection, "products");
+                if (endValue < customerWorkerConfig.maxNumberKeysToBrowse || endValue < customerWorkerConfig.maxNumberKeysToAddToCart)
+                {
+                    throw new Exception("Number of available products < possible number of keys to checkout. That may lead to customer grain looping forever!");
+                }
+
+                foreach (var customer in customers)
+                {
+                    var customerWorker = orleansClient.GetGrain<ICustomerWorker>(customer.id);
+                    tasks.Add(customerWorker.Init(customerWorkerConfig, customer));
+                }
+                await Task.WhenAll(tasks);
             }
-            await Task.WhenAll(tasks);
 
             // make sure to activate all sellers so they can respond to customers when required
             // another solution is making them read from the microservice itself...
-            tasks.Clear();
-            for (int i = 1; i <= numSellers; i++)
+            if (transactionDistribution.ContainsKey(TransactionType.PRICE_UPDATE) || transactionDistribution.ContainsKey(TransactionType.DELETE_PRODUCT) || transactionDistribution.ContainsKey(TransactionType.DASHBOARD))
             {
-                List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
-                var sellerWorker = orleansClient.GetGrain<ISellerWorker>(i);
-                tasks.Add(sellerWorker.Init(sellerWorkerConfig, products));
+                tasks.Clear();
+                for (int i = 1; i <= numSellers; i++)
+                {
+                    List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
+                    var sellerWorker = orleansClient.GetGrain<ISellerWorker>(i);
+                    tasks.Add(sellerWorker.Init(sellerWorkerConfig, products));
+                }
+                await Task.WhenAll(tasks);
             }
-            await Task.WhenAll(tasks);
 
             // activate delivery worker
-            var deliveryWorker = orleansClient.GetGrain<IDeliveryWorker>(0);
-            await deliveryWorker.Init(deliveryWorkerConfig);
-
+            if (transactionDistribution.ContainsKey(TransactionType.UPDATE_DELIVERY))
+            {
+                var deliveryWorker = orleansClient.GetGrain<IDeliveryWorker>(0);
+                await deliveryWorker.Init(deliveryWorkerConfig);
+            }
             logger.LogInformation("Workers prepared!");
         }
 
@@ -463,11 +510,11 @@ namespace Client.Workflow
                     {
                         logger.LogWarning("Error processing transaction mark event: {0}", e.Message);
                     }
-                    finally
-                    {
-                        // let emitter aware this request has finished
-                        Shared.ResultQueue.Add(0);
-                    }
+                    //finally
+                    //{
+                    //    // let emitter aware this request has finished
+                    //    Shared.ResultQueue.Add(0);
+                    //}
                 }
             }), TaskCreationOptions.LongRunning);
             

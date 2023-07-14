@@ -50,3 +50,7 @@ https://learn.microsoft.com/en-us/dotnet/api/system.threading.interlocked.increm
 https://stackoverflow.com/questions/41017164/setting-a-specific-grain-to-have-max-n-instances-per-silo
 https://github.com/dotnet/orleans/issues/3071
 https://sergeybykov.github.io/orleans/Documentation/clusters_and_clients/configuration_guide/shutting_down_orleans.html
+
+Driver-side, client-side code, which is also run in Orleans silo
+Nice example of tasks in a customer session:
+https://github.com/GoogleCloudPlatform/microservices-demo/blob/main/src/loadgenerator/locustfile.py

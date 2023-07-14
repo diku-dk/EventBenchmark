@@ -1,36 +1,26 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net;
-using System.Net.Http;
+﻿using System.Net;
 using System.Text;
-using System.Threading.Tasks;
 using Common.Http;
 using Common.Workload.Customer;
 using Common.Entities;
 using Common.Streaming;
 using Common.Distribution.YCSB;
-using GrainInterfaces.Workers;
+using Grains.WorkerInterfaces;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
-using Orleans;
 using Orleans.Streams;
 using Common.Distribution;
 using Common.Requests;
 using Common.Workload;
 using Common.Workload.Metrics;
 using Orleans.Concurrency;
+using Orleans.Runtime;
 
 namespace Grains.Workers
 {
 
-    /**
-     * Driver-side, client-side code, which is also run in Orleans silo
-     * Nice example of tasks in a customer session:
-     * https://github.com/GoogleCloudPlatform/microservices-demo/blob/main/src/loadgenerator/locustfile.py
-     */
     [Reentrant]
+    [ImplicitStreamSubscription]
     public sealed class CustomerWorker : Grain, ICustomerWorker
     {
         private readonly Random random;
@@ -39,18 +29,11 @@ namespace Grains.Workers
 
         private NumberGenerator sellerIdGenerator;
 
-        private IStreamProvider streamProvider;
-
-        private IAsyncStream<CustomerWorkerStatusUpdate> txStream;
-
         // the customer this worker is simulating
         private long customerId;
 
         // the object respective to this worker
         private Customer customer;
-
-        // status of this worker
-        private CustomerWorkerStatus status;
 
         private readonly IDictionary<long, TransactionIdentifier> submittedTransactions;
         private readonly IDictionary<long, TransactionOutput> finishedTransactions;
@@ -61,29 +44,17 @@ namespace Grains.Workers
         {
             this.logger = logger;
             this.random = new Random();
-            this.status = CustomerWorkerStatus.IDLE;
             this.submittedTransactions = new Dictionary<long, TransactionIdentifier>();
             this.finishedTransactions = new Dictionary<long, TransactionOutput>();
         }
 
-        public override async Task OnActivateAsync()
+        public override async Task OnActivateAsync(CancellationToken cancellationToken)
         {
             this.customerId = this.GetPrimaryKeyLong();
-            this.streamProvider = this.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
-
-            var workloadStream = streamProvider.GetStream<int>(StreamingConstants.CustomerStreamId, this.customerId.ToString());
-            var subscriptionHandles_ = await workloadStream.GetAllSubscriptionHandles();
-            if (subscriptionHandles_.Count > 0)
-            {
-                foreach (var subscriptionHandle in subscriptionHandles_)
-                {
-                    await subscriptionHandle.ResumeAsync(Run);
-                }
-            }
-            await workloadStream.SubscribeAsync(Run);
-
-            // to notify transaction orchestrator about status update
-            this.txStream = streamProvider.GetStream<CustomerWorkerStatusUpdate>(StreamingConstants.CustomerStreamId, StreamingConstants.TransactionStreamNameSpace);
+            var streamProvider = this.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
+            var streamId = StreamId.Create(StreamingConstants.CustomerWorkerNameSpace, customerId.ToString());
+            var stream = streamProvider.GetStream<int>(streamId);
+            await stream.SubscribeAsync(Run);
         }
 
         public Task Init(CustomerWorkerConfig config, Customer customer)
@@ -92,7 +63,7 @@ namespace Grains.Workers
             this.config = config;
             this.customer = customer;
             this.sellerIdGenerator = this.config.sellerDistribution == DistributionType.NON_UNIFORM ?
-                new NonUniformDistribution( (int)(this.config.sellerRange.max * 0.5), this.config.sellerRange.min, this.config.sellerRange.max) :
+                new NonUniformDistribution( (int)(this.config.sellerRange.max * 0.3), this.config.sellerRange.min, this.config.sellerRange.max) :
                 this.config.sellerDistribution == DistributionType.UNIFORM ?
                 new UniformLongGenerator(this.config.sellerRange.min, this.config.sellerRange.max) :
                 new ZipfianGenerator(this.config.sellerRange.min, this.config.sellerRange.max);
@@ -162,11 +133,9 @@ namespace Grains.Workers
             return keyMap;
         }
 
-        private async Task Run(int tid, StreamSequenceToken token)
+        public async Task Run(int tid, StreamSequenceToken token)
         {
             this.logger.LogInformation("Customer worker {0} starting new TID: {1}", this.customerId, tid);
-
-            this.status = CustomerWorkerStatus.BROWSING;
 
             int numberOfKeysToBrowse = random.Next(1, this.config.maxNumberKeysToBrowse + 1);
 
@@ -192,8 +161,6 @@ namespace Grains.Workers
                 catch (Exception e)
                 {
                     this.logger.LogError(e.Message);
-                    this.status = CustomerWorkerStatus.CHECKOUT_FAILED;
-                    await InformFailedCheckout();
                 }
             } else
             {
@@ -203,28 +170,6 @@ namespace Grains.Workers
                 await Checkout(tid);
             }
             
-        }
-
-        private async Task UpdateStatusAsync()
-        {
-            this.status = CustomerWorkerStatus.IDLE;
-            await txStream.OnNextAsync(new CustomerWorkerStatusUpdate(this.customerId, this.status)); 
-        }
-
-        private async Task InformFailedCheckout()
-        {
-            // just cleaning cart state for next browsing
-            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, this.config.cartUrl + "/" + customerId + "/seal");
-            HttpUtils.client.Send(message);
-            await txStream.OnNextAsync(new CustomerWorkerStatusUpdate(this.customerId, this.status));
-            this.logger.LogWarning("Customer {0} checkout failed", this.customerId);
-        }
-
-        private async Task InformSucceededCheckout()
-        {
-            this.status = CustomerWorkerStatus.CHECKOUT_SENT;
-            this.logger.LogInformation("Customer {0} sent the checkout successfully", customerId);
-            await UpdateStatusAsync();
         }
 
         /**
@@ -245,9 +190,7 @@ namespace Grains.Workers
             // define whether client should send a checkout request
             if (random.Next(0, 100) > this.config.checkoutProbability)
             {
-                this.status = CustomerWorkerStatus.CHECKOUT_NOT_SENT;
                 this.logger.LogInformation("Customer {0} decided to not send a checkout.", this.customerId);
-                await InformFailedCheckout();
                 return;
             }
 
@@ -265,14 +208,11 @@ namespace Grains.Workers
 
             if (resp == null)
             {
-                this.status = CustomerWorkerStatus.CHECKOUT_FAILED;
-                await InformFailedCheckout();
                 return;
             }
             if (resp.IsSuccessStatusCode)
             {
                 submittedTransactions.Add(txId.tid, txId);
-                await InformSucceededCheckout();
                 return;
             }
 
@@ -288,15 +228,11 @@ namespace Grains.Workers
 
             if (resp == null || !resp.IsSuccessStatusCode)
             {
-                this.status = CustomerWorkerStatus.CHECKOUT_FAILED;
-                await InformFailedCheckout();
                 return;
             }
 
             submittedTransactions.Add(txId.tid, txId);
-            // very unlikely to have another price update (considering the distribution is low)
-            await InformSucceededCheckout();
-            
+            // very unlikely to have another price update (considering the distribution is low)            
         }
 
         private async Task AddItemsToCart(List<Product> products)

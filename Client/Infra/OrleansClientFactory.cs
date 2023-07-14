@@ -1,14 +1,9 @@
-﻿using System;
-using Common.Streaming;
-using Orleans;
+﻿using Common.Streaming;
 using Orleans.Runtime.Messaging;
-using System.Threading.Tasks;
-using Orleans.Hosting;
-using Orleans.Configuration;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
-using System.Threading;
-using Common.Infra;
+using Microsoft.Extensions.Hosting;
+using Orleans.Providers;
+using Orleans.Serialization;
 
 namespace Client.Infra
 {
@@ -19,45 +14,40 @@ namespace Client.Infra
 
         public static async Task<IClusterClient> Connect(int maxAttempts = int.MaxValue)
         {
-            IClusterClient client;
             int attempts = 0;
             while (true)
             {
-                client = new ClientBuilder()
-                                .UseLocalhostClustering()
-                                .Configure<GatewayOptions>(
-                                    options =>                         // Default is 1 min.
-                                    options.GatewayListRefreshPeriod = TimeSpan.FromMinutes(10)
+
+                var host = new HostBuilder()
+                            .UseOrleansClient(
+                                    client => client.UseLocalhostClustering()
+                                    .AddMemoryStreams<DefaultMemoryMessageBodySerializer>(StreamingConstants.DefaultStreamProvider, _ =>
+                                    {
+                                        _.ConfigurePartitioning(8);
+                                    })
+                                    .AddClusterConnectionLostHandler((x,y) =>
+                                    {
+                                        // LoggerProxy.GetInstance("ClusterConnectionLostHandler").LogCritical("Connection to cluster has been lost");
+                                        Console.WriteLine("Connection to cluster has been lost");
+                                        _siloFailedTask.SetResult();
+                                    }).Services.AddSerializer(ser => {
+                                        ser.AddNewtonsoftJsonSerializer(isSupported: type => type.Namespace.StartsWith("Common"));
+                                    })
+                                    // .AddBroadcastChannel(StreamingConstants.DefaultStreamProvider, options => options.FireAndForgetDelivery = true)
                                 )
-                                .AddClusterConnectionLostHandler((x, y) =>
-                                {
-                                    LoggerProxy.GetInstance("ClusterConnectionLostHandler").LogCritical("Connection to cluster has been lost");
-                                    _siloFailedTask.SetResult();
-                                })
-                                .ConfigureLogging(logging =>
-                                {
-                                    logging.ClearProviders();
-                                    logging.AddConsole();
-                                    logging.SetMinimumLevel(LogLevel.Error);
-                                })
-                                .AddSimpleMessageStreamProvider(StreamingConstants.DefaultStreamProvider, options =>
-                                {
-                                    options.PubSubType = Orleans.Streams.StreamPubSubType.ExplicitGrainBasedOnly;
-                                    options.FireAndForgetDelivery = false;
-                                    options.OptimizeForImmutableData = true;
-                                })
+                                .UseConsoleLifetime()
+                                //.ConfigureLogging(logging =>
+                                //{
+                                //    logging.ClearProviders();
+                                //    logging.AddConsole();
+                                //    logging.SetMinimumLevel(LogLevel.Error);
+                                //})
                                 .Build();
-
-                Func<Exception, Task<bool>> func = (x) =>
-                {
-                    return Task.FromResult(false);
-                };
-
+                
                 try
                 {
-                    Task connectTask = client.Connect(func);
-                    await connectTask;
-                    break;
+                    await host.StartAsync();
+                    return host.Services.GetRequiredService<IClusterClient>();
                 }
                 catch (ConnectionFailedException e)
                 {
@@ -71,7 +61,6 @@ namespace Client.Infra
                     Thread.Sleep(TimeSpan.FromSeconds(3));
                 }
             }
-            return client;
         }
 
     }

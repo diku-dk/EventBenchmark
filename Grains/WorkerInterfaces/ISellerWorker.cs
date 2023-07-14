@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using Common.Entities;
+﻿using Common.Entities;
 using Common.Workload.Metrics;
 using Common.Workload.Seller;
-using Orleans;
 
-namespace GrainInterfaces.Workers
+namespace Grains.WorkerInterfaces
 {
 	public interface ISellerWorker : IGrainWithIntegerKey
 	{

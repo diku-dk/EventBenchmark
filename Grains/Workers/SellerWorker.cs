@@ -1,18 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Net.Http;
-using System.Threading.Tasks;
+﻿using System.Diagnostics.CodeAnalysis;
 using Common.Http;
 using Common.Entities;
 using Common.Workload.Seller;
 using Common.Streaming;
 using Common.Distribution.YCSB;
-using GrainInterfaces.Workers;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
-using Orleans;
 using Orleans.Streams;
 using Common.Distribution;
 using Common.Workload;
@@ -20,6 +13,7 @@ using Common.Workload.Metrics;
 using Common.Requests;
 using System.Collections.Concurrent;
 using Orleans.Concurrency;
+using Grains.WorkerInterfaces;
 
 namespace Grains.Workers
 {
@@ -40,8 +34,6 @@ namespace Grains.Workers
 
         // to support: (i) customer product retrieval and (ii) the delete operation, since it uses a search string
         private List<Product> products;
-
-        private IAsyncStream<int> txStream;
 
         private readonly IDictionary<long,byte> deletedProducts;
 
@@ -79,7 +71,7 @@ namespace Grains.Workers
 
             this.logger.LogInformation("Init -> Seller worker {0} first {1} last {2}.", this.sellerId, this.products.ElementAt(0).product_id, lastId);
 
-            this.productIdGenerator = this.config.keyDistribution == DistributionType.NON_UNIFORM ? new NonUniformDistribution((int)(((lastId - firstId) * 0.5) + firstId), firstId, lastId) :
+            this.productIdGenerator = this.config.keyDistribution == DistributionType.NON_UNIFORM ? new NonUniformDistribution((int)(((lastId - firstId) * 0.3) + firstId), firstId, lastId) :
                 this.config.keyDistribution == DistributionType.UNIFORM ?
                  new UniformLongGenerator(firstId, lastId) :
                  new ZipfianGenerator(firstId, lastId);
@@ -91,12 +83,12 @@ namespace Grains.Workers
             return Task.CompletedTask;
         }
 
-        public override async Task OnActivateAsync()
+        public override async Task OnActivateAsync(CancellationToken cancellationToken)
         {
             this.sellerId = this.GetPrimaryKeyLong();
             this.streamProvider = this.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
 
-            var workloadStream = streamProvider.GetStream<TransactionInput>(StreamingConstants.SellerStreamId, this.sellerId.ToString());
+            var workloadStream = streamProvider.GetStream<TransactionInput>(StreamingConstants.SellerWorkerNameSpace, this.sellerId.ToString());
             var subscriptionHandles_ = await workloadStream.GetAllSubscriptionHandles();
             if (subscriptionHandles_.Count > 0)
             {
@@ -106,8 +98,6 @@ namespace Grains.Workers
                 }
             }
             await workloadStream.SubscribeAsync(Run);
-
-            this.txStream = streamProvider.GetStream<int>(StreamingConstants.SellerStreamId, StreamingConstants.TransactionStreamNameSpace);
         }
 
         private async Task Run(TransactionInput txId, StreamSequenceToken token)
@@ -138,34 +128,27 @@ namespace Grains.Workers
             {
                 try
                 {
-                    this.logger.LogInformation("Seller {0}: Dashboard will be queried...", this.sellerId);
+                    this.logger.LogDebug("Seller {0}: Dashboard will be queried...", this.sellerId);
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, config.sellerUrl + "/" + this.sellerId);
                     this.submittedTransactions.Add(tid, new TransactionIdentifier(tid, TransactionType.DASHBOARD, DateTime.UtcNow));
                     var response = HttpUtils.client.Send(message);
                     response.EnsureSuccessStatusCode();
                     this.finishedTransactions.Add(tid, new TransactionOutput(tid, DateTime.UtcNow));
-                    this.logger.LogInformation("Seller {0}: Dashboard retrieved.", this.sellerId);
+                    this.logger.LogDebug("Seller {0}: Dashboard retrieved.", this.sellerId);
                 }
                 catch (Exception e)
                 {
                     this.logger.LogError("Seller {0}: Dashboard could not be retrieved: {1}", this.sellerId, e.Message);
-                }
-                finally
-                {
-                    // let emitter aware this request has finished
-                    _ = txStream.OnNextAsync(tid);
                 }
             });
         }
 
         private async Task DeleteProduct(int tid)
         {
-            this.logger.LogInformation("Seller {0}: Started delete product", this.sellerId);
+            this.logger.LogDebug("Seller {0}: Started delete product", this.sellerId);
             if (this.deletedProducts.Count() == this.products.Count())
             {
                 this.logger.LogWarning("Seller {0}: All products already deleted by ", this.sellerId);
-                // to ensure emitter send other transactions
-                _ = txStream.OnNextAsync(tid);
                 return;
             }
             
@@ -177,7 +160,6 @@ namespace Grains.Workers
                 if(count == 10)
                 {
                     this.logger.LogWarning("Seller {0}: Cannot define a product to delete! Cancelling this request!", this.sellerId);
-                    _ = txStream.OnNextAsync(tid);
                     return;
                 }
                 selectedProduct = this.productIdGenerator.NextValue();
@@ -189,7 +171,7 @@ namespace Grains.Workers
             {
                 try
                 {
-                    this.logger.LogInformation("Seller {0}: Product {1} will be deleted...", this.sellerId, selectedProduct);
+                    this.logger.LogDebug("Seller {0}: Product {1} will be deleted...", this.sellerId, selectedProduct);
                     var obj = JsonConvert.SerializeObject(new DeleteProduct(this.sellerId, selectedProduct, tid));
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Delete, config.productUrl);
                     message.Content = HttpUtils.BuildPayload(obj);
@@ -197,7 +179,7 @@ namespace Grains.Workers
                     var response = HttpUtils.client.Send(message);
                     response.EnsureSuccessStatusCode();
                     
-                    this.logger.LogInformation("Seller {0}: Product {1} deleted.", this.sellerId, selectedProduct);
+                    this.logger.LogDebug("Seller {0}: Product {1} deleted.", this.sellerId, selectedProduct);
                 }
                 catch (Exception e) {
                     this.logger.LogError("Seller {0}: Product {1} could not be deleted: {2}", this.sellerId, selectedProduct, e.Message);
@@ -222,13 +204,11 @@ namespace Grains.Workers
         private async Task UpdatePrice(int tid)
         {
             // to simulate how a seller would interact with the platform
-            this.logger.LogInformation("Seller {0}: Started price update", this.sellerId);
+            this.logger.LogDebug("Seller {0}: Started price update", this.sellerId);
 
             if(this.deletedProducts.Count() == this.products.Count())
             {
                 this.logger.LogWarning("No products to update since seller {0} has deleted every product already!", this.sellerId);
-                // to ensure emitter send other transactions
-                _ = txStream.OnNextAsync(tid);
                 return;
             }
 
@@ -249,7 +229,6 @@ namespace Grains.Workers
                 if (count == 10)
                 {
                     this.logger.LogWarning("Seller {0}: Cannot define a product to delete! Cancelling this request!", this.sellerId);
-                    _ = txStream.OnNextAsync(tid);
                     return;
                 }
                 selectedProduct = this.productIdGenerator.NextValue();
@@ -261,8 +240,10 @@ namespace Grains.Workers
             int percToAdjust = random.Next(config.adjustRange.min, config.adjustRange.max);
 
             // 3 - get new price
-            var currPrice = products.First(p=>p.product_id == selectedProduct).price;
+            var productToUpdate = products.First(p=>p.product_id == selectedProduct);
+            var currPrice = productToUpdate.price;
             var newPrice = currPrice + ( (currPrice * percToAdjust) / 100 );
+            productToUpdate.price = newPrice;
             
             // 4 - submit update
             var resp = await Task.Run(() =>
@@ -277,7 +258,7 @@ namespace Grains.Workers
 
             if (resp.IsSuccessStatusCode)
             {
-                this.logger.LogInformation("Seller {0}: Finished product {1} price update.", this.sellerId, selectedProduct);
+                this.logger.LogDebug("Seller {0}: Finished product {1} price update.", this.sellerId, selectedProduct);
                 return;
             }
             this.logger.LogError("Seller {0} failed to update product {1} price: {2}", this.sellerId, selectedProduct, resp.ReasonPhrase);

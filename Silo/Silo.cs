@@ -1,30 +1,26 @@
-﻿using Orleans;
-using Orleans.Hosting;
-using Microsoft.Extensions.Hosting;
+﻿using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using System;
 using Common.Streaming;
-using Orleans.Runtime.Configuration;
-
-var telemetryConfiguration = new TelemetryConfiguration();
+using Orleans.Providers;
+using Orleans.Serialization;
 
 var builder = new HostBuilder()
    .UseOrleans(siloBuilder =>
     {
         siloBuilder
             .UseLocalhostClustering()
-            .AddMemoryGrainStorage(StreamingConstants.DefaultStreamStorage)
-            .AddSimpleMessageStreamProvider(StreamingConstants.DefaultStreamProvider, options =>
+            .AddMemoryStreams<DefaultMemoryMessageBodySerializer>(StreamingConstants.DefaultStreamProvider,_ =>
             {
-                options.PubSubType = Orleans.Streams.StreamPubSubType.ExplicitGrainBasedOnly;
-                options.FireAndForgetDelivery = false;
-                options.OptimizeForImmutableData = true; // to pass by reference, saving costs
+                _.ConfigurePartitioning(8);
             })
+            .AddMemoryGrainStorage(StreamingConstants.DefaultStreamStorage)
             .ConfigureLogging(logging =>
             {
                 logging.ClearProviders();
                 logging.AddConsole();
                 logging.SetMinimumLevel(LogLevel.Information);
+            }).Services.AddSerializer(ser => {
+                ser.AddNewtonsoftJsonSerializer(isSupported: type => type.Namespace.StartsWith("Common"));
             })
         ;
     });

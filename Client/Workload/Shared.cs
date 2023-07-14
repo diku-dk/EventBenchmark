@@ -8,6 +8,6 @@ namespace Client.Workload
         public static readonly BlockingCollection<object> WaitHandle = new BlockingCollection<object>();
         public static readonly BlockingCollection<TransactionInput> Workload = new BlockingCollection<TransactionInput>();
 
-        public static readonly BlockingCollection<int> ResultQueue = new BlockingCollection<int>();
+        // public static readonly BlockingCollection<int> ResultQueue = new BlockingCollection<int>();
     }
 }

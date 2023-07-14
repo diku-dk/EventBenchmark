@@ -11,11 +11,16 @@ namespace Common.Streaming
 
         public const string DefaultStreamStorage = "PubSubStore";
 
-        public const string DefaultStreamProvider = "SMSProvider";
+        public const string DefaultStreamProvider = "StreamProvider";
 
         /*
          * DRIVER
          */
+
+        public const string CustomerWorkerNameSpace = "CustomerWorker";
+        public const string SellerWorkerNameSpace = "SellerWorker";
+        public const string DeliveryWorkerNameSpace = "DeliveryWorker";
+
         public static readonly Guid IngestionStreamId =       new("AD713788-B5AE-49FF-8B2C-F311B9CB0CC1");
         public static readonly Guid IngestionWorkerStreamId = new("AD713788-B5AE-49FF-8B2C-F311B9CB0CC2");
 
@@ -30,7 +35,7 @@ namespace Common.Streaming
         public static readonly Guid CustomerReactStreamId =   new("AD713788-B5AE-49FF-8B2C-F311B9CB0CC8");
         public static readonly Guid SellerReactStreamId   =   new("AD713788-B5AE-49FF-8B2C-F311B9CB0CC9");
 
-        public static readonly string TransactionStreamNameSpace = "tx";
+        public static readonly string TransactionNameSpace = "tx";
 
     }
 }

@@ -1,20 +1,13 @@
-﻿using System;
-using Common.Entities;
+﻿using Common.Entities;
 using Common.Http;
 using Common.Workload.Metrics;
-using GrainInterfaces.Workers;
 using Microsoft.Extensions.Logging;
-using System.Collections.Generic;
-using System.Net.Http;
-using System.Threading.Tasks;
-using Orleans;
 using Newtonsoft.Json;
 using System.Dynamic;
-using System.Linq;
 using Common.Infra;
 using Common.Workload;
-using System.IO;
 using System.Text;
+using Grains.WorkerInterfaces;
 
 namespace Client.Collection
 {

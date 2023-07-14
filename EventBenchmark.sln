@@ -5,9 +5,7 @@ VisualStudioVersion = 16.0.31911.196
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Silo", "Silo\Silo.csproj", "{CB4B7EBE-0E53-45C4-AC63-9CF79A10703C}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Grains", "Grains\Grains.csproj", "{C16AA96C-3825-4046-BFBC-86D4EFECECD1}"
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GrainInterfaces", "GrainInterfaces\GrainInterfaces.csproj", "{E634D165-7BF1-4492-9F62-666C20D49885}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Grains", "Grains\Grains.csproj", "{C16AA96C-3825-4046-BFBC-86D4EFECECD1}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Common", "Common\Common.csproj", "{F8CA5AB6-04C2-4245-858F-9B27C854A6E8}"
 EndProject
@@ -36,10 +34,6 @@ Global
 		{C16AA96C-3825-4046-BFBC-86D4EFECECD1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C16AA96C-3825-4046-BFBC-86D4EFECECD1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C16AA96C-3825-4046-BFBC-86D4EFECECD1}.Release|Any CPU.Build.0 = Release|Any CPU
-		{E634D165-7BF1-4492-9F62-666C20D49885}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{E634D165-7BF1-4492-9F62-666C20D49885}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{E634D165-7BF1-4492-9F62-666C20D49885}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{E634D165-7BF1-4492-9F62-666C20D49885}.Release|Any CPU.Build.0 = Release|Any CPU
 		{F8CA5AB6-04C2-4245-858F-9B27C854A6E8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{F8CA5AB6-04C2-4245-858F-9B27C854A6E8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F8CA5AB6-04C2-4245-858F-9B27C854A6E8}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -60,5 +54,10 @@ Global
 		SolutionGuid = {0EE07368-B3B9-49FD-A13B-38C78EA3E782}
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
+	EndGlobalSection
+	GlobalSection(MonoDevelopProperties) = preSolution
+		Policies = $0
+		$0.DotNetNamingPolicy = $1
+		$1.DirectoryNamespaceAssociation = PrefixedHierarchical
 	EndGlobalSection
 EndGlobal

@@ -1,8 +1,5 @@
-﻿using System;
-using Common.Workload;
+﻿using Common.Workload;
 using Common.Workload.Seller;
-using System.Collections.Generic;
-using System.Linq;
 using Common.Infra;
 using Microsoft.Extensions.Logging;
 
@@ -13,6 +10,7 @@ namespace Client.Workload
         public readonly List<KeyValuePair<TransactionType, int>> workloadDistribution;
 
         private int tid = 1;
+        private int size = 100000;
         private readonly int concurrencyLevel;
 
         private readonly Random random;
@@ -30,7 +28,7 @@ namespace Client.Workload
 
             // int initialNumTxs = concurrencyLevel + (int)(concurrencyLevel * 0.5);
 
-            int initialNumTxs = concurrencyLevel * 10000;
+            int initialNumTxs = concurrencyLevel * size;
 
             logger.LogInformation("[WorkloadGenerator] Preparing at {0} with {1} transactions", DateTime.UtcNow, initialNumTxs);
 
@@ -48,7 +46,9 @@ namespace Client.Workload
 
             while (IsRunning())
             {
-                Generate(concurrencyLevel * 10000);
+                size = size * 2;
+                logger.LogInformation("[WorkloadGenerator] Size updtaed to {0} at {1}", size, DateTime.UtcNow);
+                Generate(concurrencyLevel * size);
                 logger.LogInformation("[WorkloadGenerator] Sleeping at {0}", DateTime.UtcNow);
                 Shared.WaitHandle.Take();
                 logger.LogInformation("[WorkloadGenerator] Woke at {0}", DateTime.UtcNow);
