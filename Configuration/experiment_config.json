@@ -1,8 +1,17 @@
 ﻿{
   "enabled": true,
+  "executionTime": 10000,
+  "epoch": 2000,
+  "delayBetweenRequests": 0,
+  "delayBetweenRuns": 10000,
+  "concurrencyLevel": 5000,
   "connectionString": "Data Source=file.db",
   "numCustomers": 1000,
   "avgNumProdPerSeller": 10,
+  "transactionDistribution": {
+    "PRICE_UPDATE": 99,
+    "DELETE_PRODUCT": 100
+  },
   "ingestionConfig": {
     "strategy": "WORKER_PER_CPU",
     "concurrencyLevel": 6,
@@ -14,27 +23,27 @@
   "runs": [
     {
       "numProducts": 1000,
-      "customerDistribution": "NON_UNIFORM",
-      "sellerDistribution": "NON_UNIFORM",
-      "keyDistribution": "NON_UNIFORM"
+      "customerDistribution": "UNIFORM",
+      "sellerDistribution": "UNIFORM",
+      "keyDistribution": "UNIFORM"
     },
     {
       "numProducts": 1000,
-      "customerDistribution": "UNIFORM",
-      "sellerDistribution": "UNIFORM",
-      "keyDistribution": "UNIFORM"
-    },
-    {
-      "numProducts": 10000,
-      "customerDistribution": "NON_UNIFORM",
-      "sellerDistribution": "NON_UNIFORM",
-      "keyDistribution": "NON_UNIFORM"
+      "customerDistribution": "ZIPFIAN",
+      "sellerDistribution": "ZIPFIAN",
+      "keyDistribution": "ZIPFIAN"
     },
     {
       "numProducts": 10000,
       "customerDistribution": "UNIFORM",
       "sellerDistribution": "UNIFORM",
       "keyDistribution": "UNIFORM"
+    },
+    {
+      "numProducts": 10000,
+      "customerDistribution": "ZIPFIAN",
+      "sellerDistribution": "ZIPFIAN",
+      "keyDistribution": "ZIPFIAN"
     }
   ],
   "postRunTasks": [
@@ -65,15 +74,6 @@
       "url": "http://127.0.0.1:5008/cleanup"
     }
   ],
-  "delayBetweenRuns" : 15000,
-  "transactionDistribution": {
-    "PRICE_UPDATE": 99,
-    "DELETE_PRODUCT": 100
-  },
-  "executionTime": 10000,
-  "epoch": 2000,
-  "delayBetweenRequests": 0,
-  "concurrencyLevel": 16,
   "streamingConfig": {
     "type": "REDIS",
     "host": "localhost",

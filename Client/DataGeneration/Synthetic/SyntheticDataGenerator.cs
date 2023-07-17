@@ -32,6 +32,25 @@ namespace Client.DataGeneration
             }
         }
 
+        public void GenerateCustomers(DuckDBConnection connection, int numCustomers, DuckDbCommand command = null)
+        {
+            DuckDbCommand command_;
+            if (command is null)
+            {
+                command_ = connection.CreateCommand();
+            }
+            else
+            {
+                command_ = command;
+            }
+            int currCustomer = 1;
+            while (currCustomer <= config.numCustomers)
+            {
+                GenerateCustomer(command_, currCustomer);
+                currCustomer++;
+            }
+        }
+
         public override void Generate(DuckDBConnection connection, bool genCustomer = false)
         {
             if (config.createSchema)
@@ -74,12 +93,7 @@ namespace Client.DataGeneration
             // customers
             if (genCustomer)
             {
-                int currCustomer = 1;
-                while (currCustomer <= config.numCustomers)
-                {
-                    GenerateCustomer(command, currCustomer);
-                    currCustomer++;
-                }
+                GenerateCustomers(connection, config.numCustomers, command);
             }
 
             logger.LogInformation("Synthetic data generation has terminated.");

@@ -13,15 +13,15 @@ using Client.Streaming.Redis;
 using Common.Infra;
 using Client.Collection;
 using Client.Cleaning;
-using Common.Workload.Metrics;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using System.Text;
 using Client.Experiment;
 using Common.Workload.Customer;
 using Common.Workload.Seller;
 using Common.Workload.Delivery;
 using Grains.WorkerInterfaces;
+using Common.Workload.Metrics;
+using StackExchange.Redis;
 
 namespace Client.Workflow
 {
@@ -34,9 +34,10 @@ namespace Client.Workflow
 
         public async static Task Run(ExperimentConfig config)
         {
-            SyntheticDataSourceConfig previousData = new()
+            SyntheticDataSourceConfig previousData = new SyntheticDataSourceConfig()
             {
-                numProducts = 0
+                numCustomers = config.numCustomers,
+                numProducts = 0 // to force product generation and ingestion in the upcoming loop
             };
 
             int runIdx = 0;
@@ -62,30 +63,47 @@ namespace Client.Workflow
             List<CancellationTokenSource> tokens = new(3);
             List<Task> listeningTasks = new(3);
 
-            // WorkloadGenerator workloadGen = new WorkloadGenerator(config.transactionDistribution, config.concurrencyLevel);
+            // if trash from last runs are active...
+            await TrimStreams(config.streamingConfig.host, config.streamingConfig.port, config.streamingConfig.streams.ToList());
 
-            // makes sure there are transactions
-            // workloadGen.Prepare();
+            // cleanup databases
+            var resps_ = new List<Task<HttpResponseMessage>>();
+            foreach (var task in config.postExperimentTasks)
+            {
+                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
+                logger.LogInformation("Pre experiment task to URL {0}", task.url);
+                resps_.Add(HttpUtils.client.SendAsync(message));
+            }
+            await Task.WhenAll(resps_);
 
-            // Task genTask = Task.Factory.StartNew(workloadGen.Run, TaskCreationOptions.LongRunning);
+            // eventual completion transactions
+            string redisConnection = string.Format("{0}:{1}", config.streamingConfig.host, config.streamingConfig.port);
+            foreach (var type in transactions)
+            {
+                if (config.transactionDistribution.ContainsKey(type))
+                {
+                    var channel = new StringBuilder(nameof(TransactionMark)).Append('_').Append(type.ToString()).ToString();
+                    var token = new CancellationTokenSource();
+                    tokens.Add(token);
+                    listeningTasks.Add(SubscribeToTransactionResult(orleansClient, redisConnection, channel, token));
+                }
+            }
+
+            new SyntheticDataGenerator(previousData).GenerateCustomers(connection, previousData.numCustomers);
+            // customers are fixed accross runs
+            customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
 
             foreach (var run in config.runs)
             {
                 logger.LogInformation("Run #{0} started at {0}", runIdx, DateTime.UtcNow);
 
-                // clean result queue
-                //logger.LogInformation("Cleaning shared queues...");
-                // while (Shared.ResultQueue.TryTake(out _));
-                // clean to restart TID counting
-                //while (Shared.Workload.TryTake(out _)) { }
-                //logger.LogInformation("Finished cleaning shared queues.");
-
                 // set the distributions accordingly
                 config.customerWorkerConfig.sellerDistribution = run.sellerDistribution;
                 config.sellerWorkerConfig.keyDistribution = run.keyDistribution;
 
-                if (runIdx == 0 || run.numProducts != previousData.numProducts)
+                if (run.numProducts != previousData.numProducts)
                 {
+                    // update previous
                     previousData = new SyntheticDataSourceConfig()
                     {
                         connectionString = config.connectionString,
@@ -96,44 +114,8 @@ namespace Client.Workflow
                     var syntheticDataGenerator = new SyntheticDataGenerator(previousData);
 
                     // dont need to generate customers on every run. only once
-                    if (runIdx == 0)
-                    {
-                        // if trash from last runs are active...
-                        await TrimStreams(config.streamingConfig.host, config.streamingConfig.port, config.streamingConfig.streams.ToList());
-
-                        // cleanup databases
-                        var resps_ = new List<Task<HttpResponseMessage>>();
-                        foreach (var task in config.postExperimentTasks)
-                        {
-                            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
-                            logger.LogInformation("Pre experiment task to URL {0}", task.url);
-                            resps_.Add(HttpUtils.client.SendAsync(message));
-                        }
-                        await Task.WhenAll(resps_);
-
-                        // eventual completion transactions
-                        string redisConnection = string.Format("{0}:{1}", config.streamingConfig.host, config.streamingConfig.port);
-
-                        foreach (var type in transactions)
-                        {
-                            if (config.transactionDistribution.ContainsKey(type))
-                            {
-                                var channel = new StringBuilder(nameof(TransactionMark)).Append('_').Append(type.ToString()).ToString();
-                                var token = new CancellationTokenSource();
-                                tokens.Add(token);
-                                listeningTasks.Add(SubscribeToTransactionResult(orleansClient, redisConnection, channel, token));
-                            }
-                        }
-
-                        syntheticDataGenerator.Generate(connection, true);
-                        // customers are fixed accross runs
-                        customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
-                    }
-                    else
-                    {
-                        syntheticDataGenerator.Generate(connection, false);
-                    }
-
+                    syntheticDataGenerator.Generate(connection, false);
+                    
                     var ingestionOrchestrator = new IngestionOrchestrator(config.ingestionConfig);
                     await ingestionOrchestrator.Run(connection);
 
@@ -141,8 +123,7 @@ namespace Client.Workflow
                     numSellers = DuckDbUtils.Count(connection, "sellers");
                 }
 
-                await PrepareWorkers(orleansClient, config.transactionDistribution, config.customerWorkerConfig, config.sellerWorkerConfig,
-                    config.deliveryWorkerConfig, customers, numSellers, connection);
+                await PrepareWorkers(orleansClient, config.transactionDistribution, config.customerWorkerConfig, config.sellerWorkerConfig, config.deliveryWorkerConfig, customers, numSellers, connection);
 
                 WorkloadEmitter emitter = new WorkloadEmitter(
                     orleansClient,
@@ -211,10 +192,6 @@ namespace Client.Workflow
                 }
             }
 
-            //workloadGen.Stop();
-            // to make sure the generator leaves the loop
-            //Shared.WaitHandle.Add(0);
-
             foreach (var token in tokens)
             {
                 token.Cancel();
@@ -222,8 +199,8 @@ namespace Client.Workflow
 
             await Task.WhenAll(listeningTasks);
 
-            // await orleansClient.();
-            // logger.LogInformation("Orleans client finalized!");
+            logger.LogInformation("Wait for microservices to converge (i.e. finish receiving events) for {0} seconds...", config.delayBetweenRuns / 1000);
+            await Task.Delay(config.delayBetweenRuns);
 
             logger.LogInformation("Post experiment cleanup tasks started.");
             var resps = new List<Task<HttpResponseMessage>>();
@@ -346,13 +323,6 @@ namespace Client.Workflow
                     listeningTasks.Add(SubscribeToTransactionResult(orleansClient, redisConnection, channel, token));
                 }
 
-                //WorkloadGenerator workloadGen = new WorkloadGenerator(workloadConfig.transactionDistribution, workloadConfig.concurrencyLevel);
-
-                //// makes sure there are transactions
-                //workloadGen.Prepare();
-
-                //Task genTask = Task.Factory.StartNew(workloadGen.Run, TaskCreationOptions.LongRunning);
-
                 // setup transaction orchestrator
                 WorkloadEmitter emitter = new WorkloadEmitter( orleansClient, workloadConfig.transactionDistribution, workloadConfig.customerWorkerConfig.sellerDistribution,
                     workloadConfig.customerWorkerConfig.sellerRange, workloadConfig.customerDistribution, customerRange,
@@ -397,22 +367,25 @@ namespace Client.Workflow
 
         }
 
-        private static async Task TrimStreams(string host, int port, List<string> channelsToTrim)
+        // clean streams beforehand. make sure microservices do not receive events from previous runs
+        private static Task TrimStreams(string host, int port, List<string> channelsToTrim)
         {
-            // clean streams beforehand. make sure microservices do not receive events from previous runs
-            
             string connection = string.Format("{0}:{1}", host, port);
             logger.LogInformation("Triggering stream cleanup on {1}", connection);
+
+            List<string> channelsToTrimPlus = new();
+            channelsToTrimPlus.AddRange(channelsToTrim);
 
             // should also iterate over all transaction mark streams and trim them
             foreach (var type in transactions)
             {
                 var channel = new StringBuilder(nameof(TransactionMark)).Append('_').Append(type.ToString()).ToString();
-                channelsToTrim.Add(channel);
+                channelsToTrimPlus.Add(channel);
             }
 
-            Task trimTasks = Task.Run(() => RedisUtils.TrimStreams(connection, channelsToTrim));
-            await trimTasks;
+            logger.LogInformation("XTRIMming the following streams: {0}", channelsToTrimPlus);
+
+            return RedisUtils.TrimStreams(connection, channelsToTrimPlus);
         }
 
         private static async Task Clean(CleaningConfig cleaningConfig)
@@ -472,6 +445,7 @@ namespace Client.Workflow
                     tasks.Add(sellerWorker.Init(sellerWorkerConfig, products));
                 }
                 await Task.WhenAll(tasks);
+                logger.LogInformation("{0} Seller workers cleared!", numSellers);
             }
 
             // activate delivery worker
@@ -483,41 +457,79 @@ namespace Client.Workflow
             logger.LogInformation("Workers prepared!");
         }
 
+        // perhaps create a consumer group? then gets undelivered messages by default instead of keeping track of lastId...
         private static Task SubscribeToTransactionResult(IClusterClient orleansClient, string redisConnection, string channel, CancellationTokenSource token)
         {
-            return Task.Factory.StartNew(() => RedisUtils.Subscribe(redisConnection, channel, token.Token, entries =>
-            {
-                var now = DateTime.UtcNow;
-                foreach (var entry in entries)
+            return Task.Factory.StartNew(async () => {
+                var connection = RedisUtils.GetConnection(redisConnection);
+                var db = connection.GetDatabase();
+                logger.LogInformation("Starting thread to read from channel: {0}", channel);
+                var lastId = "-";// new RedisValue("0-0");
+                while (!token.IsCancellationRequested)
                 {
-                    try
+               
+                    // logger.LogInformation("Read attempt on channel {0} at {1}", channel, DateTime.UtcNow);
+                    var entries = (IEnumerable<StreamEntry>) await db.StreamReadAsync(channel, lastId);
+                    // logger.LogInformation("{0} entries read from redis: {0}", entries.Count());
+                    var now = DateTime.UtcNow;
+                    // logger.LogInformation("{0} entries read from redis...");
+                    if (entries.Count() == 0)
                     {
-                        // Dapr event payload deserialization
-                        JObject d = JsonConvert.DeserializeObject<JObject>(entry.Values[0].Value.ToString());
-                        TransactionMark mark = JsonConvert.DeserializeObject<TransactionMark>(d.SelectToken("['data']").ToString());
+                        // await Task.Delay(1000);
+                        // logger.LogWarning("Count == 0");
+                        await Task.Delay(500);
+                        continue;
+                    }
 
-                        if (mark.type == TransactionType.CUSTOMER_SESSION)
-                        {
-                            orleansClient.GetGrain<ICustomerWorker>(mark.actorId).RegisterFinishedTransaction(new TransactionOutput(mark.tid, now));
-                        }
-                        else
-                        {
-                            orleansClient.GetGrain<ISellerWorker>(mark.actorId).RegisterFinishedTransaction(new TransactionOutput(mark.tid, now));
-                        }
-                        // logger.LogInformation("Processed the transaction mark {0} | {1} at {2}", mark.tid, mark.type, now);
-                    }
-                    catch (Exception e)
-                    {
-                        logger.LogWarning("Error processing transaction mark event: {0}", e.Message);
-                    }
-                    //finally
+                    //logger.LogWarning("Last ID Read {0} First ID {1} Last ID {2} Equals [t/f] {3}", lastId, entries.First().Id, entries.Last().Id, lastId.Equals(entries.First().Id.ToString()));
+                    //if (entries.Count() == 1 && lastId.Equals(entries.First().Id.ToString()))
                     //{
-                    //    // let emitter aware this request has finished
-                    //    Shared.ResultQueue.Add(0);
+                    //    logger.LogWarning("First ID {0} Last ID {1}", entries.First().Id, entries.Last().Id);
+                    //    // await Task.Delay(1000);
+                    //    await Task.Delay(500);
+                    //    continue;
                     //}
+
+
+                    foreach (var entry in entries)
+                    {
+
+                        //if (lastId.Equals(entry.Id.ToString()))
+                        //{
+                        //    logger.LogWarning("Duplicate read caught at the source!");
+                        //    continue;
+                        //}
+
+                        try
+                        {
+                            var size = entry.Values[0].ToString().IndexOf("},");
+                            var str = entry.Values[0].ToString().Substring(14, size - 13);
+                            var mark = JsonConvert.DeserializeObject<TransactionMark>(str);
+                            // logger.LogWarning("Mark read from redis: {0}", mark);
+
+                            if (mark.type == TransactionType.CUSTOMER_SESSION)
+                            {
+                                _ = Shared.ResultQueue.Writer.WriteAsync(0);
+                                _ = orleansClient.GetGrain<ICustomerWorker>(mark.actorId).RegisterFinishedTransaction(new TransactionOutput(mark.tid, now));
+                            }
+                            else
+                            {
+                                _ = Shared.ResultQueue.Writer.WriteAsync(0);
+                                _ = orleansClient.GetGrain<ISellerWorker>(mark.actorId).RegisterFinishedTransaction(new TransactionOutput(mark.tid, now));
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            logger.LogError("Mark error from redis: {0}", e.Message);
+                        }
+
+                    }
+
+                    lastId = entries.Last().Id.ToString();
                 }
-            }), TaskCreationOptions.LongRunning);
-            
+                
+            }, TaskCreationOptions.LongRunning);
+
         }
 
     }

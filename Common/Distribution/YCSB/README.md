@@ -1,1 +1,0 @@
-﻿This is a C# port of the Java library com.github.brianfrankcooper.YCSB

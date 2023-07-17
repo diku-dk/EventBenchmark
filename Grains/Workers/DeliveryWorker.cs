@@ -58,13 +58,13 @@ namespace Grains.Workers
         // updating the delivery status of orders
         public async Task Run(int tid, StreamSequenceToken token)
         {
-            await Task.Run(() => {
+            await Task.Run(async () => {
                 this._logger.LogInformation("Delivery {0}: Task started", this.actorId);
                 try
                 {
                     HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, config.shipmentUrl + "/" + tid);
                     this.submittedTransactions.Add(tid, new TransactionIdentifier(tid, TransactionType.UPDATE_DELIVERY, DateTime.UtcNow));
-                    var resp = HttpUtils.client.Send(message);
+                    var resp = await HttpUtils.client.SendAsync(message);
                     if (resp.IsSuccessStatusCode)
                     {
                         this.finishedTransactions.Add(tid, new TransactionOutput(tid, DateTime.UtcNow));

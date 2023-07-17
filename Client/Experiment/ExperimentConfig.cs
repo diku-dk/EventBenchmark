@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using Client.Ingestion.Config;
+﻿using Client.Ingestion.Config;
 using Client.Streaming;
 using Common.Workload;
 using Common.Workload.Customer;

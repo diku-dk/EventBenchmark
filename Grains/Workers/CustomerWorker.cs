@@ -4,7 +4,6 @@ using Common.Http;
 using Common.Workload.Customer;
 using Common.Entities;
 using Common.Streaming;
-using Common.Distribution.YCSB;
 using Grains.WorkerInterfaces;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
@@ -15,6 +14,7 @@ using Common.Workload;
 using Common.Workload.Metrics;
 using Orleans.Concurrency;
 using Orleans.Runtime;
+using MathNet.Numerics.Distributions;
 
 namespace Grains.Workers
 {
@@ -26,7 +26,9 @@ namespace Grains.Workers
 
         private CustomerWorkerConfig config;
 
-        private NumberGenerator sellerIdGenerator;
+        private IDiscreteDistribution sellerIdGenerator;
+
+        // private IAsyncStream<CustomerWorkerStatusUpdate> txStream;
 
         // the customer this worker is simulating
         private long customerId;
@@ -62,6 +64,11 @@ namespace Grains.Workers
                 }
             }
             await stream.SubscribeAsync<int>(Run);
+
+            //this.txStream = streamProvider
+            //    .GetStream<CustomerWorkerStatusUpdate>(StreamId
+            //    .Create(StreamingConstants.CustomerWorkerNameSpace, StreamingConstants.TransactionNameSpace));
+            
         }
 
         public Task Init(CustomerWorkerConfig config, Customer customer)
@@ -69,11 +76,10 @@ namespace Grains.Workers
             this.logger.LogInformation("Customer worker {0} Init", this.customerId);
             this.config = config;
             this.customer = customer;
-            this.sellerIdGenerator = this.config.sellerDistribution == DistributionType.NON_UNIFORM ?
-                new NonUniformDistribution( (int)(this.config.sellerRange.max * 0.3), this.config.sellerRange.min, this.config.sellerRange.max) :
+            this.sellerIdGenerator = 
                 this.config.sellerDistribution == DistributionType.UNIFORM ?
-                new UniformLongGenerator(this.config.sellerRange.min, this.config.sellerRange.max) :
-                new ZipfianGenerator(this.config.sellerRange.min, this.config.sellerRange.max);
+                new DiscreteUniform(this.config.sellerRange.min, this.config.sellerRange.max, new Random()) :
+                new Zipf(0.95, this.config.sellerRange.max, new Random());
 
             this.submittedTransactions.Clear();
             this.finishedTransactions.Clear();
@@ -101,7 +107,7 @@ namespace Grains.Workers
             long sellerId;
             for (int i = 0; i < numberOfProducts; i++)
             {
-                sellerId = this.sellerIdGenerator.NextValue();
+                sellerId = this.sellerIdGenerator.Sample();
                 sellerWorker = GrainFactory.GetGrain<ISellerWorker>(sellerId);
 
                 // we dont measure the performance of the benchmark, only the system. as long as we can submit enough workload we are fine
@@ -120,14 +126,14 @@ namespace Grains.Workers
             long productId;
             for (int i = 0; i < numberOfKeysToBrowse; i++)
             {
-                sellerId = this.sellerIdGenerator.NextValue();
+                sellerId = this.sellerIdGenerator.Sample();
                 sellerWorker = GrainFactory.GetGrain<ISellerWorker>(sellerId);
 
                 // we dont measure the performance of the benchmark, only the system. as long as we can submit enough workload we are fine
                 productId = await sellerWorker.GetProductId();
                 while (keyMap.Contains((sellerId,productId)))
                 {
-                    sellerId = this.sellerIdGenerator.NextValue();
+                    sellerId = this.sellerIdGenerator.Sample();
                     sellerWorker = GrainFactory.GetGrain<ISellerWorker>(sellerId);
                     productId = await sellerWorker.GetProductId();
                 }
@@ -176,7 +182,7 @@ namespace Grains.Workers
                 await AddItemsToCart(products);
                 await Checkout(tid);
             }
-            
+            // await txStream.OnNextAsync(new CustomerWorkerStatusUpdate(this.customerId, CustomerWorkerStatus.IDLE));
         }
 
         /**
@@ -197,6 +203,7 @@ namespace Grains.Workers
             // define whether client should send a checkout request
             if (random.Next(0, 100) > this.config.checkoutProbability)
             {
+                await InformFailedCheckout();
                 this.logger.LogInformation("Customer {0} decided to not send a checkout.", this.customerId);
                 return;
             }
@@ -210,7 +217,7 @@ namespace Grains.Workers
             HttpResponseMessage resp = await Task.Run(() =>
             {
                 txId = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, DateTime.UtcNow);
-                return HttpUtils.client.Send(message);
+                return HttpUtils.client.SendAsync(message);
             });
 
             if (resp == null)
@@ -229,7 +236,7 @@ namespace Grains.Workers
                 resp = await Task.Run(() =>
                 {
                     txId = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, DateTime.UtcNow);
-                    return HttpUtils.client.Send(message);
+                    return HttpUtils.client.SendAsync(message);
                 });
             }
 
@@ -239,7 +246,7 @@ namespace Grains.Workers
             }
 
             submittedTransactions.Add(txId.tid, txId);
-            // very unlikely to have another price update (considering the distribution is low)            
+            // very unlikely to have another price update (depending on the distribution)            
         }
 
         private async Task AddItemsToCart(List<Product> products)
@@ -409,6 +416,13 @@ namespace Grains.Workers
 
             var payload = JsonConvert.SerializeObject(basketCheckout);
             return HttpUtils.BuildPayload(payload);
+        }
+
+        private async Task InformFailedCheckout()
+        {
+            // just cleaning cart state for next browsing
+            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, this.config.cartUrl + "/" + customerId + "/seal");
+            await Task.Run(async ()=> await HttpUtils.client.SendAsync(message));
         }
 
         public Task<List<Latency>> Collect(DateTime startTime)

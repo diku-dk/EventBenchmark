@@ -8,12 +8,15 @@ using Common.Infra;
 using Client.Collection;
 using Client.Cleaning;
 using Client.Experiment;
+using Client.Streaming.Redis;
+using Newtonsoft.Json.Linq;
+using System.Threading.Channels;
+using Common.Streaming;
 
 namespace Client
 {
 
-    public record MasterConfig(WorkflowConfig workflowConfig, SyntheticDataSourceConfig syntheticDataConfig, IngestionConfig ingestionConfig,
-        WorkloadConfig workloadConfig, CollectionConfig collectionConfig, CleaningConfig cleaningConfig);
+    public record MasterConfig(WorkflowConfig workflowConfig, SyntheticDataSourceConfig syntheticDataConfig, IngestionConfig ingestionConfig, WorkloadConfig workloadConfig, CollectionConfig collectionConfig, CleaningConfig cleaningConfig);
 
     public class Program
     {
@@ -21,11 +24,54 @@ namespace Client
 
         public static async Task Main_(string[] args)
         {
-            var masterConfig = BuildMasterConfig(args);
+            var connection = RedisUtils.GetConnection("localhost:6379");
+            var db = connection.GetDatabase();
+            var lastId = "-";
 
+            int max = 10;
+            int curr = 1;
+            Dictionary<int, byte> dict = new();
+            while (true)
+            {
+                // TODO find a way to avoid reading the same entries again...
+                var entries = // await db.StreamRangeAsync("TransactionMark_DELETE_PRODUCT", lastId, "+");
+                await db.StreamReadAsync("TransactionMark_UPDATE_PRICE", lastId);
+
+                if (entries.Length == 0) break;
+
+                logger.LogInformation("Current iteration: {0}", curr);
+
+                foreach (var entry in entries) {
+
+                    if (curr == max) break;
+
+                    // JObject d = JsonConvert.DeserializeObject<JObject>(entry.Values[0].Value.ToString());
+                    // TODO maybe can trim the string to the 'data' token so no need to deserialize to jobject
+                    try
+                    {
+                        var size = entry.Values[0].ToString().IndexOf("},");
+                        var str = entry.Values[0].ToString().Substring(14, size - 13);
+                        var mark = JsonConvert.DeserializeObject<TransactionMark>(str);
+                        logger.LogInformation("Mark read from redis: {0}", mark);
+                        dict.Add(mark.tid, 0);
+                    }
+                    catch(Exception e)
+                    {
+                        logger.LogError("Mark error from redis: {0}", e.Message);
+                    }
+
+                    curr++;
+                    lastId = entry.Id;
+                }
+
+                curr = 0;
+                // await Task.Delay(1000);
+            }
+
+            // var masterConfig = BuildMasterConfig(args);
             // http://localhost:9090/api/v1/query?query=dapr_component_pubsub_ingress_count&time=1688568061.327
-
-            var res = await MetricGather.GetFromPrometheus(masterConfig.Item1.collectionConfig, "1688568061.327");
+            // var res = await MetricGather.GetFromPrometheus(masterConfig.Item1.collectionConfig, "1688568061.327");
+            // Console.WriteLine("the respObj is {0}", res);
             /*
             var message = new HttpRequestMessage(HttpMethod.Get, "http://localhost:9090/api/v1/query?query=dapr_component_pubsub_egress_count{app_id=%22cart%22,topic=%22ReserveStock%22}&time=1688136844");
             // masterConfig.collectionConfig.baseUrl + "/" + masterConfig.collectionConfig.ingress_count);
@@ -39,7 +85,7 @@ namespace Client
             Console.WriteLine("the respObj is {0}", respObj);
             */
 
-            Console.WriteLine("the respObj is {0}", res);
+
         }
 
         /*

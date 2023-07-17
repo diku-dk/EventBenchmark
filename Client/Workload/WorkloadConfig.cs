@@ -31,16 +31,6 @@ namespace Client.Workload
          */
         public IDictionary<TransactionType,int> transactionDistribution { get; set; }
 
-        // map kafka topic to orleans stream Guid
-        public readonly Dictionary<string, Guid> mapTopicToStreamGuid = new()
-        {
-            // seller
-            ["low-stock-warning"] = StreamingConstants.SellerReactStreamId,
-            // customer
-            ["abandoned-cart"] = StreamingConstants.CustomerReactStreamId,
-            ["payment-rejected"] = StreamingConstants.CustomerReactStreamId
-        };
-
         public StreamingConfig streamingConfig { get; set; }
 
         public CustomerWorkerConfig customerWorkerConfig { get; set; }

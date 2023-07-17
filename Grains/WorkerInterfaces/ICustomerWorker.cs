@@ -1,6 +1,7 @@
 ﻿using Common.Entities;
 using Common.Workload.Customer;
 using Common.Workload.Metrics;
+using Orleans.Concurrency;
 
 namespace Grains.WorkerInterfaces
 {
@@ -10,6 +11,7 @@ namespace Grains.WorkerInterfaces
 
         Task<List<Latency>> Collect(DateTime startTime);
 
+        [OneWay]
         Task RegisterFinishedTransaction(TransactionOutput output);
     }
 }

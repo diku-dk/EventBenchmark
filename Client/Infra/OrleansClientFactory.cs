@@ -21,10 +21,7 @@ namespace Client.Infra
                 var host = new HostBuilder()
                             .UseOrleansClient(
                                     client => client.UseLocalhostClustering()
-                                    .AddMemoryStreams<DefaultMemoryMessageBodySerializer>(StreamingConstants.DefaultStreamProvider, _ =>
-                                    {
-                                        _.ConfigurePartitioning(8);
-                                    })
+                                    .AddMemoryStreams(StreamingConstants.DefaultStreamProvider)
                                     .AddClusterConnectionLostHandler((x,y) =>
                                     {
                                         // LoggerProxy.GetInstance("ClusterConnectionLostHandler").LogCritical("Connection to cluster has been lost");

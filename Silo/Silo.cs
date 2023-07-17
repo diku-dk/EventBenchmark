@@ -1,7 +1,6 @@
 ﻿using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Common.Streaming;
-using Orleans.Providers;
 using Orleans.Serialization;
 
 var builder = new HostBuilder()
@@ -9,10 +8,7 @@ var builder = new HostBuilder()
     {
         siloBuilder
             .UseLocalhostClustering()
-            .AddMemoryStreams<DefaultMemoryMessageBodySerializer>(StreamingConstants.DefaultStreamProvider,_ =>
-            {
-                _.ConfigurePartitioning(8);
-            })
+            .AddMemoryStreams(StreamingConstants.DefaultStreamProvider)
             .AddMemoryGrainStorage(StreamingConstants.DefaultStreamStorage)
             .ConfigureLogging(logging =>
             {

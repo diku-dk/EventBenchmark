@@ -1,7 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using Common.Distribution;
-using Common.Distribution.YCSB;
 using Common.Infra;
 using Common.Streaming;
 using Common.Workload;
@@ -10,7 +9,7 @@ using Common.Workload.Seller;
 using Microsoft.Extensions.Logging;
 using Orleans.Streams;
 using Orleans.Runtime;
-using System;
+using MathNet.Numerics.Distributions;
 
 namespace Client.Workload
 {
@@ -23,9 +22,11 @@ namespace Client.Workload
         private readonly IDictionary<TransactionType, int> transactionDistribution;
         private readonly Random random;
 
+        // private StreamSubscriptionHandle<CustomerWorkerStatusUpdate> customerWorkerSubscription;
+
         private readonly IStreamProvider streamProvider;
 
-        public readonly Dictionary<TransactionType, NumberGenerator> keyGeneratorPerWorkloadType;
+        public readonly Dictionary<TransactionType, IDiscreteDistribution> keyGeneratorPerWorkloadType;
 
         private readonly ConcurrentDictionary<long, CustomerWorkerStatus> customerStatusCache;
 
@@ -35,6 +36,8 @@ namespace Client.Workload
         private readonly int delayBetweenRequests;
 
         private readonly ILogger logger;
+
+        private readonly IDictionary<TransactionType, int> histogram;
 
         public WorkloadEmitter(IClusterClient clusterClient,
                                 IDictionary<TransactionType,int> transactionDistribution,
@@ -53,18 +56,23 @@ namespace Client.Workload
             this.concurrencyLevel = concurrencyLevel;
             this.executionTime = executionTime;
             this.delayBetweenRequests = delayBetweenRequests;
-
-            NumberGenerator sellerIdGenerator = sellerDistribution ==
-                                DistributionType.NON_UNIFORM ? new NonUniformDistribution((int)(sellerRange.max * 0.3), sellerRange.min, sellerRange.max) :
+            this.histogram = new Dictionary<TransactionType,int>()
+            {
+                [TransactionType.PRICE_UPDATE] = 0,
+                [TransactionType.DELETE_PRODUCT] = 0,
+                [TransactionType.DASHBOARD] = 0,
+                [TransactionType.CUSTOMER_SESSION] = 0,
+                [TransactionType.UPDATE_DELIVERY] = 0
+            };
+            IDiscreteDistribution sellerIdGenerator = 
                                 sellerDistribution == DistributionType.UNIFORM ?
-                                new UniformLongGenerator(sellerRange.min, sellerRange.max) :
-                                new ZipfianGenerator(sellerRange.min, sellerRange.max);
+                                new DiscreteUniform(sellerRange.min, sellerRange.max, new Random()) :
+                                new Zipf(0.95, sellerRange.max, new Random());
 
-            NumberGenerator customerIdGenerator = customerDistribution ==
-                                DistributionType.NON_UNIFORM ? new NonUniformDistribution((int)(customerRange.max * 0.5), customerRange.min, customerRange.max) :
+            IDiscreteDistribution customerIdGenerator = 
                                 customerDistribution == DistributionType.UNIFORM ?
-                                    new UniformLongGenerator(customerRange.min, customerRange.max) :
-                                    new ZipfianGenerator(customerRange.min, customerRange.max);
+                                    new DiscreteUniform(customerRange.min, customerRange.max, new Random()) :
+                                    new Zipf(0.95, customerRange.max, new Random());
 
             this.keyGeneratorPerWorkloadType = new()
             {
@@ -79,66 +87,52 @@ namespace Client.Workload
             this.logger = LoggerProxy.GetInstance("WorkloadEmitter");
         }
 
-		public async Task<(DateTime startTime, DateTime finishTime)> Run()
+        private int currentTid = 1;
+
+        // two classes of transactions:
+        // a.eventual complete
+        // b. complete on response received
+        // for b it is easy, upon completion we know we can submit another transaction
+        // for a is tricky, we never know when it completes
+        public async Task<(DateTime startTime, DateTime finishTime)> Run()
 		{
-            int currentTid = 1;
+
+            //await SetUpCustomerWorkerListener();
+
             logger.LogInformation("[Workload emitter] Started sending batch of transactions with concurrency level {0}", this.concurrencyLevel);
 
             Stopwatch s = new Stopwatch();
+            var execTime = TimeSpan.FromMilliseconds(executionTime);
             s.Start();
             var startTime = DateTime.UtcNow;
-
-            List<Task> tasks = new(concurrencyLevel+1);
-
-            while (currentTid <= concurrencyLevel)
+            while (this.currentTid < concurrencyLevel)
             {
                 TransactionType tx = PickTransactionFromDistribution();
-                var txId = new TransactionInput(currentTid, tx);
-
-                if (txId.type == TransactionType.CUSTOMER_SESSION)
-                {
-                    tasks.Add( Task.Run(async () => await SubmitCustomerSession(txId)) );
-                }else
-                {
-                    tasks.Add(Task.Run(() => SubmitNonCustomerTransaction(txId)));
-                }
-
-                currentTid++;
+                histogram[tx]++;
+                var txId = new TransactionInput(this.currentTid, tx);
+                SubmitTransaction(txId);
+                this.currentTid++;
             }
 
             logger.LogInformation("[Workload emitter] Started waiting for results to send remaining transactions...");
-            var execTime = TimeSpan.FromMilliseconds(executionTime);
+
             while (s.Elapsed < execTime)
             {
                 // wait for results
                 // logger.LogInformation("[Workload emitter] Retrieving a result...");
-
-                Task taskRes = await Task.WhenAny(tasks);
-                tasks.Remove(taskRes);
-
-                // logger.LogInformation("[Workload emitter] Retrieving a transaction...");
                 TransactionType tx = PickTransactionFromDistribution();
-                var txId = new TransactionInput(currentTid, tx);
+                histogram[tx]++;
+                var txId = new TransactionInput(this.currentTid, tx);
+                SubmitTransaction(txId);
+                this.currentTid++;
 
-                if (txId.type == TransactionType.CUSTOMER_SESSION)
-                {
-                    tasks.Add(Task.Run(async () => await SubmitCustomerSession(txId)));
-                }
-                else
-                {
-                    tasks.Add(Task.Run(() => SubmitNonCustomerTransaction(txId)));
-                }
-
-                currentTid++;
-
-                // logger.LogInformation("[Workload emitter] Transaction submitted.");
-
-                //if (Shared.Workload.Count < concurrencyLevel)
+                //if (!Shared.ResultQueue.Reader.TryRead(out var _))
                 //{
-                //    // ideally we should never enter here
-                //    logger.LogWarning("[Workload emitter] Requesting more transactions to workload generator...");
-                //    Shared.WaitHandle.Add(0);
+                //    // either read or wake up when run finishes...
+                //    await Task.WhenAny(Shared.ResultQueue.Reader.ReadAsync().AsTask(), Task.Delay(execTime-s.Elapsed));
                 //}
+
+                await Shared.ResultQueue.Reader.ReadAsync();
 
                 // throttle
                 if (this.delayBetweenRequests > 0)
@@ -152,6 +146,11 @@ namespace Client.Workload
             s.Stop();
 
             logger.LogInformation("[Workload emitter] Finished at {0}. Last TID submitted was {1}", finishTime, currentTid);
+            logger.LogInformation("[Workload emitter] Histogram:");
+            foreach(var entry in histogram)
+            {
+                logger.LogInformation("[{0}] - {1}", entry.Key, entry.Value);
+            }
 
             return (startTime, finishTime);
         }
@@ -169,67 +168,72 @@ namespace Client.Workload
             return TransactionType.NONE;
         }
 
-        private async Task SubmitCustomerSession(TransactionInput txId)
-        {
-            long grainID = this.keyGeneratorPerWorkloadType[txId.type].NextValue();
-            // but make sure there is no active session for the customer. if so, pick another customer
-            int count = 1;
-            while ((this.customerStatusCache.ContainsKey(grainID) &&
-                    !customerStatusCache.TryUpdate(grainID, CustomerWorkerStatus.BROWSING, CustomerWorkerStatus.IDLE)) ||
-                    !customerStatusCache.TryAdd(grainID, CustomerWorkerStatus.BROWSING))
-            {
-                if (count == 10)
-                {
-                    logger.LogWarning("[Workload emitter] Could not find an available customer! Perhaps should increase the number of customer next time?");
-                    return;
-                }
-                grainID = this.keyGeneratorPerWorkloadType[txId.type].NextValue();
-                count++;
-            }
-
-            var streamId = StreamId.Create(StreamingConstants.CustomerWorkerNameSpace, grainID.ToString());
-            var streamOutgoing = this.streamProvider.GetStream<int>(streamId);
-
-            await streamOutgoing.OnNextAsync(txId.tid);
-            this.customerStatusCache[grainID] = CustomerWorkerStatus.BROWSING;
-        }
-
-        private Task SubmitNonCustomerTransaction(TransactionInput txId)
+        private void SubmitTransaction(TransactionInput txId)
         {
             // this.logger.LogInformation("Sending a new {0} transaction with ID {1}", txId.type, txId.tid);
             try
             {
                 switch (txId.type)
                 {
+                    case TransactionType.CUSTOMER_SESSION:
+                    {
+                        long grainID = this.keyGeneratorPerWorkloadType[txId.type].Sample();
+                        // but make sure there is no active session for the customer. if so, pick another customer
+                        int count = 1;
+                        while ((this.customerStatusCache.ContainsKey(grainID) &&
+                                !customerStatusCache.TryUpdate(grainID, CustomerWorkerStatus.BROWSING, CustomerWorkerStatus.IDLE)) ||
+                                !customerStatusCache.TryAdd(grainID, CustomerWorkerStatus.BROWSING))
+                        {
+                            if (count == 10)
+                            {
+                                logger.LogWarning("[Workload emitter] Could not find an available customer! Perhaps should increase the number of customer next time?");
+                                return;
+                            }
+                            grainID = this.keyGeneratorPerWorkloadType[txId.type].Sample();
+                            count++;
+                        }
+
+                        var streamId = StreamId.Create(StreamingConstants.CustomerWorkerNameSpace, grainID.ToString());
+                        var streamOutgoing = this.streamProvider.GetStream<int>(streamId);
+
+                        streamOutgoing.OnNextAsync(txId.tid).ContinueWith(x => {
+                            this.customerStatusCache[grainID] = CustomerWorkerStatus.IDLE;
+                        });
+                        break;
+                    }
                     // delivery worker
                     case TransactionType.UPDATE_DELIVERY:
                     {
                         var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConstants.DeliveryWorkerNameSpace, "0");
-                        return streamOutgoing.OnNextAsync(txId.tid);
+                        streamOutgoing.OnNextAsync(txId.tid).ContinueWith(x=> Shared.ResultQueue.Writer.WriteAsync(0));
+                        break;
                     }
                     // seller worker
                     case TransactionType.DASHBOARD:
                     {
-                        long grainID = this.keyGeneratorPerWorkloadType[txId.type].NextValue();
+                        long grainID = this.keyGeneratorPerWorkloadType[txId.type].Sample();
                         var streamOutgoing = this.streamProvider.GetStream<TransactionInput>(StreamingConstants.SellerWorkerNameSpace, grainID.ToString());
-                        return streamOutgoing.OnNextAsync(txId);
+                        streamOutgoing.OnNextAsync(txId).ContinueWith(x => Shared.ResultQueue.Writer.WriteAsync(0));
+                        break;
                     }
                     case TransactionType.PRICE_UPDATE:
                     {
-                        long grainID = this.keyGeneratorPerWorkloadType[txId.type].NextValue();
+                        long grainID = this.keyGeneratorPerWorkloadType[txId.type].Sample();
                         var grainIDStr = grainID.ToString();
                         // logger.LogInformation("Seller worker {0} will be spawned!", grainIDStr);
                         var streamOutgoing = this.streamProvider.GetStream<TransactionInput>(StreamingConstants.SellerWorkerNameSpace, grainIDStr);
-                        return streamOutgoing.OnNextAsync(txId);
+                        _ = streamOutgoing.OnNextAsync(txId);
+                        break;
                     }
                     // seller
                     case TransactionType.DELETE_PRODUCT:
                     {
-                        long grainID = this.keyGeneratorPerWorkloadType[txId.type].NextValue();
+                        long grainID = this.keyGeneratorPerWorkloadType[txId.type].Sample();
                         var grainIDStr = grainID.ToString();
                         // logger.LogInformation("Seller worker {0} will be spawned!", grainIDStr);
                         var streamOutgoing = this.streamProvider.GetStream<TransactionInput>(StreamingConstants.SellerWorkerNameSpace, grainIDStr);
-                        return streamOutgoing.OnNextAsync(txId);
+                        _ = streamOutgoing.OnNextAsync(txId);
+                        break;
                     }
                     default:
                     {
@@ -244,10 +248,23 @@ namespace Client.Workload
                 long threadId = Environment.CurrentManagedThreadId;
                 this.logger.LogError("Thread ID {0} Error caught in SubmitTransaction: {1}", threadId, e.Message);
             }
-            
-            return Task.CompletedTask;
-            
+
         }
+
+        //private Task UpdateCustomerStatusAsync(CustomerWorkerStatusUpdate update, StreamSequenceToken token = null)
+        //{
+        //    var old = this.customerStatusCache[update.customerId];
+        //    this.logger.LogDebug("Attempt to update customer worker {0} status in cache. Previous {1} Update {2}",
+        //        update.customerId, old, update.status);
+        //    this.customerStatusCache[update.customerId] = update.status;
+        //    return Task.CompletedTask;
+        //}
+
+        //private async Task SetUpCustomerWorkerListener()
+        //{
+        //    IAsyncStream<CustomerWorkerStatusUpdate> resultStream = streamProvider.GetStream<CustomerWorkerStatusUpdate>(StreamId.Create(StreamingConstants.CustomerWorkerNameSpace, StreamingConstants.TransactionNameSpace));
+        //    this.customerWorkerSubscription = await resultStream.SubscribeAsync(UpdateCustomerStatusAsync);
+        //}
 
     }
 }

@@ -1,17 +1,17 @@
-﻿using System;
-using Common.Distribution.YCSB;
+﻿using MathNet.Numerics.Distributions;
+using MathNet.Numerics.Random;
 
 namespace Common.Distribution
 {
     /**
      * https://www.tpc.org/information/sessions/sigmod/sld011.htm
      */
-    public class NonUniformDistribution : NumberGenerator
+    public class NonUniformDistribution : IDistribution
 	{
         private readonly int A;
         private readonly int x;
         private readonly int y;
-        private readonly Random rnd;
+        private Random rnd;
 
         public NonUniformDistribution(int A, int x, int y)
 		{
@@ -21,12 +21,19 @@ namespace Common.Distribution
             this.rnd = new Random();
         }
 
-        public override double Mean()
+        public Random RandomSource
         {
-            throw new NotImplementedException();
+            get
+            {
+                return this.rnd;
+            }
+            set
+            {
+                this.rnd = value ?? SystemRandomSource.Default;
+            }
         }
 
-        public override long NextValue()
+        public int Sample()
         {
             var part1 = rnd.Next(0, A + 1);
             var part2 = rnd.Next(x, y + 1);
