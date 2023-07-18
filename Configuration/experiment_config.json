@@ -1,13 +1,13 @@
 ﻿{
   "enabled": true,
   "executionTime": 10000,
-  "epoch": 2000,
+  "epoch": 2500,
   "delayBetweenRequests": 0,
   "delayBetweenRuns": 10000,
-  "concurrencyLevel": 5000,
+  "concurrencyLevel": 2048,
   "connectionString": "Data Source=file.db",
   "numCustomers": 1000,
-  "avgNumProdPerSeller": 10,
+  "avgNumProdPerSeller": 15,
   "transactionDistribution": {
     "PRICE_UPDATE": 99,
     "DELETE_PRODUCT": 100
@@ -27,24 +27,24 @@
       "sellerDistribution": "UNIFORM",
       "keyDistribution": "UNIFORM"
     },
-    {
-      "numProducts": 1000,
-      "customerDistribution": "ZIPFIAN",
-      "sellerDistribution": "ZIPFIAN",
-      "keyDistribution": "ZIPFIAN"
-    },
-    {
-      "numProducts": 10000,
-      "customerDistribution": "UNIFORM",
-      "sellerDistribution": "UNIFORM",
-      "keyDistribution": "UNIFORM"
-    },
-    {
-      "numProducts": 10000,
-      "customerDistribution": "ZIPFIAN",
-      "sellerDistribution": "ZIPFIAN",
-      "keyDistribution": "ZIPFIAN"
-    }
+    //{
+    //  "numProducts": 1000,
+    //  "customerDistribution": "UNIFORM",
+    //  "sellerDistribution": "ZIPFIAN",
+    //  "keyDistribution": "ZIPFIAN"
+    //},
+    //{
+    //  "numProducts": 10000,
+    //  "customerDistribution": "UNIFORM",
+    //  "sellerDistribution": "UNIFORM",
+    //  "keyDistribution": "UNIFORM"
+    //},
+    //{
+    //  "numProducts": 10000,
+    //  "customerDistribution": "UNIFORM",
+    //  "sellerDistribution": "ZIPFIAN",
+    //  "keyDistribution": "ZIPFIAN"
+    //}
   ],
   "postRunTasks": [
     {

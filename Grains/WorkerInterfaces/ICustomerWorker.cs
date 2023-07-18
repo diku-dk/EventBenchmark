@@ -9,7 +9,7 @@ namespace Grains.WorkerInterfaces
 	{
         Task Init(CustomerWorkerConfig config, Customer customer);
 
-        Task<List<Latency>> Collect(DateTime startTime);
+        Task<List<Latency>> Collect(DateTime finishTime);
 
         [OneWay]
         Task RegisterFinishedTransaction(TransactionOutput output);

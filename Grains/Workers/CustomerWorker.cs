@@ -79,7 +79,7 @@ namespace Grains.Workers
             this.sellerIdGenerator = 
                 this.config.sellerDistribution == DistributionType.UNIFORM ?
                 new DiscreteUniform(this.config.sellerRange.min, this.config.sellerRange.max, new Random()) :
-                new Zipf(0.95, this.config.sellerRange.max, new Random());
+                new Zipf(0.80, this.config.sellerRange.max, new Random());
 
             this.submittedTransactions.Clear();
             this.finishedTransactions.Clear();
@@ -168,8 +168,8 @@ namespace Grains.Workers
                 try
                 {
                     await AddItemsToCart(DefineKeysToCheckout(keyMap.ToList(), numberOfKeysToCheckout));
-                    await GetCart();
-                    await Checkout(tid);
+                    GetCart();
+                    Checkout(tid);
                 }
                 catch (Exception e)
                 {
@@ -180,7 +180,7 @@ namespace Grains.Workers
                 int numberOfKeysToCheckout = random.Next(1, this.config.maxNumberKeysToAddToCart + 1);
                 var products = await DefineProductsToCheckout(numberOfKeysToCheckout);
                 await AddItemsToCart(products);
-                await Checkout(tid);
+                Checkout(tid);
             }
             // await txStream.OnNextAsync(new CustomerWorkerStatusUpdate(this.customerId, CustomerWorkerStatus.IDLE));
         }
@@ -189,21 +189,18 @@ namespace Grains.Workers
          * Simulating the customer browsing the cart before checkout
          * could verify whether the cart contains all the products chosen, otherwise throw exception
          */
-        private async Task GetCart()
+        private void GetCart()
         {
-            await Task.Run(() =>
-            {
-                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, this.config.cartUrl + "/" + this.customerId);
-                return HttpUtils.client.Send(message);
-            });
+            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, this.config.cartUrl + "/" + this.customerId);
+            HttpUtils.client.Send(message);
         }
 
-        private async Task Checkout(int tid)
+        private void Checkout(int tid)
         {
             // define whether client should send a checkout request
             if (random.Next(0, 100) > this.config.checkoutProbability)
             {
-                await InformFailedCheckout();
+                InformFailedCheckout();
                 this.logger.LogInformation("Customer {0} decided to not send a checkout.", this.customerId);
                 return;
             }
@@ -214,12 +211,8 @@ namespace Grains.Workers
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, this.config.cartUrl + "/" + this.customerId + "/checkout");
             message.Content = BuildCheckoutPayload(tid, this.customer);
             TransactionIdentifier txId = null;
-            HttpResponseMessage resp = await Task.Run(() =>
-            {
-                txId = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, DateTime.UtcNow);
-                return HttpUtils.client.SendAsync(message);
-            });
-
+            txId = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, DateTime.UtcNow);
+            HttpResponseMessage resp = HttpUtils.client.Send(message);
             if (resp == null)
             {
                 return;
@@ -233,11 +226,8 @@ namespace Grains.Workers
             // perhaps there is price divergence. checking out again means the customer agrees with the new prices
             if(resp.StatusCode == HttpStatusCode.MethodNotAllowed)
             {
-                resp = await Task.Run(() =>
-                {
-                    txId = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, DateTime.UtcNow);
-                    return HttpUtils.client.SendAsync(message);
-                });
+                txId = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, DateTime.UtcNow);
+                resp = HttpUtils.client.Send(message);
             }
 
             if (resp == null || !resp.IsSuccessStatusCode)
@@ -253,26 +243,23 @@ namespace Grains.Workers
         {
             foreach(var product in products)
             {
-                
-                await Task.Run(() =>
+                this.logger.LogInformation("Customer {0}: Adding seller {1} product {2} to cart", this.customerId, product.seller_id, product.product_id);
+                HttpResponseMessage response;
+                var qty = random.Next(this.config.minMaxQtyRange.min, this.config.minMaxQtyRange.max + 1);
+                var payload = BuildCartItem(product, qty);
+                try
                 {
-                    this.logger.LogInformation("Customer {0}: Adding seller {1} product {2} to cart", this.customerId, product.seller_id, product.product_id);
-                    HttpResponseMessage response;
-                    var qty = random.Next(this.config.minMaxQtyRange.min, this.config.minMaxQtyRange.max + 1);
-                    var payload = BuildCartItem(product, qty);
-                    try
-                    {
-                        HttpRequestMessage message2 = new HttpRequestMessage(HttpMethod.Patch, this.config.cartUrl + "/" + customerId + "/add");
-                        message2.Content = payload;
-                        response = HttpUtils.client.Send(message2);
-                    }
-                    catch (Exception e)
-                    {
-                        this.logger.LogWarning("Customer {0} Url {1} Seller {2} Key {3}: Exception Message: {5} ", customerId, this.config.productUrl, product.seller_id, product.product_id, e.Message);
-                    }
-                });
+                    HttpRequestMessage message2 = new HttpRequestMessage(HttpMethod.Patch, this.config.cartUrl + "/" + customerId + "/add");
+                    message2.Content = payload;
+                    response = HttpUtils.client.Send(message2);
+                }
+                catch (Exception e)
+                {
+                    this.logger.LogWarning("Customer {0} Url {1} Seller {2} Key {3}: Exception Message: {5} ", customerId, this.config.productUrl, product.seller_id, product.product_id, e.Message);
+                }
                 int delay = this.random.Next(this.config.delayBetweenRequestsRange.min, this.config.delayBetweenRequestsRange.max + 1);
-                await Task.Delay(delay);
+                if(delay > 0)
+                    await Task.Delay(delay);
             }
         }
 
@@ -281,48 +268,43 @@ namespace Grains.Workers
             foreach (var entry in keyMap)
             {
                 this.logger.LogInformation("Customer {0}: Adding seller {1} product {2} to cart", this.customerId, entry.sellerId, entry.productId);
-                await Task.Run(() =>
+                HttpResponseMessage response;
+                try
                 {
-                    HttpResponseMessage response;
-                    try
+                    HttpRequestMessage message1 = new HttpRequestMessage(HttpMethod.Get, this.config.productUrl + "/" + entry.sellerId + "/" + entry.productId);
+                    response = HttpUtils.client.Send(message1);
+
+                    // add to cart
+                    if (response.Content.Headers.ContentLength == 0)
                     {
-                        HttpRequestMessage message1 = new HttpRequestMessage(HttpMethod.Get, this.config.productUrl + "/" + entry.sellerId + "/" + entry.productId);
-                        response = HttpUtils.client.Send(message1);
-
-                        // add to cart
-                        if (response.Content.Headers.ContentLength == 0)
-                        {
-                            this.logger.LogWarning("Customer {0}: Response content for seller {1} product {2} is empty!", this.customerId, entry.sellerId, entry.productId);
-                            return;
-                        }
-
-                        this.logger.LogInformation("Customer {0}: seller {1} product {2} retrieved", this.customerId, entry.sellerId, entry.productId);
-
-                        var qty = random.Next(this.config.minMaxQtyRange.min, this.config.minMaxQtyRange.max + 1);
-
-                        var stream = response.Content.ReadAsStream();
-
-                        StreamReader reader = new StreamReader(stream);
-                        string productRet = reader.ReadToEnd();
-                        var payload = BuildCartItem(productRet, qty);
-
-                        HttpRequestMessage message2 = new HttpRequestMessage(HttpMethod.Patch, this.config.cartUrl + "/" + customerId + "/add");
-                        message2.Content = payload;
-
-                        this.logger.LogInformation("Customer {0}: Sending seller {1} product {2} payload to cart...", this.customerId, entry.sellerId, entry.productId);
-                        response = HttpUtils.client.Send(message2);
-                    }
-                    catch (Exception e)
-                    {
-                        this.logger.LogWarning("Customer {0} Url {1} Seller {2} Key {3}: Exception Message: {5} ",  customerId, this.config.productUrl, entry.sellerId, entry.productId, e.Message);
+                        this.logger.LogWarning("Customer {0}: Response content for seller {1} product {2} is empty!", this.customerId, entry.sellerId, entry.productId);
+                        return;
                     }
 
-                });
+                    this.logger.LogInformation("Customer {0}: seller {1} product {2} retrieved", this.customerId, entry.sellerId, entry.productId);
 
+                    var qty = random.Next(this.config.minMaxQtyRange.min, this.config.minMaxQtyRange.max + 1);
+
+                    var stream = response.Content.ReadAsStream();
+
+                    StreamReader reader = new StreamReader(stream);
+                    string productRet = reader.ReadToEnd();
+                    var payload = BuildCartItem(productRet, qty);
+
+                    HttpRequestMessage message2 = new HttpRequestMessage(HttpMethod.Patch, this.config.cartUrl + "/" + customerId + "/add");
+                    message2.Content = payload;
+
+                    this.logger.LogInformation("Customer {0}: Sending seller {1} product {2} payload to cart...", this.customerId, entry.sellerId, entry.productId);
+                    response = HttpUtils.client.Send(message2);
+                }
+                catch (Exception e)
+                {
+                    this.logger.LogWarning("Customer {0} Url {1} Seller {2} Key {3}: Exception Message: {5} ",  customerId, this.config.productUrl, entry.sellerId, entry.productId, e.Message);
+                }
                 int delay = this.random.Next(this.config.delayBetweenRequestsRange.min, this.config.delayBetweenRequestsRange.max + 1);
                 // artificial delay after adding the product
-                await Task.Delay(delay);
-
+                if(delay > 0)
+                    await Task.Delay(delay);
             }
 
         }
@@ -335,18 +317,8 @@ namespace Grains.Workers
             {
                 this.logger.LogInformation("Customer {0} browsing seller {1} product {2}", this.customerId, entry.sellerId, entry.productId);
                 delay = this.random.Next(this.config.delayBetweenRequestsRange.min, this.config.delayBetweenRequestsRange.max + 1);
-                await Task.Run(async () =>
-                {
-                    try
-                    {
-                        await HttpUtils.client.GetAsync(this.config.productUrl + "/" + entry.sellerId + "/" + entry.productId); 
-                    }
-                    catch (Exception e)
-                    {
-                        this.logger.LogWarning("Exception Message: {0} Customer {1} Url {2} Seller {3} Product {4}", e.Message, customerId, this.config.productUrl, entry.sellerId, entry.productId);
-                    }
-
-                });
+                HttpRequestMessage msg = new HttpRequestMessage(HttpMethod.Get, this.config.productUrl + "/" + entry.sellerId + "/" + entry.productId);
+                HttpUtils.client.Send(msg);
                 // artificial delay after retrieving the product
                 await Task.Delay(delay);
             }
@@ -418,25 +390,27 @@ namespace Grains.Workers
             return HttpUtils.BuildPayload(payload);
         }
 
-        private async Task InformFailedCheckout()
+        private void InformFailedCheckout()
         {
             // just cleaning cart state for next browsing
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, this.config.cartUrl + "/" + customerId + "/seal");
-            await Task.Run(async ()=> await HttpUtils.client.SendAsync(message));
+            HttpUtils.client.Send(message);
         }
 
-        public Task<List<Latency>> Collect(DateTime startTime)
+        public Task<List<Latency>> Collect(DateTime finishTime)
         {
-            var targetValues = submittedTransactions.Values.Where(e => e.timestamp.CompareTo(startTime) >= 0);
-            var latencyList = new List<Latency>(submittedTransactions.Count());
+            var targetValues = finishedTransactions.Values.Where(e => e.timestamp.CompareTo(finishTime) <= 0);
+            var latencyList = new List<Latency>(targetValues.Count());
             foreach (var entry in targetValues)
             {
-                if (finishedTransactions.ContainsKey(entry.tid))
+                if (!submittedTransactions.ContainsKey(entry.tid))
                 {
-                    var res = finishedTransactions[entry.tid];
-                    latencyList.Add(new Latency(entry.tid, entry.type,
-                        (res.timestamp - entry.timestamp).TotalMilliseconds ));
+                    logger.LogWarning("Cannot find correspondent submitted TID from finished transaction {0}", entry);
+                    continue;
                 }
+                var init = submittedTransactions[entry.tid];
+                latencyList.Add(new Latency(entry.tid, init.type,
+                    (entry.timestamp - init.timestamp).TotalMilliseconds, entry.timestamp));
             }
             return Task.FromResult(latencyList);
         }

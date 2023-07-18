@@ -43,9 +43,9 @@ namespace Grains.Workers
         {
             this.logger = logger;
             this.random = new Random();
-            this.deletedProducts = new ConcurrentDictionary<long,byte>();
-            this.submittedTransactions = new ConcurrentDictionary<long, TransactionIdentifier>();
-            this.finishedTransactions = new ConcurrentDictionary<long, TransactionOutput>();
+            this.deletedProducts = new Dictionary<long,byte>();
+            this.submittedTransactions = new Dictionary<long, TransactionIdentifier>();
+            this.finishedTransactions = new Dictionary<long, TransactionOutput>();
         }
 
         public Task Init(SellerWorkerConfig sellerConfig, List<Product> products)
@@ -262,18 +262,20 @@ namespace Grains.Workers
             return Task.FromResult(products[idx]);
         }
 
-        public Task<List<Latency>> Collect(DateTime startTime)
+        public Task<List<Latency>> Collect(DateTime finishTime)
         {
-            var targetValues = submittedTransactions.Values.Where(e => e.timestamp.CompareTo(startTime) >= 0);
-            var latencyList = new List<Latency>(submittedTransactions.Count());
+            var targetValues = finishedTransactions.Values.Where(e => e.timestamp.CompareTo(finishTime) <= 0);
+            var latencyList = new List<Latency>(targetValues.Count());
             foreach (var entry in targetValues)
             {
-                if (finishedTransactions.ContainsKey(entry.tid))
+                if (!submittedTransactions.ContainsKey(entry.tid))
                 {
-                    var res = finishedTransactions[entry.tid];
-                    latencyList.Add(new Latency(entry.tid, entry.type,
-                        (res.timestamp - entry.timestamp).TotalMilliseconds ));
+                    logger.LogWarning("Cannot find correspondent submitted TID from finished transaction {0}", entry);
+                    continue;
                 }
+                var init = submittedTransactions[entry.tid];
+                latencyList.Add(new Latency(entry.tid, init.type,
+                    (entry.timestamp - init.timestamp).TotalMilliseconds, entry.timestamp));
             }
             return Task.FromResult(latencyList);
         }
@@ -282,7 +284,7 @@ namespace Grains.Workers
         {
             if (!finishedTransactions.TryAdd(output.tid, output))
             {
-                logger.LogError("[{0}] The specified TID has already been added to the finished set at {1}",
+                logger.LogWarning("[{0}] The specified TID has already been added to the finished set at {1}",
                     output.timestamp, finishedTransactions[output.tid]);
             }
             // finishedTransactions.Add(output.tid, output);

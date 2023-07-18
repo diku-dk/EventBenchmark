@@ -21,7 +21,6 @@ using Common.Workload.Seller;
 using Common.Workload.Delivery;
 using Grains.WorkerInterfaces;
 using Common.Workload.Metrics;
-using StackExchange.Redis;
 
 namespace Client.Workflow
 {
@@ -85,7 +84,7 @@ namespace Client.Workflow
                     var channel = new StringBuilder(nameof(TransactionMark)).Append('_').Append(type.ToString()).ToString();
                     var token = new CancellationTokenSource();
                     tokens.Add(token);
-                    listeningTasks.Add(SubscribeToTransactionResult(orleansClient, redisConnection, channel, token));
+                    listeningTasks.Add(SubscribeToRedisStream(orleansClient, redisConnection, channel, token));
                 }
             }
 
@@ -145,12 +144,12 @@ namespace Client.Workflow
                 await Task.Delay(TimeSpan.FromSeconds(10));
 
                 // set up data collection for metrics
-                // TODO send the distributions and the config (customers,sellers, etc) so it can be written to the file
                 MetricGather metricGather = new MetricGather(orleansClient, customers, numSellers, null);
-                await metricGather.Collect(startTime, finishTime, runIdx.ToString());
+                await metricGather.Collect(startTime, finishTime, config.epoch, string.Format("{0}_{1}_{2}_{3}", runIdx, run.numProducts, run.sellerDistribution, run.keyDistribution));
 
                 // trim first to avoid receiving events after the post run task
-                await TrimStreams(config.streamingConfig.host, config.streamingConfig.port, config.streamingConfig.streams.ToList());
+                // await TrimStreams(config.streamingConfig.host, config.streamingConfig.port, config.streamingConfig.streams.ToList());
+                // if trim, maybe we lose the position read by the consumers?
 
                 // reset data in microservices - post run
                 if (runIdx < lastRunIdx)
@@ -203,6 +202,10 @@ namespace Client.Workflow
             await Task.Delay(config.delayBetweenRuns);
 
             logger.LogInformation("Post experiment cleanup tasks started.");
+
+            logger.LogInformation("Cleaning Redis streams....");
+            await TrimStreams(config.streamingConfig.host, config.streamingConfig.port, config.streamingConfig.streams.ToList());
+
             var resps = new List<Task<HttpResponseMessage>>();
             foreach (var task in config.postExperimentTasks)
             {
@@ -320,7 +323,7 @@ namespace Client.Workflow
                     var channel = new StringBuilder(nameof(TransactionMark)).Append('_').Append(type.ToString()).ToString();
                     var token = new CancellationTokenSource();
                     tokens.Add(token);
-                    listeningTasks.Add(SubscribeToTransactionResult(orleansClient, redisConnection, channel, token));
+                    listeningTasks.Add(SubscribeToRedisStream(orleansClient, redisConnection, channel, token));
                 }
 
                 // setup transaction orchestrator
@@ -349,13 +352,6 @@ namespace Client.Workflow
                     MetricGather metricGather = new MetricGather(orleansClient, customers, numSellers, collectionConfig);
                     await metricGather.Collect(startTime, finishTime);
                 }
-
-                //workloadGen.Stop();
-                //// to make sure the generator leaves the loop
-                //Shared.WaitHandle.Add(0);
-
-                // await orleansClient.Close();
-                // logger.LogInformation("Orleans client finalized!");
             }
 
             if (workflowConfig.cleanup)
@@ -451,83 +447,48 @@ namespace Client.Workflow
             // activate delivery worker
             if (transactionDistribution.ContainsKey(TransactionType.UPDATE_DELIVERY))
             {
-                var deliveryWorker = orleansClient.GetGrain<IDeliveryWorker>(0);
+                var deliveryWorker = orleansClient.GetGrain<IDeliveryProxy>(0);
                 await deliveryWorker.Init(deliveryWorkerConfig);
             }
             logger.LogInformation("Workers prepared!");
         }
 
-        // perhaps create a consumer group? then gets undelivered messages by default instead of keeping track of lastId...
-        private static Task SubscribeToTransactionResult(IClusterClient orleansClient, string redisConnection, string channel, CancellationTokenSource token)
+        private static readonly byte ITEM = 0;
+
+        // unfortunately redis streams reads can show duplicates across reads. that can add some overhead to orleans due to extra calls.
+        // a way to circumvent that is deleting the streams right after reading them all and delivering them to the handler
+        // https://redis.io/commands/xtrim/
+        // ...
+        private static Task SubscribeToRedisStream(IClusterClient orleansClient, string redisConnection, string channel, CancellationTokenSource token)
         {
-            return Task.Factory.StartNew(async () => {
-                var connection = RedisUtils.GetConnection(redisConnection);
-                var db = connection.GetDatabase();
-                logger.LogInformation("Starting thread to read from channel: {0}", channel);
-                var lastId = "-";// new RedisValue("0-0");
-                while (!token.IsCancellationRequested)
+            return Task.Factory.StartNew(async () =>
+            {
+                await RedisUtils.SubscribeStream(redisConnection, channel, token.Token, (entry) =>
                 {
-               
-                    // logger.LogInformation("Read attempt on channel {0} at {1}", channel, DateTime.UtcNow);
-                    var entries = (IEnumerable<StreamEntry>) await db.StreamReadAsync(channel, lastId);
-                    // logger.LogInformation("{0} entries read from redis: {0}", entries.Count());
-                    var now = DateTime.UtcNow;
-                    // logger.LogInformation("{0} entries read from redis...");
-                    if (entries.Count() == 0)
+                    try
                     {
-                        // await Task.Delay(1000);
-                        // logger.LogWarning("Count == 0");
-                        await Task.Delay(500);
-                        continue;
+                        var size = entry.Values[0].Value.ToString().IndexOf("},");
+                        var str = entry.Values[0].Value.ToString().Substring(8, size - 7);
+                        var mark = JsonConvert.DeserializeObject<TransactionMark>(str);
+                        // logger.LogWarning("Mark read from redis: {0}", mark);
+
+                        if (mark.type == TransactionType.CUSTOMER_SESSION)
+                        {
+                            _ = Shared.ResultQueue.Writer.WriteAsync(ITEM);
+                            // TODO can queue these marks and them all at the end of the run... batch... so we keep the workers only fixed on submitting transactions
+                            _ = orleansClient.GetGrain<ICustomerWorker>(mark.actorId).RegisterFinishedTransaction(new TransactionOutput(mark.tid, entry.timestamp));
+                        }
+                        else
+                        {
+                            _ = Shared.ResultQueue.Writer.WriteAsync(ITEM);
+                            _ = orleansClient.GetGrain<ISellerWorker>(mark.actorId).RegisterFinishedTransaction(new TransactionOutput(mark.tid, entry.timestamp));
+                        }
                     }
-
-                    //logger.LogWarning("Last ID Read {0} First ID {1} Last ID {2} Equals [t/f] {3}", lastId, entries.First().Id, entries.Last().Id, lastId.Equals(entries.First().Id.ToString()));
-                    //if (entries.Count() == 1 && lastId.Equals(entries.First().Id.ToString()))
-                    //{
-                    //    logger.LogWarning("First ID {0} Last ID {1}", entries.First().Id, entries.Last().Id);
-                    //    // await Task.Delay(1000);
-                    //    await Task.Delay(500);
-                    //    continue;
-                    //}
-
-
-                    foreach (var entry in entries)
+                    catch (Exception e)
                     {
-
-                        //if (lastId.Equals(entry.Id.ToString()))
-                        //{
-                        //    logger.LogWarning("Duplicate read caught at the source!");
-                        //    continue;
-                        //}
-
-                        try
-                        {
-                            var size = entry.Values[0].ToString().IndexOf("},");
-                            var str = entry.Values[0].ToString().Substring(14, size - 13);
-                            var mark = JsonConvert.DeserializeObject<TransactionMark>(str);
-                            // logger.LogWarning("Mark read from redis: {0}", mark);
-
-                            if (mark.type == TransactionType.CUSTOMER_SESSION)
-                            {
-                                _ = Shared.ResultQueue.Writer.WriteAsync(0);
-                                _ = orleansClient.GetGrain<ICustomerWorker>(mark.actorId).RegisterFinishedTransaction(new TransactionOutput(mark.tid, now));
-                            }
-                            else
-                            {
-                                _ = Shared.ResultQueue.Writer.WriteAsync(0);
-                                _ = orleansClient.GetGrain<ISellerWorker>(mark.actorId).RegisterFinishedTransaction(new TransactionOutput(mark.tid, now));
-                            }
-                        }
-                        catch (Exception e)
-                        {
-                            logger.LogError("Mark error from redis: {0}", e.Message);
-                        }
-
+                        logger.LogError("Mark error from redis: {0}", e.Message);
                     }
-
-                    lastId = entries.Last().Id.ToString();
-                }
-                
+                });
             }, TaskCreationOptions.LongRunning);
 
         }

@@ -67,12 +67,12 @@ namespace Client.Workload
             IDiscreteDistribution sellerIdGenerator = 
                                 sellerDistribution == DistributionType.UNIFORM ?
                                 new DiscreteUniform(sellerRange.min, sellerRange.max, new Random()) :
-                                new Zipf(0.95, sellerRange.max, new Random());
+                                new Zipf(0.80, sellerRange.max, new Random());
 
             IDiscreteDistribution customerIdGenerator = 
                                 customerDistribution == DistributionType.UNIFORM ?
                                     new DiscreteUniform(customerRange.min, customerRange.max, new Random()) :
-                                    new Zipf(0.95, customerRange.max, new Random());
+                                    new Zipf(0.80, customerRange.max, new Random());
 
             this.keyGeneratorPerWorkloadType = new()
             {
@@ -87,7 +87,8 @@ namespace Client.Workload
             this.logger = LoggerProxy.GetInstance("WorkloadEmitter");
         }
 
-        private int currentTid = 1;
+        // volatile because for some reason the runtime is sending old TIDs, making it duplicated inside the workers...
+        private volatile int currentTid = 1;
 
         // two classes of transactions:
         // a.eventual complete
@@ -103,8 +104,9 @@ namespace Client.Workload
 
             Stopwatch s = new Stopwatch();
             var execTime = TimeSpan.FromMilliseconds(executionTime);
-            s.Start();
+
             var startTime = DateTime.UtcNow;
+            s.Start();
             while (this.currentTid < concurrencyLevel)
             {
                 TransactionType tx = PickTransactionFromDistribution();
@@ -126,13 +128,11 @@ namespace Client.Workload
                 SubmitTransaction(txId);
                 this.currentTid++;
 
-                //if (!Shared.ResultQueue.Reader.TryRead(out var _))
-                //{
-                //    // either read or wake up when run finishes...
-                //    await Task.WhenAny(Shared.ResultQueue.Reader.ReadAsync().AsTask(), Task.Delay(execTime-s.Elapsed));
-                //}
-
-                await Shared.ResultQueue.Reader.ReadAsync();
+                if (!Shared.ResultQueue.Reader.TryRead(out var _))
+                {
+                    // either read or wake up when run finishes...
+                    await Task.WhenAny(Shared.ResultQueue.Reader.ReadAsync().AsTask(), Task.Delay(execTime - s.Elapsed));
+                }
 
                 // throttle
                 if (this.delayBetweenRequests > 0)
@@ -167,6 +167,8 @@ namespace Client.Workload
             }
             return TransactionType.NONE;
         }
+
+        private static readonly byte ITEM = 0;
 
         private void SubmitTransaction(TransactionInput txId)
         {
@@ -205,7 +207,7 @@ namespace Client.Workload
                     case TransactionType.UPDATE_DELIVERY:
                     {
                         var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConstants.DeliveryWorkerNameSpace, "0");
-                        streamOutgoing.OnNextAsync(txId.tid).ContinueWith(x=> Shared.ResultQueue.Writer.WriteAsync(0));
+                        streamOutgoing.OnNextAsync(txId.tid).ContinueWith(x=> Shared.ResultQueue.Writer.WriteAsync(ITEM));
                         break;
                     }
                     // seller worker
@@ -213,7 +215,7 @@ namespace Client.Workload
                     {
                         long grainID = this.keyGeneratorPerWorkloadType[txId.type].Sample();
                         var streamOutgoing = this.streamProvider.GetStream<TransactionInput>(StreamingConstants.SellerWorkerNameSpace, grainID.ToString());
-                        streamOutgoing.OnNextAsync(txId).ContinueWith(x => Shared.ResultQueue.Writer.WriteAsync(0));
+                        streamOutgoing.OnNextAsync(txId).ContinueWith(x => Shared.ResultQueue.Writer.WriteAsync(ITEM));
                         break;
                     }
                     case TransactionType.PRICE_UPDATE:

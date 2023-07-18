@@ -4,7 +4,8 @@
 	(
         int tid,
 		TransactionType type,
-		double period
+		double totalMilliseconds,
+		DateTime endTimestamp
 	);
 }
 

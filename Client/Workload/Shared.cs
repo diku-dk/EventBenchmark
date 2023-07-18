@@ -9,7 +9,7 @@ namespace Client.Workload
         public static readonly BlockingCollection<object> WaitHandle = new BlockingCollection<object>();
         public static readonly BlockingCollection<TransactionInput> Workload = new BlockingCollection<TransactionInput>();
 
-        public static readonly Channel<int> ResultQueue = Channel.CreateUnbounded<int>(new UnboundedChannelOptions()
+        public static readonly Channel<byte> ResultQueue = Channel.CreateUnbounded<byte>(new UnboundedChannelOptions()
         {
             SingleWriter = false,
             SingleReader = true,
