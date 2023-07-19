@@ -8,11 +8,9 @@ namespace Grains.WorkerInterfaces
 	{
         Task Init(SellerWorkerConfig sellerConfig, List<Product> products);
 
-        Task<List<Latency>> Collect(DateTime finishTime);
+        Task<(List<TransactionIdentifier>, List<TransactionOutput>)> Collect();
 
         Task<long> GetProductId();
-
-        Task RegisterFinishedTransaction(TransactionOutput output);
 
         Task<Product> GetProduct();
     }

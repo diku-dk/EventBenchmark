@@ -15,7 +15,7 @@ namespace Client.Experiment
         public string connectionString { get; set; }
 
         public int numCustomers { get; set; }
-        public int avgNumProdPerSeller { get; set; }
+        public int numProdPerSeller { get; set; }
 
         public IngestionConfig ingestionConfig { get; set; }
 

@@ -1,6 +1,5 @@
 ﻿using DuckDB.NET.Data;
 using Microsoft.Extensions.Logging;
-using System;
 
 namespace Client.DataGeneration
 {
@@ -71,10 +70,7 @@ namespace Client.DataGeneration
 
             while (remainingProducts > 0)
             {
-                numProductsForSeller = this.random.Next(1, config.avgNumProdPerSeller + 1);
-
-                //
-                numProductsForSeller = Math.Min(numProductsForSeller, remainingProducts);
+                numProductsForSeller = Math.Min(config.numProdPerSeller, remainingProducts);
 
                 // create seller
                 GenerateSeller(command, currSellerId);

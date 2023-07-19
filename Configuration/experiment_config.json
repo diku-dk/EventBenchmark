@@ -1,13 +1,13 @@
 ﻿{
   "enabled": true,
   "executionTime": 10000,
-  "epoch": 2500,
+  "epoch": 2000,
   "delayBetweenRequests": 0,
   "delayBetweenRuns": 10000,
   "concurrencyLevel": 2048,
   "connectionString": "Data Source=file.db",
   "numCustomers": 1000,
-  "avgNumProdPerSeller": 15,
+  "numProdPerSeller": 10,
   "transactionDistribution": {
     "PRICE_UPDATE": 99,
     "DELETE_PRODUCT": 100
@@ -26,7 +26,7 @@
       "customerDistribution": "UNIFORM",
       "sellerDistribution": "UNIFORM",
       "keyDistribution": "UNIFORM"
-    },
+    }
     //{
     //  "numProducts": 1000,
     //  "customerDistribution": "UNIFORM",

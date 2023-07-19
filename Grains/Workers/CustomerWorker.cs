@@ -36,8 +36,7 @@ namespace Grains.Workers
         // the object respective to this worker
         private Customer customer;
 
-        private readonly IDictionary<long, TransactionIdentifier> submittedTransactions;
-        private readonly IDictionary<long, TransactionOutput> finishedTransactions;
+        private readonly List<TransactionIdentifier> submittedTransactions;
 
         private readonly ILogger<CustomerWorker> logger;
 
@@ -45,8 +44,7 @@ namespace Grains.Workers
         {
             this.logger = logger;
             this.random = new Random();
-            this.submittedTransactions = new Dictionary<long, TransactionIdentifier>();
-            this.finishedTransactions = new Dictionary<long, TransactionOutput>();
+            this.submittedTransactions = new List<TransactionIdentifier>();
         }
 
         public override async Task OnActivateAsync(CancellationToken cancellationToken)
@@ -82,7 +80,6 @@ namespace Grains.Workers
                 new Zipf(0.80, this.config.sellerRange.max, new Random());
 
             this.submittedTransactions.Clear();
-            this.finishedTransactions.Clear();
 
             return Task.CompletedTask;
         }
@@ -105,14 +102,19 @@ namespace Grains.Workers
             List<Product> list = new(numberOfProducts);
             ISellerWorker sellerWorker;
             long sellerId;
+            List<Task<Product>> tasksToAwait = new();
             for (int i = 0; i < numberOfProducts; i++)
             {
                 sellerId = this.sellerIdGenerator.Sample();
                 sellerWorker = GrainFactory.GetGrain<ISellerWorker>(sellerId);
 
+                tasksToAwait.Add(sellerWorker.GetProduct());
+            }
+            await Task.WhenAll(tasksToAwait);
+            foreach(var task in tasksToAwait)
+            {
                 // we dont measure the performance of the benchmark, only the system. as long as we can submit enough workload we are fine
-                var product = await sellerWorker.GetProduct();
-                list.Add(product);
+                list.Add(task.Result);
             }
             return list;
         }
@@ -219,7 +221,7 @@ namespace Grains.Workers
             }
             if (resp.IsSuccessStatusCode)
             {
-                submittedTransactions.Add(txId.tid, txId);
+                submittedTransactions.Add(txId);
                 return;
             }
 
@@ -235,7 +237,7 @@ namespace Grains.Workers
                 return;
             }
 
-            submittedTransactions.Add(txId.tid, txId);
+            submittedTransactions.Add(txId);
             // very unlikely to have another price update (depending on the distribution)            
         }
 
@@ -397,28 +399,9 @@ namespace Grains.Workers
             HttpUtils.client.Send(message);
         }
 
-        public Task<List<Latency>> Collect(DateTime finishTime)
+        public Task<List<TransactionIdentifier>> Collect()
         {
-            var targetValues = finishedTransactions.Values.Where(e => e.timestamp.CompareTo(finishTime) <= 0);
-            var latencyList = new List<Latency>(targetValues.Count());
-            foreach (var entry in targetValues)
-            {
-                if (!submittedTransactions.ContainsKey(entry.tid))
-                {
-                    logger.LogWarning("Cannot find correspondent submitted TID from finished transaction {0}", entry);
-                    continue;
-                }
-                var init = submittedTransactions[entry.tid];
-                latencyList.Add(new Latency(entry.tid, init.type,
-                    (entry.timestamp - init.timestamp).TotalMilliseconds, entry.timestamp));
-            }
-            return Task.FromResult(latencyList);
-        }
-
-        public Task RegisterFinishedTransaction(TransactionOutput output)
-        {
-            finishedTransactions.Add(output.tid, output);
-            return Task.CompletedTask;
+            return Task.FromResult(submittedTransactions);
         }
 
     }

@@ -9,7 +9,6 @@ using Common.Distribution;
 using Common.Workload;
 using Common.Workload.Metrics;
 using Common.Requests;
-using System.Collections.Concurrent;
 using Orleans.Concurrency;
 using Grains.WorkerInterfaces;
 using MathNet.Numerics.Distributions;
@@ -36,16 +35,16 @@ namespace Grains.Workers
 
         private readonly IDictionary<long,byte> deletedProducts;
 
-        private readonly IDictionary<long,TransactionIdentifier> submittedTransactions;
-        private readonly IDictionary<long, TransactionOutput> finishedTransactions;
+        private readonly List<TransactionIdentifier> submittedTransactions;
+        private readonly List<TransactionOutput> finishedTransactions;
 
         public SellerWorker(ILogger<SellerWorker> logger)
         {
             this.logger = logger;
             this.random = new Random();
             this.deletedProducts = new Dictionary<long,byte>();
-            this.submittedTransactions = new Dictionary<long, TransactionIdentifier>();
-            this.finishedTransactions = new Dictionary<long, TransactionOutput>();
+            this.submittedTransactions = new List<TransactionIdentifier>();
+            this.finishedTransactions = new List<TransactionOutput>();
         }
 
         public Task Init(SellerWorkerConfig sellerConfig, List<Product> products)
@@ -117,12 +116,11 @@ namespace Grains.Workers
             {
                 this.logger.LogDebug("Seller {0}: Dashboard will be queried...", this.sellerId);
                 HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, config.sellerUrl + "/" + this.sellerId);
-                this.submittedTransactions.Add(tid, new TransactionIdentifier(tid, TransactionType.DASHBOARD, DateTime.UtcNow));
-                //var response = await HttpUtils.client.SendAsync(message);
+                this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.DASHBOARD, DateTime.UtcNow));
                 var response = HttpUtils.client.Send(message);
                 if (response.IsSuccessStatusCode)
                 {
-                    this.finishedTransactions.Add(tid, new TransactionOutput(tid, DateTime.UtcNow));
+                    this.finishedTransactions.Add(new TransactionOutput(tid, DateTime.UtcNow));
                     this.logger.LogDebug("Seller {0}: Dashboard retrieved.", this.sellerId);
                 } else
                 {
@@ -164,8 +162,7 @@ namespace Grains.Workers
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Delete, config.productUrl);
             message.Content = HttpUtils.BuildPayload(obj);
 
-            this.submittedTransactions.Add(tid, new TransactionIdentifier(tid, TransactionType.DELETE_PRODUCT, DateTime.UtcNow));
-            //var resp = await HttpUtils.client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead);
+            this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.DELETE_PRODUCT, DateTime.UtcNow));
             var resp = HttpUtils.client.Send(message, HttpCompletionOption.ResponseHeadersRead);
 
             if (resp.IsSuccessStatusCode)
@@ -237,8 +234,7 @@ namespace Grains.Workers
             string serializedObject = JsonConvert.SerializeObject(new UpdatePrice(this.sellerId, productToUpdate.product_id, newPrice, tid));
             request.Content = HttpUtils.BuildPayload(serializedObject);
 
-            this.submittedTransactions.Add(tid, new TransactionIdentifier(tid, TransactionType.PRICE_UPDATE, DateTime.UtcNow));
-            // var resp = await HttpUtils.client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+            this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.PRICE_UPDATE, DateTime.UtcNow));
             var resp = HttpUtils.client.Send(request, HttpCompletionOption.ResponseHeadersRead);
 
             if (resp.IsSuccessStatusCode)
@@ -262,33 +258,10 @@ namespace Grains.Workers
             return Task.FromResult(products[idx]);
         }
 
-        public Task<List<Latency>> Collect(DateTime finishTime)
+        public Task<(List<TransactionIdentifier>, List<TransactionOutput>)> Collect()
         {
-            var targetValues = finishedTransactions.Values.Where(e => e.timestamp.CompareTo(finishTime) <= 0);
-            var latencyList = new List<Latency>(targetValues.Count());
-            foreach (var entry in targetValues)
-            {
-                if (!submittedTransactions.ContainsKey(entry.tid))
-                {
-                    logger.LogWarning("Cannot find correspondent submitted TID from finished transaction {0}", entry);
-                    continue;
-                }
-                var init = submittedTransactions[entry.tid];
-                latencyList.Add(new Latency(entry.tid, init.type,
-                    (entry.timestamp - init.timestamp).TotalMilliseconds, entry.timestamp));
-            }
-            return Task.FromResult(latencyList);
+            return Task.FromResult((submittedTransactions, finishedTransactions));
         }
 
-        public Task RegisterFinishedTransaction(TransactionOutput output)
-        {
-            if (!finishedTransactions.TryAdd(output.tid, output))
-            {
-                logger.LogWarning("[{0}] The specified TID has already been added to the finished set at {1}",
-                    output.timestamp, finishedTransactions[output.tid]);
-            }
-            // finishedTransactions.Add(output.tid, output);
-            return Task.CompletedTask;
-        }
     }
 }

@@ -106,7 +106,7 @@ namespace Client.Workflow
                     previousData = new SyntheticDataSourceConfig()
                     {
                         connectionString = config.connectionString,
-                        avgNumProdPerSeller = config.avgNumProdPerSeller,
+                        numProdPerSeller = config.numProdPerSeller,
                         numCustomers = config.numCustomers,
                         numProducts = run.numProducts
                     };
@@ -465,29 +465,38 @@ namespace Client.Workflow
             {
                 await RedisUtils.SubscribeStream(redisConnection, channel, token.Token, (entry) =>
                 {
-                    try
-                    {
-                        var size = entry.Values[0].Value.ToString().IndexOf("},");
-                        var str = entry.Values[0].Value.ToString().Substring(8, size - 7);
-                        var mark = JsonConvert.DeserializeObject<TransactionMark>(str);
+                    //try
+                    //{
+                        //var size = entry.Values[0].Value.ToString().IndexOf("},");
+                        //var str = entry.Values[0].Value.ToString().Substring(8, size - 7);
+                        //var mark = JsonConvert.DeserializeObject<TransactionMark>(str);
                         // logger.LogWarning("Mark read from redis: {0}", mark);
 
-                        if (mark.type == TransactionType.CUSTOMER_SESSION)
+                        while (true) {
+                            if (Shared.ResultQueue.Writer.TryWrite(ITEM)) break;
+                         }
+                        while (true)
                         {
-                            _ = Shared.ResultQueue.Writer.WriteAsync(ITEM);
-                            // TODO can queue these marks and them all at the end of the run... batch... so we keep the workers only fixed on submitting transactions
-                            _ = orleansClient.GetGrain<ICustomerWorker>(mark.actorId).RegisterFinishedTransaction(new TransactionOutput(mark.tid, entry.timestamp));
+                            if (Shared.FinishedTransactions.Writer.TryWrite(entry)) break;
                         }
-                        else
-                        {
-                            _ = Shared.ResultQueue.Writer.WriteAsync(ITEM);
-                            _ = orleansClient.GetGrain<ISellerWorker>(mark.actorId).RegisterFinishedTransaction(new TransactionOutput(mark.tid, entry.timestamp));
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        logger.LogError("Mark error from redis: {0}", e.Message);
-                    }
+
+                        //if (mark.type == TransactionType.CUSTOMER_SESSION)
+                        //{
+                        //    _ = Shared.ResultQueue.Writer.WriteAsync(ITEM);
+                        //    // TODO can queue these marks and them all at the end of the run... batch... so we keep the workers only fixed on submitting transactions
+                        //    _ = Shared.FinishedTransactions.Writer.WriteAsync(mark);
+                        //    _ = orleansClient.GetGrain<ICustomerWorker>(mark.actorId).RegisterFinishedTransaction(new TransactionOutput(mark.tid, entry.timestamp));
+                        //}
+                        //else
+                        //{
+                        //    _ = Shared.ResultQueue.Writer.WriteAsync(ITEM);
+                        //    _ = orleansClient.GetGrain<ISellerWorker>(mark.actorId).RegisterFinishedTransaction(new TransactionOutput(mark.tid, entry.timestamp));
+                        //}
+                    //}
+                    //catch (Exception e)
+                    //{
+                    //    logger.LogError("Mark error from redis: {0}", e.Message);
+                    //}
                 });
             }, TaskCreationOptions.LongRunning);
 

@@ -8,6 +8,9 @@ using Common.Infra;
 using Common.Workload;
 using System.Text;
 using Grains.WorkerInterfaces;
+using Client.Workload;
+using Common.Streaming;
+using static Client.Streaming.Redis.RedisUtils;
 
 namespace Client.Collection
 {
@@ -19,13 +22,124 @@ namespace Client.Collection
         private readonly CollectionConfig collectionConfig;
         private static readonly ILogger logger = LoggerProxy.GetInstance("MetricGather");
 
-        public MetricGather(IClusterClient orleansClient, List<Customer> customers, long numSellers,
-            CollectionConfig collectionConfig)
+        public MetricGather(IClusterClient orleansClient, List<Customer> customers, long numSellers, CollectionConfig collectionConfig)
 		{
             this.orleansClient = orleansClient;
             this.customers = customers;
             this.numSellers = numSellers;
             this.collectionConfig = collectionConfig;
+        }
+
+        private async Task<List<Latency>> CollectFromSeller(List<Entry> entries, DateTime finishTime)
+        {
+            List<Task<(List<TransactionIdentifier>, List<TransactionOutput>)>> taskList = new();
+            for (int i = 1; i <= numSellers; i++)
+            {
+                var sellerWorker = this.orleansClient.GetGrain<ISellerWorker>(i);
+                taskList.Add(sellerWorker.Collect());
+            }
+            await Task.WhenAll(taskList);
+
+            Dictionary<long, TransactionIdentifier> sellerSubmitted = new();
+            Dictionary<long, TransactionOutput> sellerFinished = new();
+
+            foreach (var task in taskList)
+            {
+                var res = task.Result;
+                foreach (var submitted in res.Item1)
+                {
+                    sellerSubmitted.Add(submitted.tid, submitted);
+                }
+                foreach (var finished in res.Item2)
+                {
+                    sellerFinished.Add(finished.tid, finished);
+                }
+            }
+
+            foreach(var entry in entries)
+            {
+                var size = entry.Values[0].Value.ToString().IndexOf("},");
+                var str = entry.Values[0].Value.ToString().Substring(8, size - 7);
+                var mark = JsonConvert.DeserializeObject<TransactionMark>(str);
+                // ok to pay deserialization overhead on metric collection step...
+                if (mark.type == TransactionType.CUSTOMER_SESSION) continue;
+                if (!sellerFinished.TryAdd(mark.tid, new TransactionOutput(mark.tid, entry.timestamp)))
+                {
+                    logger.LogDebug("Duplicate finished transaction entry found: Id {0} Mark {1}", entry.Id, mark);
+                }
+            }
+            return BuildLatencyList(sellerSubmitted, sellerFinished, finishTime);
+        }
+
+        private List<Latency> BuildLatencyList(Dictionary<long, TransactionIdentifier> submitted, Dictionary<long, TransactionOutput> finished, DateTime finishTime)
+        {
+            var targetValues = finished.Values.Where(e => e.timestamp.CompareTo(finishTime) <= 0);
+            var latencyList = new List<Latency>(targetValues.Count());
+            foreach (var entry in targetValues)
+            {
+                if (!submitted.ContainsKey(entry.tid))
+                {
+                    logger.LogWarning("Cannot find correspondent submitted TID from finished transaction {0}", entry);
+                    continue;
+                }
+                var init = submitted[entry.tid];
+                latencyList.Add(new Latency(entry.tid, init.type,
+                    (entry.timestamp - init.timestamp).TotalMilliseconds, entry.timestamp));
+            }
+            return latencyList;
+        }
+
+        private async Task<List<Latency>> CollectFromCustomer(List<Entry> entries, DateTime finishTime)
+        {
+            List<Task<List<TransactionIdentifier>>> taskList = new();
+            foreach (var customer in customers)
+            {
+                var customerWorker = this.orleansClient.GetGrain<ICustomerWorker>(customer.id);
+                taskList.Add(customerWorker.Collect());
+            }
+            await Task.WhenAll(taskList);
+
+            Dictionary<long, TransactionIdentifier> customerSubmitted = new();
+            Dictionary<long, TransactionOutput> customerFinished = new();
+
+            foreach (var task in taskList)
+            {
+                var res = task.Result;
+                foreach (var submitted in res)
+                {
+                    customerSubmitted.Add(submitted.tid, submitted);
+                }
+            }
+
+            foreach (var entry in entries)
+            {
+                var size = entry.Values[0].Value.ToString().IndexOf("},");
+                var str = entry.Values[0].Value.ToString().Substring(8, size - 7);
+                var mark = JsonConvert.DeserializeObject<TransactionMark>(str);
+                if (mark.type != TransactionType.CUSTOMER_SESSION) continue;
+                if (!customerFinished.TryAdd(mark.tid, new TransactionOutput(mark.tid, entry.timestamp)))
+                {
+                    logger.LogDebug("Duplicate finished transaction entry found: Id {0} Mark {1}", entry.Id, mark);
+                }
+            }
+            return BuildLatencyList(customerSubmitted, customerFinished, finishTime);
+        }
+
+        private async Task<List<Latency>> CollectFromDelivery(DateTime finishTime)
+        {
+            var worker = this.orleansClient.GetGrain<IDeliveryProxy>(0);
+            var res = await worker.Collect();
+            Dictionary<long, TransactionIdentifier> deliverySubmitted = new();
+            Dictionary<long, TransactionOutput> deliveryFinished = new();
+            foreach (var submitted in res.Item1)
+            {
+                deliverySubmitted.Add(submitted.tid, submitted);
+            }
+            foreach (var finished in res.Item2)
+            {
+                deliveryFinished.Add(finished.tid, finished);
+            }
+            return BuildLatencyList(deliverySubmitted, deliveryFinished, finishTime);
         }
 
         public async Task Collect(DateTime startTime, DateTime finishTime, int epochPeriod = 0, string runName = null)
@@ -43,33 +157,25 @@ namespace Client.Collection
             sw.WriteLine("Run from {0} to {1}", startTime, finishTime);
             sw.WriteLine("===========================================");
 
-            var latencyGatherTasks = new List<Task<List<Latency>>>();
-
-            // customer workers
-            foreach (var customer in customers)
+            List<Entry> entries = new();
+            while (Shared.FinishedTransactions.Reader.TryRead(out var entry))
             {
-                var customerWorker = this.orleansClient.GetGrain<ICustomerWorker>(customer.id);
-                latencyGatherTasks.Add(customerWorker.Collect(finishTime));
+                entries.Add(entry);
             }
 
             // seller workers
-            for (int i = 1; i <= numSellers; i++)
-            {
-                var sellerWorker = this.orleansClient.GetGrain<ISellerWorker>(i);
-                latencyGatherTasks.Add(sellerWorker.Collect(finishTime));
-            }
-
+            var sellerLatencyList = await CollectFromSeller(entries, finishTime);
+            // customer workers
+            var customerLatencyList = await CollectFromCustomer(entries, finishTime);
             // delivery worker
-            latencyGatherTasks.Add(this.orleansClient.GetGrain<IDeliveryProxy>(0).Collect(finishTime));
+            var deliveryLatencyList = await CollectFromDelivery(finishTime);
 
-            await Task.WhenAll(latencyGatherTasks);
-
-            // store all results in another list to reuse them. if call .Result, the result cannot be accessed again....
-            var latencyGatherResults = new List<List<Latency>>();
-            foreach(var task in latencyGatherTasks)
+            var latencyGatherResults = new List<List<Latency>>
             {
-                latencyGatherResults.Add(task.Result);
-            }
+                sellerLatencyList,
+                customerLatencyList,
+                deliveryLatencyList
+            };
 
             Dictionary<TransactionType, List<double>> latencyCollPerTxType = new();
 

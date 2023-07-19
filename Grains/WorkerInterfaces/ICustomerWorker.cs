@@ -1,7 +1,6 @@
 ﻿using Common.Entities;
 using Common.Workload.Customer;
 using Common.Workload.Metrics;
-using Orleans.Concurrency;
 
 namespace Grains.WorkerInterfaces
 {
@@ -9,9 +8,6 @@ namespace Grains.WorkerInterfaces
 	{
         Task Init(CustomerWorkerConfig config, Customer customer);
 
-        Task<List<Latency>> Collect(DateTime finishTime);
-
-        [OneWay]
-        Task RegisterFinishedTransaction(TransactionOutput output);
+        Task<List<TransactionIdentifier>> Collect();
     }
 }

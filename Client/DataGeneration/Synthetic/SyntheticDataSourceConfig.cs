@@ -9,7 +9,7 @@
 
         public int numProducts { get; set; } = 50;
 
-        public int avgNumProdPerSeller { get; set; } = 5;
+        public int numProdPerSeller { get; set; } = 5;
 
         public bool createSchema { get; set; } = true;
 

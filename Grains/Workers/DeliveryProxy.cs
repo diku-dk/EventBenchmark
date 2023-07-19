@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using Orleans.Streams;
 using Orleans.Concurrency;
 using Common.Workload.Metrics;
-using System.Collections.Concurrent;
 using Common.Workload.Delivery;
 using Grains.WorkerInterfaces;
 
@@ -19,14 +18,14 @@ namespace Grains.Workers
 
         private long actorId;
 
-        private readonly IDictionary<long, TransactionIdentifier> submittedTransactions;
-        private readonly IDictionary<long, TransactionOutput> finishedTransactions;
+        private readonly List<TransactionIdentifier> submittedTransactions;
+        private readonly List<TransactionOutput> finishedTransactions;
 
         public DeliveryProxy(ILogger<DeliveryProxy> logger)
         {
             this.logger = logger;
-            this.submittedTransactions = new ConcurrentDictionary<long, TransactionIdentifier>();
-            this.finishedTransactions = new ConcurrentDictionary<long, TransactionOutput>();
+            this.submittedTransactions = new();
+            this.finishedTransactions = new();
         }
 
         public Task Init(DeliveryWorkerConfig config)
@@ -61,28 +60,15 @@ namespace Grains.Workers
             var res = await worker.Send(tid, config.shipmentUrl + "/" + tid);
             if (res.Item1.IsSuccessStatusCode)
             {
-                this.submittedTransactions.Add(tid, res.Item2);
-                this.finishedTransactions.Add(tid, res.Item3);
+                this.submittedTransactions.Add(res.Item2);
+                this.finishedTransactions.Add(res.Item3);
             }
             this.logger.LogInformation("Delivery {0}: task terminated!", this.actorId);
         }
 
-        public Task<List<Latency>> Collect(DateTime finishTime)
+        public Task<(List<TransactionIdentifier>, List<TransactionOutput>)> Collect()
         {
-            var targetValues = finishedTransactions.Values.Where(e => e.timestamp.CompareTo(finishTime) <= 0);
-            var latencyList = new List<Latency>(targetValues.Count());
-            foreach (var entry in targetValues)
-            {
-                if (!submittedTransactions.ContainsKey(entry.tid))
-                {
-                    logger.LogWarning("Cannot find correspondent submitted TID from finished transaction {0}", entry);
-                    continue;
-                }
-                var init = submittedTransactions[entry.tid];
-                latencyList.Add(new Latency(entry.tid, init.type,
-                    (entry.timestamp - init.timestamp).TotalMilliseconds, entry.timestamp));
-            }
-            return Task.FromResult(latencyList);
+            return Task.FromResult((submittedTransactions, finishedTransactions));
         }
 
     }

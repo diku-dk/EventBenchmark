@@ -22,8 +22,6 @@ namespace Client.Workload
         private readonly IDictionary<TransactionType, int> transactionDistribution;
         private readonly Random random;
 
-        // private StreamSubscriptionHandle<CustomerWorkerStatusUpdate> customerWorkerSubscription;
-
         private readonly IStreamProvider streamProvider;
 
         public readonly Dictionary<TransactionType, IDiscreteDistribution> keyGeneratorPerWorkloadType;
@@ -252,21 +250,6 @@ namespace Client.Workload
             }
 
         }
-
-        //private Task UpdateCustomerStatusAsync(CustomerWorkerStatusUpdate update, StreamSequenceToken token = null)
-        //{
-        //    var old = this.customerStatusCache[update.customerId];
-        //    this.logger.LogDebug("Attempt to update customer worker {0} status in cache. Previous {1} Update {2}",
-        //        update.customerId, old, update.status);
-        //    this.customerStatusCache[update.customerId] = update.status;
-        //    return Task.CompletedTask;
-        //}
-
-        //private async Task SetUpCustomerWorkerListener()
-        //{
-        //    IAsyncStream<CustomerWorkerStatusUpdate> resultStream = streamProvider.GetStream<CustomerWorkerStatusUpdate>(StreamId.Create(StreamingConstants.CustomerWorkerNameSpace, StreamingConstants.TransactionNameSpace));
-        //    this.customerWorkerSubscription = await resultStream.SubscribeAsync(UpdateCustomerStatusAsync);
-        //}
 
     }
 }

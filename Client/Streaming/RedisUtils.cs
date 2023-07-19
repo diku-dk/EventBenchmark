@@ -84,7 +84,7 @@ namespace Client.Streaming.Redis
                         };
 
                     // ExecuteAsync does not take a CancellationToken, so we have to wait the block time
-                    // before resonding to a cancellation request.
+                    // before responding to a cancellation request
                     var result = await db.ExecuteAsync("XREAD", arguments).ConfigureAwait(false);
 
                     if (!result.IsNull)
@@ -97,8 +97,6 @@ namespace Client.Streaming.Redis
                             foreach (RedisResult[] messages in (RedisResult[])subresults[1])
                             {
                                 var id = (RedisValue)messages[0];
-                                // it does not work. redis streams still delivers duplicates
-                                //if (id.Equals(currentId)) continue;
                                 currentId = id;
 
                                 var nameValuePairs = (RedisResult[])messages[1];
