@@ -10,13 +10,13 @@ namespace Grains.Workers
     public class DeliveryWorker : Grain, IDeliveryWorker
 	{
 
-        public Task<(HttpResponseMessage, TransactionIdentifier, TransactionOutput)> Send(int tid, string url)
+        public Task<(bool IsSuccessStatusCode, TransactionIdentifier, TransactionOutput)> Send(int tid, string url)
         {
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, url);
             var init = new TransactionIdentifier(tid, TransactionType.UPDATE_DELIVERY, DateTime.UtcNow);
             var resp = HttpUtils.client.Send(message);
             var end = new TransactionOutput(tid, DateTime.UtcNow);
-            return Task.FromResult((resp, init, end));
+            return Task.FromResult((resp.IsSuccessStatusCode, init, end));
         }
     }
 }

@@ -20,11 +20,21 @@ namespace Client.DataGeneration
         /**
          * Create tables
          */
-        private void Prepare(DuckDBConnection connection)
+        public void CreateSchema(DuckDBConnection connection)
         {
             var command = connection.CreateCommand();
             // add remaining tables
             foreach (var entry in mapTableToCreateStmt)
+            {
+                command.CommandText = entry.Value;
+                command.ExecuteNonQuery();
+            }
+        }
+
+        public void TruncateTables(DuckDBConnection connection, bool truncateCustomersTable = false)
+        {
+            var command = connection.CreateCommand();
+            foreach (var entry in mapTableToTruncateStmt)
             {
                 command.CommandText = entry.Value;
                 command.ExecuteNonQuery();
@@ -52,11 +62,6 @@ namespace Client.DataGeneration
 
         public override void Generate(DuckDBConnection connection, bool genCustomer = false)
         {
-            if (config.createSchema)
-            {
-                Prepare(connection);
-            }
-
             logger.LogInformation("Synthetic data generation started.");
 
             // products, stock, and link to respective sellers

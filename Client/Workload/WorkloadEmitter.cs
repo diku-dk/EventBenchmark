@@ -187,6 +187,7 @@ namespace Client.Workload
                             if (count == 10)
                             {
                                 logger.LogWarning("[Workload emitter] Could not find an available customer! Perhaps should increase the number of customer next time?");
+                                while (!Shared.ResultQueue.Writer.TryWrite(ITEM)) { }
                                 return;
                             }
                             grainID = this.keyGeneratorPerWorkloadType[txId.type].Sample();

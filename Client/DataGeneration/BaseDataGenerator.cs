@@ -38,6 +38,14 @@ namespace Client.DataGeneration
                             "success_payment_count INTEGER, failed_payment_count INTEGER, delivery_count INTEGER, abandoned_cart_count INTEGER, data VARCHAR);"
         };
 
+        protected readonly Dictionary<string, string> mapTableToTruncateStmt = new()
+        {
+            ["sellers"] = "DELETE FROM sellers;",
+            ["products"] = "DELETE FROM products;",
+            ["stock_items"] = "DELETE FROM stock_items;",
+            // ["customers"] = "DELETE FROM customers;"
+        };
+
         protected readonly string baseSellerQuery = "INSERT INTO sellers(id, name, company_name, email, phone, mobile_phone, cpf, cnpj, address, complement, city, state, zip_code_prefix, order_count) VALUES ";
 
         protected readonly string baseProductQuery = "INSERT INTO products (seller_id, product_id, name, sku, category, description, price, freight_value, active, status) VALUES ";
@@ -45,9 +53,9 @@ namespace Client.DataGeneration
         protected readonly string baseStockQuery = "INSERT INTO stock_items (seller_id, product_id, qty_available, qty_reserved, order_count, ytd, data) VALUES ";
 
         protected readonly string baseCustomerQuery = "INSERT INTO customers (id, first_name, last_name, address, complement, birth_date, " +
-                    "zip_code, city, state, " +
-                    "card_number, card_security_number, card_expiration, card_holder_name, card_type, " +
-                    "success_payment_count, failed_payment_count, delivery_count, abandoned_cart_count, data) VALUES ";
+                                                        "zip_code, city, state, " +
+                                                        "card_number, card_security_number, card_expiration, card_holder_name, card_type, " +
+                                                        "success_payment_count, failed_payment_count, delivery_count, abandoned_cart_count, data) VALUES ";
 
         public abstract void Generate(DuckDBConnection conection, bool genCustomer = false);
 

@@ -16,27 +16,27 @@
   "runs": [
     {
       "numProducts": 1000,
-      "customerDistribution": "NON_UNIFORM",
-      "sellerDistribution": "NON_UNIFORM",
-      "keyDistribution": "NON_UNIFORM"
+      "customerDistribution": "UNIFORM",
+      "sellerDistribution": "UNIFORM",
+      "keyDistribution": "UNIFORM"
     },
     {
       "numProducts": 1000,
       "customerDistribution": "UNIFORM",
-      "sellerDistribution": "UNIFORM",
-      "keyDistribution": "UNIFORM"
-    },
-    {
-      "numProducts": 10000,
-      "customerDistribution": "NON_UNIFORM",
-      "sellerDistribution": "NON_UNIFORM",
-      "keyDistribution": "NON_UNIFORM"
+      "sellerDistribution": "ZIPFIAN",
+      "keyDistribution": "ZIPFIAN"
     },
     {
       "numProducts": 10000,
       "customerDistribution": "UNIFORM",
       "sellerDistribution": "UNIFORM",
       "keyDistribution": "UNIFORM"
+    },
+    {
+      "numProducts": 10000,
+      "customerDistribution": "UNIFORM",
+      "sellerDistribution": "ZIPFIAN",
+      "keyDistribution": "ZIPFIAN"
     }
   ],
   "postRunTasks": [
@@ -163,6 +163,10 @@
     "delayBetweenRequestsRange": {
       "min": 1,
       "max": 1000
+    },
+    "adjustRange": {
+      "min": 1,
+      "max": 10
     },
     "sellerUrl": "http://dapr:5006",
     "productUrl": "http://dapr:5008"

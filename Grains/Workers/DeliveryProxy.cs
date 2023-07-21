@@ -58,7 +58,7 @@ namespace Grains.Workers
             this.logger.LogInformation("Delivery {0}: Task started", this.actorId);
             var worker = GrainFactory.GetGrain<IDeliveryWorker>(0);
             var res = await worker.Send(tid, config.shipmentUrl + "/" + tid);
-            if (res.Item1.IsSuccessStatusCode)
+            if (res.Item1)
             {
                 this.submittedTransactions.Add(res.Item2);
                 this.finishedTransactions.Add(res.Item3);

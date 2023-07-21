@@ -14,8 +14,8 @@ using static Client.Streaming.Redis.RedisUtils;
 
 namespace Client.Collection
 {
-	public class MetricGather
-	{
+    public class MetricGather
+    {
         private readonly IClusterClient orleansClient;
         private readonly List<Customer> customers;
         private readonly long numSellers;
@@ -23,7 +23,7 @@ namespace Client.Collection
         private static readonly ILogger logger = LoggerProxy.GetInstance("MetricGather");
 
         public MetricGather(IClusterClient orleansClient, List<Customer> customers, long numSellers, CollectionConfig collectionConfig)
-		{
+        {
             this.orleansClient = orleansClient;
             this.customers = customers;
             this.numSellers = numSellers;
@@ -56,7 +56,7 @@ namespace Client.Collection
                 }
             }
 
-            foreach(var entry in entries)
+            foreach (var entry in entries)
             {
                 var size = entry.Values[0].Value.ToString().IndexOf("},");
                 var str = entry.Values[0].Value.ToString().Substring(8, size - 7);
@@ -68,10 +68,10 @@ namespace Client.Collection
                     logger.LogDebug("Duplicate finished transaction entry found: Id {0} Mark {1}", entry.Id, mark);
                 }
             }
-            return BuildLatencyList(sellerSubmitted, sellerFinished, finishTime);
+            return BuildLatencyList(sellerSubmitted, sellerFinished, finishTime, "seller");
         }
 
-        private List<Latency> BuildLatencyList(Dictionary<long, TransactionIdentifier> submitted, Dictionary<long, TransactionOutput> finished, DateTime finishTime)
+        private List<Latency> BuildLatencyList(Dictionary<long, TransactionIdentifier> submitted, Dictionary<long, TransactionOutput> finished, DateTime finishTime, string workerType = "")
         {
             var targetValues = finished.Values.Where(e => e.timestamp.CompareTo(finishTime) <= 0);
             var latencyList = new List<Latency>(targetValues.Count());
@@ -79,12 +79,18 @@ namespace Client.Collection
             {
                 if (!submitted.ContainsKey(entry.tid))
                 {
-                    logger.LogWarning("Cannot find correspondent submitted TID from finished transaction {0}", entry);
+                    logger.LogWarning("[{0}] Cannot find correspondent submitted TID from finished transaction {0}", workerType, entry);
                     continue;
                 }
                 var init = submitted[entry.tid];
-                latencyList.Add(new Latency(entry.tid, init.type,
-                    (entry.timestamp - init.timestamp).TotalMilliseconds, entry.timestamp));
+                var latency = (entry.timestamp - init.timestamp).TotalMilliseconds;
+                if(latency < 0)
+                {
+                    logger.LogWarning("[{0}] Negative latency found for TID {1}. Init {2} End {3}", workerType, entry.tid, init, entry);
+                    continue;
+                }
+                latencyList.Add(new Latency(entry.tid, init.type, latency, entry.timestamp));
+                
             }
             return latencyList;
         }
@@ -122,7 +128,7 @@ namespace Client.Collection
                     logger.LogDebug("Duplicate finished transaction entry found: Id {0} Mark {1}", entry.Id, mark);
                 }
             }
-            return BuildLatencyList(customerSubmitted, customerFinished, finishTime);
+            return BuildLatencyList(customerSubmitted, customerFinished, finishTime, "customer");
         }
 
         private async Task<List<Latency>> CollectFromDelivery(DateTime finishTime)
@@ -139,7 +145,7 @@ namespace Client.Collection
             {
                 deliveryFinished.Add(finished.tid, finished);
             }
-            return BuildLatencyList(deliverySubmitted, deliveryFinished, finishTime);
+            return BuildLatencyList(deliverySubmitted, deliveryFinished, finishTime, "delivery");
         }
 
         public async Task Collect(DateTime startTime, DateTime finishTime, int epochPeriod = 0, string runName = null)
@@ -150,7 +156,8 @@ namespace Client.Collection
             StreamWriter sw;
             if (runName is not null)
                 sw = new StreamWriter(string.Format("results_{0}.txt", runName));
-            else {
+            else
+            {
                 string unixTimeMilliSeconds = new DateTimeOffset(startTime).ToUnixTimeMilliseconds().ToString();
                 sw = new StreamWriter(string.Format("results_{0}.txt", unixTimeMilliSeconds));
             }
@@ -180,7 +187,7 @@ namespace Client.Collection
             Dictionary<TransactionType, List<double>> latencyCollPerTxType = new();
 
             var txTypeValues = Enum.GetValues(typeof(TransactionType)).Cast<TransactionType>().ToList();
-            foreach(var txType in txTypeValues)
+            foreach (var txType in txTypeValues)
             {
                 latencyCollPerTxType.Add(txType, new List<double>());
             }
@@ -188,17 +195,18 @@ namespace Client.Collection
             int countTid = 0;
             foreach (var list in latencyGatherResults)
             {
-                foreach(var entry in list)
+                foreach (var entry in list)
                 {
                     latencyCollPerTxType[entry.type].Add(entry.totalMilliseconds);
                 }
                 countTid += list.Count;
             }
 
-            foreach(var entry in latencyCollPerTxType)
+            foreach (var entry in latencyCollPerTxType)
             {
                 double avg = 0;
-                if(entry.Value.Count > 0){
+                if (entry.Value.Count > 0)
+                {
                     avg = entry.Value.Average();
                 }
                 logger.LogInformation("Transaction: {0} - Average end-to-end latency: {1}", entry.Key, avg.ToString());
@@ -218,9 +226,9 @@ namespace Client.Collection
             sw.WriteLine("===========================================");
 
             // TODO calculate percentiles
-            if(epochPeriod > 0)
+            if (epochPeriod > 0)
             {
-             
+
                 // break down latencies by end timestamp
                 int blocks = (int)executionTime.TotalMilliseconds / epochPeriod;
                 logger.LogInformation("{0} blocks for epoch {1}", blocks, epochPeriod);
@@ -241,9 +249,9 @@ namespace Client.Collection
                     foreach (var entry in list)
                     {
                         // find the block the entry belongs to
-                        var span = entry.endTimestamp.Subtract( startTime );
+                        var span = entry.endTimestamp.Subtract(startTime);
                         int idx = (int)(span.TotalMilliseconds / epochPeriod);
-                        if(idx < 0 || idx >= breakdown.Count)
+                        if (idx < 0 || idx >= breakdown.Count)
                         {
                             logger.LogWarning("Entry outside breakdown boundary. Finish time is {0} and the entry is {1}", finishTime, entry);
                             continue;
@@ -253,11 +261,11 @@ namespace Client.Collection
                 }
 
                 int blockIdx = 1;
-                foreach(var block in breakdown)
+                foreach (var block in breakdown)
                 {
 
-                    logger.LogInformation("Block {0} results:", blocks);
-                    sw.WriteLine("Block {0} results:", blockIdx+1);
+                    logger.LogInformation("Block {0} results:", blockIdx);
+                    sw.WriteLine("Block {0} results:", blockIdx);
 
                     // iterating over each transaction type in block
                     int blockCountTid = 0;
@@ -325,13 +333,14 @@ namespace Client.Collection
                 {
                     sw.WriteLine("App: {0} Count: {1}", entry.Key, entry.Value);
                 }
-                
-            }catch(Exception e)
+
+            }
+            catch (Exception e)
             {
                 logger.LogError("It was not possible to contact metric collection API healthcheck on {0}. Error: {1}", urlMetric, e.Message);
             }
 
-            end_of_file:
+        end_of_file:
 
             sw.WriteLine("=================    THE END   ================");
             sw.Flush();

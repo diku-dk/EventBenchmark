@@ -13,14 +13,12 @@ using Client.Streaming.Redis;
 using Common.Infra;
 using Client.Collection;
 using Client.Cleaning;
-using Newtonsoft.Json;
 using System.Text;
 using Client.Experiment;
 using Common.Workload.Customer;
 using Common.Workload.Seller;
 using Common.Workload.Delivery;
 using Grains.WorkerInterfaces;
-using Common.Workload.Metrics;
 
 namespace Client.Workflow
 {
@@ -88,7 +86,10 @@ namespace Client.Workflow
                 }
             }
 
-            new SyntheticDataGenerator(previousData).GenerateCustomers(connection, previousData.numCustomers);
+            var dataGen = new SyntheticDataGenerator(previousData);
+            dataGen.CreateSchema(connection);
+            // dont need to generate customers on every run. only once
+            dataGen.GenerateCustomers(connection, previousData.numCustomers);
             // customers are fixed accross runs
             customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
 
@@ -102,6 +103,8 @@ namespace Client.Workflow
 
                 if (run.numProducts != previousData.numProducts)
                 {
+                    logger.LogInformation("Run #{0} number of products changed from last run {0}", runIdx, runIdx-1);
+
                     // update previous
                     previousData = new SyntheticDataSourceConfig()
                     {
@@ -112,17 +115,29 @@ namespace Client.Workflow
                     };
                     var syntheticDataGenerator = new SyntheticDataGenerator(previousData);
 
-                    // dont need to generate customers on every run. only once
-                    syntheticDataGenerator.Generate(connection, false);
+                    // must truncate if not first run
+                    if (runIdx > 0)
+                        syntheticDataGenerator.TruncateTables(connection);
+
+                    syntheticDataGenerator.Generate(connection);
                     
                     var ingestionOrchestrator = new IngestionOrchestrator(config.ingestionConfig);
                     await ingestionOrchestrator.Run(connection);
+
+                    if (runIdx == 0)
+                    {
+                        // remove customers from ingestion config from now on
+                        config.ingestionConfig.mapTableToUrl.Remove("customers");
+                    }
 
                     // get number of sellers
                     numSellers = DuckDbUtils.Count(connection, "sellers");
                 }
 
-                await PrepareWorkers(orleansClient, config.transactionDistribution, config.customerWorkerConfig, config.sellerWorkerConfig, config.deliveryWorkerConfig, customers, numSellers, connection);
+                logger.LogInformation("Waiting 10 seconds for initial convergence (stock <-> product <-> cart)");
+                await Task.WhenAll(
+                    PrepareWorkers(orleansClient, config.transactionDistribution, config.customerWorkerConfig, config.sellerWorkerConfig, config.deliveryWorkerConfig, customers, numSellers, connection),
+                    Task.Delay(TimeSpan.FromSeconds(10)) );
 
                 WorkloadEmitter emitter = new WorkloadEmitter(
                     orleansClient,
@@ -145,7 +160,7 @@ namespace Client.Workflow
 
                 // set up data collection for metrics
                 MetricGather metricGather = new MetricGather(orleansClient, customers, numSellers, null);
-                await metricGather.Collect(startTime, finishTime, config.epoch, string.Format("{0}_{1}_{2}_{3}", runIdx, run.numProducts, run.sellerDistribution, run.keyDistribution));
+                await metricGather.Collect(startTime, finishTime, config.epoch, string.Format("#{0}_{1}_{2}_{3}_{4}", runIdx, config.concurrencyLevel, run.numProducts, run.sellerDistribution, run.keyDistribution));
 
                 // trim first to avoid receiving events after the post run task
                 // await TrimStreams(config.streamingConfig.host, config.streamingConfig.port, config.streamingConfig.streams.ToList());
@@ -275,7 +290,8 @@ namespace Client.Workflow
                 {
                     var syntheticDataGenerator = new SyntheticDataGenerator(syntheticDataConfig);
                     connection.Open();
-                    syntheticDataGenerator.Generate(connection);
+                    syntheticDataGenerator.CreateSchema(connection);
+                    syntheticDataGenerator.Generate(connection, true);
                 }
             }
 
@@ -465,38 +481,13 @@ namespace Client.Workflow
             {
                 await RedisUtils.SubscribeStream(redisConnection, channel, token.Token, (entry) =>
                 {
-                    //try
-                    //{
-                        //var size = entry.Values[0].Value.ToString().IndexOf("},");
-                        //var str = entry.Values[0].Value.ToString().Substring(8, size - 7);
-                        //var mark = JsonConvert.DeserializeObject<TransactionMark>(str);
-                        // logger.LogWarning("Mark read from redis: {0}", mark);
-
-                        while (true) {
-                            if (Shared.ResultQueue.Writer.TryWrite(ITEM)) break;
-                         }
-                        while (true)
-                        {
-                            if (Shared.FinishedTransactions.Writer.TryWrite(entry)) break;
+                    while (true) {
+                        if (Shared.ResultQueue.Writer.TryWrite(ITEM)) break;
                         }
-
-                        //if (mark.type == TransactionType.CUSTOMER_SESSION)
-                        //{
-                        //    _ = Shared.ResultQueue.Writer.WriteAsync(ITEM);
-                        //    // TODO can queue these marks and them all at the end of the run... batch... so we keep the workers only fixed on submitting transactions
-                        //    _ = Shared.FinishedTransactions.Writer.WriteAsync(mark);
-                        //    _ = orleansClient.GetGrain<ICustomerWorker>(mark.actorId).RegisterFinishedTransaction(new TransactionOutput(mark.tid, entry.timestamp));
-                        //}
-                        //else
-                        //{
-                        //    _ = Shared.ResultQueue.Writer.WriteAsync(ITEM);
-                        //    _ = orleansClient.GetGrain<ISellerWorker>(mark.actorId).RegisterFinishedTransaction(new TransactionOutput(mark.tid, entry.timestamp));
-                        //}
-                    //}
-                    //catch (Exception e)
-                    //{
-                    //    logger.LogError("Mark error from redis: {0}", e.Message);
-                    //}
+                    while (true)
+                    {
+                        if (Shared.FinishedTransactions.Writer.TryWrite(entry)) break;
+                    }
                 });
             }, TaskCreationOptions.LongRunning);
 

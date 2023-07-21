@@ -1,5 +1,4 @@
-﻿using System.Net;
-using System.Text;
+﻿using System.Text;
 using Common.Http;
 using Common.Workload.Customer;
 using Common.Entities;
@@ -28,15 +27,13 @@ namespace Grains.Workers
 
         private IDiscreteDistribution sellerIdGenerator;
 
-        // private IAsyncStream<CustomerWorkerStatusUpdate> txStream;
-
         // the customer this worker is simulating
         private long customerId;
 
         // the object respective to this worker
         private Customer customer;
 
-        private readonly List<TransactionIdentifier> submittedTransactions;
+        private readonly LinkedList<TransactionIdentifier> submittedTransactions;
 
         private readonly ILogger<CustomerWorker> logger;
 
@@ -44,7 +41,7 @@ namespace Grains.Workers
         {
             this.logger = logger;
             this.random = new Random();
-            this.submittedTransactions = new List<TransactionIdentifier>();
+            this.submittedTransactions = new LinkedList<TransactionIdentifier>();
         }
 
         public override async Task OnActivateAsync(CancellationToken cancellationToken)
@@ -62,11 +59,6 @@ namespace Grains.Workers
                 }
             }
             await stream.SubscribeAsync<int>(Run);
-
-            //this.txStream = streamProvider
-            //    .GetStream<CustomerWorkerStatusUpdate>(StreamId
-            //    .Create(StreamingConstants.CustomerWorkerNameSpace, StreamingConstants.TransactionNameSpace));
-            
         }
 
         public Task Init(CustomerWorkerConfig config, Customer customer)
@@ -82,6 +74,45 @@ namespace Grains.Workers
             this.submittedTransactions.Clear();
 
             return Task.CompletedTask;
+        }
+
+        public async Task Run(int tid, StreamSequenceToken token)
+        {
+            this.logger.LogInformation("Customer worker {0} starting new TID: {1}", this.customerId, tid);
+
+            int numberOfKeysToBrowse = random.Next(1, this.config.maxNumberKeysToBrowse + 1);
+
+            this.logger.LogInformation("Customer {0} number of keys to browse: {1}", customerId, numberOfKeysToBrowse);
+
+            if (config.interactive)
+            {
+                var keyMap = await DefineKeysToBrowseAsync(numberOfKeysToBrowse);
+
+                await Browse(keyMap);
+
+                // TODO should we also model this behavior?
+                int numberOfKeysToCheckout =
+                    random.Next(1, Math.Min(numberOfKeysToBrowse, this.config.maxNumberKeysToAddToCart) + 1);
+
+                // adding to cart
+                try
+                {
+                    await AddItemsToCart(DefineKeysToCheckout(keyMap.ToList(), numberOfKeysToCheckout));
+                    GetCart();
+                    Checkout(tid);
+                }
+                catch (Exception e)
+                {
+                    this.logger.LogError(e.Message);
+                }
+            }
+            else
+            {
+                int numberOfKeysToCheckout = random.Next(1, this.config.maxNumberKeysToAddToCart + 1);
+                var products = await DefineProductsToCheckout(numberOfKeysToCheckout);
+                await AddItemsToCart(products);
+                Checkout(tid);
+            }
         }
 
         /**
@@ -148,45 +179,6 @@ namespace Grains.Workers
             return keyMap;
         }
 
-        public async Task Run(int tid, StreamSequenceToken token)
-        {
-            this.logger.LogInformation("Customer worker {0} starting new TID: {1}", this.customerId, tid);
-
-            int numberOfKeysToBrowse = random.Next(1, this.config.maxNumberKeysToBrowse + 1);
-
-            this.logger.LogInformation("Customer {0} number of keys to browse: {1}", customerId, numberOfKeysToBrowse);
-
-            if (config.interactive)
-            {
-                var keyMap = await DefineKeysToBrowseAsync(numberOfKeysToBrowse);
-
-                await Browse(keyMap);
-
-                // TODO should we also model this behavior?
-                int numberOfKeysToCheckout =
-                    random.Next(1, Math.Min(numberOfKeysToBrowse, this.config.maxNumberKeysToAddToCart) + 1);
-
-                // adding to cart
-                try
-                {
-                    await AddItemsToCart(DefineKeysToCheckout(keyMap.ToList(), numberOfKeysToCheckout));
-                    GetCart();
-                    Checkout(tid);
-                }
-                catch (Exception e)
-                {
-                    this.logger.LogError(e.Message);
-                }
-            } else
-            {
-                int numberOfKeysToCheckout = random.Next(1, this.config.maxNumberKeysToAddToCart + 1);
-                var products = await DefineProductsToCheckout(numberOfKeysToCheckout);
-                await AddItemsToCart(products);
-                Checkout(tid);
-            }
-            // await txStream.OnNextAsync(new CustomerWorkerStatusUpdate(this.customerId, CustomerWorkerStatus.IDLE));
-        }
-
         /**
          * Simulating the customer browsing the cart before checkout
          * could verify whether the cart contains all the products chosen, otherwise throw exception
@@ -212,19 +204,17 @@ namespace Grains.Workers
             // inform checkout intent. optional feature
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, this.config.cartUrl + "/" + this.customerId + "/checkout");
             message.Content = BuildCheckoutPayload(tid, this.customer);
-            TransactionIdentifier txId = null;
-            txId = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, DateTime.UtcNow);
+            TransactionIdentifier txId = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, DateTime.UtcNow);
             HttpResponseMessage resp = HttpUtils.client.Send(message);
-            if (resp == null)
+            if (resp is not null && resp.IsSuccessStatusCode)
             {
-                return;
-            }
-            if (resp.IsSuccessStatusCode)
+                submittedTransactions.AddLast(txId);
+            } else
             {
-                submittedTransactions.Add(txId);
-                return;
+                InformFailedCheckout();
             }
 
+            /*
             // perhaps there is price divergence. checking out again means the customer agrees with the new prices
             if(resp.StatusCode == HttpStatusCode.MethodNotAllowed)
             {
@@ -238,7 +228,8 @@ namespace Grains.Workers
             }
 
             submittedTransactions.Add(txId);
-            // very unlikely to have another price update (depending on the distribution)            
+            // very unlikely to have another price update (depending on the distribution)
+            */
         }
 
         private async Task AddItemsToCart(List<Product> products)
@@ -401,7 +392,7 @@ namespace Grains.Workers
 
         public Task<List<TransactionIdentifier>> Collect()
         {
-            return Task.FromResult(submittedTransactions);
+            return Task.FromResult(submittedTransactions.ToList());
         }
 
     }
