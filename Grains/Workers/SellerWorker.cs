@@ -28,6 +28,8 @@ namespace Grains.Workers
 
         private IDiscreteDistribution productIdGenerator;
 
+        private readonly HttpClient httpClient;
+
         private readonly ILogger<SellerWorker> logger;
 
         // to support: (i) customer product retrieval and (ii) the delete operation, since it uses a search string
@@ -38,8 +40,9 @@ namespace Grains.Workers
         private readonly List<TransactionIdentifier> submittedTransactions;
         private readonly List<TransactionOutput> finishedTransactions;
 
-        public SellerWorker(ILogger<SellerWorker> logger)
+        public SellerWorker(HttpClient httpClient, ILogger<SellerWorker> logger)
         {
+            this.httpClient = httpClient;
             this.logger = logger;
             this.random = new Random();
             this.deletedProducts = new Dictionary<long,byte>();
@@ -117,7 +120,7 @@ namespace Grains.Workers
                 this.logger.LogDebug("Seller {0}: Dashboard will be queried...", this.sellerId);
                 HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, config.sellerUrl + "/" + this.sellerId);
                 this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.DASHBOARD, DateTime.UtcNow));
-                var response = HttpUtils.client.Send(message);
+                var response = httpClient.Send(message);
                 if (response.IsSuccessStatusCode)
                 {
                     this.finishedTransactions.Add(new TransactionOutput(tid, DateTime.UtcNow));
@@ -163,7 +166,7 @@ namespace Grains.Workers
             message.Content = HttpUtils.BuildPayload(obj);
 
             this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.DELETE_PRODUCT, DateTime.UtcNow));
-            var resp = HttpUtils.client.Send(message, HttpCompletionOption.ResponseHeadersRead);
+            var resp = httpClient.Send(message, HttpCompletionOption.ResponseHeadersRead);
 
             if (resp.IsSuccessStatusCode)
             {
@@ -181,7 +184,7 @@ namespace Grains.Workers
         {
             // [query string](https://en.wikipedia.org/wiki/Query_string)
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, config.productUrl + "/" + this.sellerId);
-            HttpResponseMessage response = HttpUtils.client.Send( message );
+            HttpResponseMessage response = httpClient.Send( message );
           
             // deserialize response
             if (response.IsSuccessStatusCode)
@@ -234,16 +237,17 @@ namespace Grains.Workers
             string serializedObject = JsonConvert.SerializeObject(new UpdatePrice(this.sellerId, productToUpdate.product_id, newPrice, tid));
             request.Content = HttpUtils.BuildPayload(serializedObject);
 
-            this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.PRICE_UPDATE, DateTime.UtcNow));
-            var resp = HttpUtils.client.Send(request, HttpCompletionOption.ResponseHeadersRead);
-
+            var initTime = DateTime.UtcNow;
+            var resp = httpClient.Send(request, HttpCompletionOption.ResponseHeadersRead);
             if (resp.IsSuccessStatusCode)
             {
+                this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.PRICE_UPDATE, initTime));
                 this.logger.LogDebug("Seller {0}: Finished product {1} price update.", this.sellerId, productToUpdate.product_id);
-                return;
             }
-            this.logger.LogError("Seller {0} failed to update product {1} price: {2}", this.sellerId, productToUpdate.product_id, resp.ReasonPhrase);
-
+            else
+            {
+                this.logger.LogError("Seller {0} failed to update product {1} price: {2}", this.sellerId, productToUpdate.product_id, resp.ReasonPhrase);
+            }
         }
 
         public Task<long> GetProductId()

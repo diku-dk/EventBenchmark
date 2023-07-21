@@ -2,7 +2,6 @@
 using Orleans.Runtime.Messaging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Orleans.Providers;
 using Orleans.Serialization;
 
 namespace Client.Infra
@@ -24,21 +23,13 @@ namespace Client.Infra
                                     .AddMemoryStreams(StreamingConstants.DefaultStreamProvider)
                                     .AddClusterConnectionLostHandler((x,y) =>
                                     {
-                                        // LoggerProxy.GetInstance("ClusterConnectionLostHandler").LogCritical("Connection to cluster has been lost");
                                         Console.WriteLine("Connection to cluster has been lost");
                                         _siloFailedTask.SetResult();
                                     }).Services.AddSerializer(ser => {
                                         ser.AddNewtonsoftJsonSerializer(isSupported: type => type.Namespace.StartsWith("Common"));
                                     })
-                                    // .AddBroadcastChannel(StreamingConstants.DefaultStreamProvider, options => options.FireAndForgetDelivery = true)
                                 )
                                 .UseConsoleLifetime()
-                                //.ConfigureLogging(logging =>
-                                //{
-                                //    logging.ClearProviders();
-                                //    logging.AddConsole();
-                                //    logging.SetMinimumLevel(LogLevel.Error);
-                                //})
                                 .Build();
                 
                 try

@@ -147,7 +147,7 @@ namespace Client.Workload
             logger.LogInformation("[Workload emitter] Histogram:");
             foreach(var entry in histogram)
             {
-                logger.LogInformation("[{0}] - {1}", entry.Key, entry.Value);
+                logger.LogInformation("{0}: {1}", entry.Key, entry.Value);
             }
 
             return (startTime, finishTime);

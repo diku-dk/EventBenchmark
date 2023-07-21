@@ -35,10 +35,13 @@ namespace Grains.Workers
 
         private readonly LinkedList<TransactionIdentifier> submittedTransactions;
 
+        private readonly HttpClient httpClient;
+
         private readonly ILogger<CustomerWorker> logger;
 
-        public CustomerWorker(ILogger<CustomerWorker> logger)
+        public CustomerWorker(HttpClient httpClient, ILogger<CustomerWorker> logger)
         {
+            this.httpClient = httpClient;
             this.logger = logger;
             this.random = new Random();
             this.submittedTransactions = new LinkedList<TransactionIdentifier>();
@@ -186,7 +189,7 @@ namespace Grains.Workers
         private void GetCart()
         {
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, this.config.cartUrl + "/" + this.customerId);
-            HttpUtils.client.Send(message);
+            httpClient.Send(message);
         }
 
         private void Checkout(int tid)
@@ -199,27 +202,29 @@ namespace Grains.Workers
                 return;
             }
 
-            this.logger.LogInformation("Customer {0} decided to send a checkout.", this.customerId);
-
+            this.logger.LogInformation("Customer {0} decided to send a checkout", this.customerId);
             // inform checkout intent. optional feature
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, this.config.cartUrl + "/" + this.customerId + "/checkout");
             message.Content = BuildCheckoutPayload(tid, this.customer);
-            TransactionIdentifier txId = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, DateTime.UtcNow);
-            HttpResponseMessage resp = HttpUtils.client.Send(message);
-            if (resp is not null && resp.IsSuccessStatusCode)
+            var now = DateTime.UtcNow;
+            HttpResponseMessage resp = httpClient.Send(message);
+            if (resp.IsSuccessStatusCode)
             {
+                TransactionIdentifier txId = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, now);
                 submittedTransactions.AddLast(txId);
             } else
             {
+                logger.LogDebug("Customer {0} failed checkout for TID {0} at {1}. Status {2}", customerId, tid, now, resp.StatusCode);
                 InformFailedCheckout();
             }
 
             /*
+             * TODO add config param Resubmit on Checkout Reject
             // perhaps there is price divergence. checking out again means the customer agrees with the new prices
             if(resp.StatusCode == HttpStatusCode.MethodNotAllowed)
             {
                 txId = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, DateTime.UtcNow);
-                resp = HttpUtils.client.Send(message);
+                resp = httpClient.Send(message);
             }
 
             if (resp == null || !resp.IsSuccessStatusCode)
@@ -244,7 +249,7 @@ namespace Grains.Workers
                 {
                     HttpRequestMessage message2 = new HttpRequestMessage(HttpMethod.Patch, this.config.cartUrl + "/" + customerId + "/add");
                     message2.Content = payload;
-                    response = HttpUtils.client.Send(message2);
+                    response = httpClient.Send(message2);
                 }
                 catch (Exception e)
                 {
@@ -265,7 +270,7 @@ namespace Grains.Workers
                 try
                 {
                     HttpRequestMessage message1 = new HttpRequestMessage(HttpMethod.Get, this.config.productUrl + "/" + entry.sellerId + "/" + entry.productId);
-                    response = HttpUtils.client.Send(message1);
+                    response = httpClient.Send(message1);
 
                     // add to cart
                     if (response.Content.Headers.ContentLength == 0)
@@ -288,7 +293,7 @@ namespace Grains.Workers
                     message2.Content = payload;
 
                     this.logger.LogInformation("Customer {0}: Sending seller {1} product {2} payload to cart...", this.customerId, entry.sellerId, entry.productId);
-                    response = HttpUtils.client.Send(message2);
+                    response = httpClient.Send(message2);
                 }
                 catch (Exception e)
                 {
@@ -311,7 +316,7 @@ namespace Grains.Workers
                 this.logger.LogInformation("Customer {0} browsing seller {1} product {2}", this.customerId, entry.sellerId, entry.productId);
                 delay = this.random.Next(this.config.delayBetweenRequestsRange.min, this.config.delayBetweenRequestsRange.max + 1);
                 HttpRequestMessage msg = new HttpRequestMessage(HttpMethod.Get, this.config.productUrl + "/" + entry.sellerId + "/" + entry.productId);
-                HttpUtils.client.Send(msg);
+                httpClient.Send(msg);
                 // artificial delay after retrieving the product
                 await Task.Delay(delay);
             }
@@ -387,7 +392,7 @@ namespace Grains.Workers
         {
             // just cleaning cart state for next browsing
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, this.config.cartUrl + "/" + customerId + "/seal");
-            HttpUtils.client.Send(message);
+            httpClient.Send(message);
         }
 
         public Task<List<TransactionIdentifier>> Collect()

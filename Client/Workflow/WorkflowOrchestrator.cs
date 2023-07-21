@@ -82,7 +82,7 @@ namespace Client.Workflow
                     var channel = new StringBuilder(nameof(TransactionMark)).Append('_').Append(type.ToString()).ToString();
                     var token = new CancellationTokenSource();
                     tokens.Add(token);
-                    listeningTasks.Add(SubscribeToRedisStream(orleansClient, redisConnection, channel, token));
+                    listeningTasks.Add(SubscribeToRedisStream(redisConnection, channel, token));
                 }
             }
 
@@ -339,7 +339,7 @@ namespace Client.Workflow
                     var channel = new StringBuilder(nameof(TransactionMark)).Append('_').Append(type.ToString()).ToString();
                     var token = new CancellationTokenSource();
                     tokens.Add(token);
-                    listeningTasks.Add(SubscribeToRedisStream(orleansClient, redisConnection, channel, token));
+                    listeningTasks.Add(SubscribeToRedisStream(redisConnection, channel, token));
                 }
 
                 // setup transaction orchestrator
@@ -475,19 +475,14 @@ namespace Client.Workflow
         // a way to circumvent that is deleting the streams right after reading them all and delivering them to the handler
         // https://redis.io/commands/xtrim/
         // ...
-        private static Task SubscribeToRedisStream(IClusterClient orleansClient, string redisConnection, string channel, CancellationTokenSource token)
+        private static Task SubscribeToRedisStream(string redisConnection, string channel, CancellationTokenSource token)
         {
             return Task.Factory.StartNew(async () =>
             {
                 await RedisUtils.SubscribeStream(redisConnection, channel, token.Token, (entry) =>
                 {
-                    while (true) {
-                        if (Shared.ResultQueue.Writer.TryWrite(ITEM)) break;
-                        }
-                    while (true)
-                    {
-                        if (Shared.FinishedTransactions.Writer.TryWrite(entry)) break;
-                    }
+                    while (!Shared.ResultQueue.Writer.TryWrite(ITEM)) { }
+                    while (!Shared.FinishedTransactions.Writer.TryWrite(entry)) { }
                 });
             }, TaskCreationOptions.LongRunning);
 

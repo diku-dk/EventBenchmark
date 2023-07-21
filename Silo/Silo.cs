@@ -2,11 +2,23 @@
 using Microsoft.Extensions.Logging;
 using Common.Streaming;
 using Orleans.Serialization;
+using Microsoft.Extensions.DependencyInjection;
 
 var builder = new HostBuilder()
    .UseOrleans(siloBuilder =>
     {
         siloBuilder
+            .ConfigureServices(services =>
+            {
+                services.AddHttpClient("default").ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler {
+                    UseProxy = false,
+                    Proxy = null,
+                    UseCookies = false,
+                    AllowAutoRedirect = false,
+                    PreAuthenticate = false,
+                    
+                });
+            })
             .UseLocalhostClustering()
             .AddMemoryStreams(StreamingConstants.DefaultStreamProvider)
             .AddMemoryGrainStorage(StreamingConstants.DefaultStreamStorage)
@@ -18,6 +30,7 @@ var builder = new HostBuilder()
             }).Services.AddSerializer(ser => {
                 ser.AddNewtonsoftJsonSerializer(isSupported: type => type.Namespace.StartsWith("Common"));
             })
+               
         ;
     });
 

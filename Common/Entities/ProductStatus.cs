@@ -1,5 +1,4 @@
-﻿using System;
-namespace Common.Entities
+﻿namespace Common.Entities
 {
     public class ProductStatus
     {
@@ -8,6 +7,8 @@ namespace Common.Entities
         public decimal UnitPrice { get; set; } = 0;
         public decimal OldUnitPrice { get; set; } = 0;
         public int QtyAvailable { get; set; } = 0;
+
+        public ProductStatus() { }
 
         public ProductStatus(long id, ItemStatus status, decimal price, decimal oldPrice)
         {
