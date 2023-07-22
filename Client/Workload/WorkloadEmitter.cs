@@ -86,7 +86,7 @@ namespace Client.Workload
         }
 
         // volatile because for some reason the runtime is sending old TIDs, making it duplicated inside the workers...
-        private volatile int currentTid = 1;
+        private int currentTid = 1;
 
         // two classes of transactions:
         // a.eventual complete
@@ -129,13 +129,13 @@ namespace Client.Workload
                 if (!Shared.ResultQueue.Reader.TryRead(out var _))
                 {
                     // either read or wake up when run finishes...
-                    await Task.WhenAny(Shared.ResultQueue.Reader.ReadAsync().AsTask(), Task.Delay(execTime - s.Elapsed));
+                    await Task.WhenAny(Shared.ResultQueue.Reader.ReadAsync().AsTask(), Task.Delay(execTime - s.Elapsed)).ConfigureAwait(true);
                 }
 
                 // throttle
                 if (this.delayBetweenRequests > 0)
                 {
-                    await Task.Delay(this.delayBetweenRequests);
+                    await Task.Delay(this.delayBetweenRequests).ConfigureAwait(true);
                 }
                 
             }

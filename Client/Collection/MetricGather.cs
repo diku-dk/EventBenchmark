@@ -30,8 +30,34 @@ namespace Client.Collection
             this.collectionConfig = collectionConfig;
         }
 
+        private List<Latency> BuildLatencyList(Dictionary<long, TransactionIdentifier> submitted, Dictionary<long, TransactionOutput> finished, DateTime finishTime, string workerType = "")
+        {
+            var targetValues = finished.Values.Where(e => e.timestamp.CompareTo(finishTime) <= 0);
+            var latencyList = new List<Latency>(targetValues.Count());
+            foreach (var entry in targetValues)
+            {
+                if (!submitted.ContainsKey(entry.tid))
+                {
+                    logger.LogWarning("[{0}] Cannot find correspondent submitted TID from finished transaction {0}", workerType, entry);
+                    continue;
+                }
+                var init = submitted[entry.tid];
+                var latency = (entry.timestamp - init.timestamp).TotalMilliseconds;
+                if (latency < 0)
+                {
+                    logger.LogWarning("[{0}] Negative latency found for TID {1}. Init {2} End {3}", workerType, entry.tid, init, entry);
+                    continue;
+                }
+                latencyList.Add(new Latency(entry.tid, init.type, latency, entry.timestamp));
+
+            }
+            return latencyList;
+        }
+
         private async Task<List<Latency>> CollectFromSeller(List<Entry> entries, DateTime finishTime)
         {
+            int dupSub = 0;
+            int dupFin = 0;
             List<Task<(List<TransactionIdentifier>, List<TransactionOutput>)>> taskList = new();
             for (int i = 1; i <= numSellers; i++)
             {
@@ -48,11 +74,19 @@ namespace Client.Collection
                 var res = task.Result;
                 foreach (var submitted in res.Item1)
                 {
-                    sellerSubmitted.Add(submitted.tid, submitted);
+                    if (!sellerSubmitted.TryAdd(submitted.tid, submitted))
+                    {
+                        dupSub++;
+                        logger.LogDebug("Duplicate submitted transaction entry found. Existing {0} New {1} ", sellerSubmitted[submitted.tid], submitted);
+                    }
                 }
                 foreach (var finished in res.Item2)
                 {
-                    sellerFinished.Add(finished.tid, finished);
+                    if (!sellerFinished.TryAdd(finished.tid, finished))
+                    {
+                        dupFin++;
+                        logger.LogDebug("Duplicate finished transaction entry found. Existing {0} New {1} ", sellerFinished[finished.tid], finished);
+                    }
                 }
             }
 
@@ -65,38 +99,23 @@ namespace Client.Collection
                 if (mark.type == TransactionType.CUSTOMER_SESSION) continue;
                 if (!sellerFinished.TryAdd(mark.tid, new TransactionOutput(mark.tid, entry.timestamp)))
                 {
-                    logger.LogDebug("Duplicate finished transaction entry found: Id {0} Mark {1}", entry.Id, mark);
+                    dupFin++;
+                    logger.LogDebug("Duplicate finished transaction entry found: Id {0} Existing {1} New {2}", entry.Id, sellerFinished[mark.tid], mark);
                 }
             }
-            return BuildLatencyList(sellerSubmitted, sellerFinished, finishTime, "seller");
-        }
 
-        private List<Latency> BuildLatencyList(Dictionary<long, TransactionIdentifier> submitted, Dictionary<long, TransactionOutput> finished, DateTime finishTime, string workerType = "")
-        {
-            var targetValues = finished.Values.Where(e => e.timestamp.CompareTo(finishTime) <= 0);
-            var latencyList = new List<Latency>(targetValues.Count());
-            foreach (var entry in targetValues)
-            {
-                if (!submitted.ContainsKey(entry.tid))
-                {
-                    logger.LogWarning("[{0}] Cannot find correspondent submitted TID from finished transaction {0}", workerType, entry);
-                    continue;
-                }
-                var init = submitted[entry.tid];
-                var latency = (entry.timestamp - init.timestamp).TotalMilliseconds;
-                if(latency < 0)
-                {
-                    logger.LogWarning("[{0}] Negative latency found for TID {1}. Init {2} End {3}", workerType, entry.tid, init, entry);
-                    continue;
-                }
-                latencyList.Add(new Latency(entry.tid, init.type, latency, entry.timestamp));
-                
-            }
-            return latencyList;
+            if(dupSub > 0)
+                logger.LogWarning("[Seller] Number of duplicated submitted transactions found: {0}", dupSub);
+            if (dupFin > 0)
+                logger.LogWarning("[Seller] Number of duplicated finished transactions found: {0}", dupFin);
+
+            return BuildLatencyList(sellerSubmitted, sellerFinished, finishTime, "seller");
         }
 
         private async Task<List<Latency>> CollectFromCustomer(List<Entry> entries, DateTime finishTime)
         {
+            int dupSub = 0;
+            int dupFin = 0;
             List<Task<List<TransactionIdentifier>>> taskList = new();
             foreach (var customer in customers)
             {
@@ -113,7 +132,11 @@ namespace Client.Collection
                 var res = task.Result;
                 foreach (var submitted in res)
                 {
-                    customerSubmitted.Add(submitted.tid, submitted);
+                    if(!customerSubmitted.TryAdd(submitted.tid, submitted))
+                    {
+                        dupSub++;
+                        logger.LogDebug("Duplicate submitted transaction entry found. Existing {0} New {1} ", customerSubmitted[submitted.tid], submitted);
+                    }
                 }
             }
 
@@ -125,26 +148,47 @@ namespace Client.Collection
                 if (mark.type != TransactionType.CUSTOMER_SESSION) continue;
                 if (!customerFinished.TryAdd(mark.tid, new TransactionOutput(mark.tid, entry.timestamp)))
                 {
+                    dupFin++;
                     logger.LogDebug("Duplicate finished transaction entry found: Id {0} Mark {1}", entry.Id, mark);
                 }
             }
+
+            if (dupSub > 0)
+                logger.LogWarning("[Customer] Number of duplicated submitted transactions found: {0}", dupSub);
+            if (dupFin > 0)
+                logger.LogWarning("[Customer] Number of duplicated finished transactions found: {0}", dupFin);
+
             return BuildLatencyList(customerSubmitted, customerFinished, finishTime, "customer");
         }
 
         private async Task<List<Latency>> CollectFromDelivery(DateTime finishTime)
         {
+            int dupSub = 0;
+            int dupFin = 0;
             var worker = this.orleansClient.GetGrain<IDeliveryProxy>(0);
             var res = await worker.Collect();
             Dictionary<long, TransactionIdentifier> deliverySubmitted = new();
             Dictionary<long, TransactionOutput> deliveryFinished = new();
             foreach (var submitted in res.Item1)
             {
-                deliverySubmitted.Add(submitted.tid, submitted);
+                if(!deliverySubmitted.TryAdd(submitted.tid, submitted))
+                {
+                    dupSub++;
+                }
             }
             foreach (var finished in res.Item2)
             {
-                deliveryFinished.Add(finished.tid, finished);
+                if(!deliveryFinished.TryAdd(finished.tid, finished))
+                {
+                    dupFin++;
+                }
             }
+
+            if (dupSub > 0)
+                logger.LogWarning("[Delivery] Number of duplicated submitted transactions found: {0}", dupSub);
+            if (dupFin > 0)
+                logger.LogWarning("[Delivery] Number of duplicated finished transactions found: {0}", dupFin);
+
             return BuildLatencyList(deliverySubmitted, deliveryFinished, finishTime, "delivery");
         }
 

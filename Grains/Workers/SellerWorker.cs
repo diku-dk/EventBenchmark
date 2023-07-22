@@ -152,7 +152,7 @@ namespace Grains.Workers
             {
                 if(count == 10)
                 {
-                    this.logger.LogWarning("Seller {0}: Cannot define a product to delete! Cancelling this request!", this.sellerId);
+                    this.logger.LogWarning("Seller {0}: Cannot define a product to delete! Cancelling this request at {0}", this.sellerId, DateTime.UtcNow);
                     return;
                 }
                 idx = this.productIdGenerator.Sample() - 1;

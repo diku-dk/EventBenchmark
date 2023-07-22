@@ -126,7 +126,7 @@ namespace Client.Ingestion
 
         private void ConsumeShared(BlockingCollection<JObject> tuples, string url, long rowCount, TaskCompletionSource tcs)
         {
-            // logger.LogInformation("Ingestion worker ID {0} has started", Environment.CurrentManagedThreadId);
+            logger.LogDebug("Ingestion worker ID {0} has started", Environment.CurrentManagedThreadId);
             JObject jobject;
             do
             {
@@ -137,7 +137,7 @@ namespace Client.Ingestion
                     ConvertAndSend(jobject, url);
                 }
             } while (Volatile.Read(ref totalCount) < rowCount);
-            // logger.LogInformation("Ingestion worker ID {0} has finished", Environment.CurrentManagedThreadId);
+            logger.LogDebug("Ingestion worker ID {0} has finished", Environment.CurrentManagedThreadId);
             tcs.SetResult();
         }
 

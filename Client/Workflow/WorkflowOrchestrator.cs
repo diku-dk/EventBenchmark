@@ -136,7 +136,7 @@ namespace Client.Workflow
 
                 logger.LogInformation("Waiting 10 seconds for initial convergence (stock <-> product <-> cart)");
                 await Task.WhenAll(
-                    PrepareWorkers(orleansClient, config.transactionDistribution, config.customerWorkerConfig, config.sellerWorkerConfig, config.deliveryWorkerConfig, customers, numSellers, connection),
+                    PrepareWorkers(orleansClient, config.transactionDistribution, config.customerWorkerConfig, config.sellerWorkerConfig, config.deliveryWorkerConfig, customers, numSellers, connection, runIdx == 0),
                     Task.Delay(TimeSpan.FromSeconds(10)) );
 
                 WorkloadEmitter emitter = new WorkloadEmitter(
@@ -420,7 +420,7 @@ namespace Client.Workflow
 
         public static async Task PrepareWorkers(IClusterClient orleansClient, IDictionary<TransactionType,int> transactionDistribution,
              CustomerWorkerConfig customerWorkerConfig, SellerWorkerConfig sellerWorkerConfig, DeliveryWorkerConfig deliveryWorkerConfig,
-             List<Customer> customers, long numSellers, DuckDBConnection connection)
+             List<Customer> customers, long numSellers, DuckDBConnection connection, bool initCustomers = true)
         {
             logger.LogInformation("Preparing workers...");
             List<Task> tasks = new();
@@ -429,7 +429,7 @@ namespace Client.Workflow
             customerWorkerConfig.sellerRange = new Interval(1, (int)numSellers);
 
             // activate all customer workers
-            if (transactionDistribution.ContainsKey(TransactionType.CUSTOMER_SESSION))
+            if (initCustomers && transactionDistribution.ContainsKey(TransactionType.CUSTOMER_SESSION))
             {
                 var endValue = DuckDbUtils.Count(connection, "products");
                 if (endValue < customerWorkerConfig.maxNumberKeysToBrowse || endValue < customerWorkerConfig.maxNumberKeysToAddToCart)
@@ -443,13 +443,14 @@ namespace Client.Workflow
                     tasks.Add(customerWorker.Init(customerWorkerConfig, customer));
                 }
                 await Task.WhenAll(tasks);
+                logger.LogInformation("{0} customers workers cleared!", customers.Count);
+                tasks.Clear();
             }
 
             // make sure to activate all sellers so they can respond to customers when required
             // another solution is making them read from the microservice itself...
             if (transactionDistribution.ContainsKey(TransactionType.PRICE_UPDATE) || transactionDistribution.ContainsKey(TransactionType.DELETE_PRODUCT) || transactionDistribution.ContainsKey(TransactionType.DASHBOARD))
             {
-                tasks.Clear();
                 for (int i = 1; i <= numSellers; i++)
                 {
                     List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
@@ -457,7 +458,7 @@ namespace Client.Workflow
                     tasks.Add(sellerWorker.Init(sellerWorkerConfig, products));
                 }
                 await Task.WhenAll(tasks);
-                logger.LogInformation("{0} Seller workers cleared!", numSellers);
+                logger.LogInformation("{0} seller workers cleared!", numSellers);
             }
 
             // activate delivery worker
