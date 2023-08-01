@@ -12,7 +12,6 @@ using Common.Requests;
 using Common.Workload;
 using Common.Workload.Metrics;
 using Orleans.Concurrency;
-using Orleans.Runtime;
 using MathNet.Numerics.Distributions;
 
 namespace Grains.Workers
@@ -51,9 +50,8 @@ namespace Grains.Workers
         {
             this.customerId = this.GetPrimaryKeyLong();
             var streamProvider = this.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
-            var streamId = StreamId.Create(StreamingConstants.CustomerWorkerNameSpace, customerId.ToString());
-            var stream = streamProvider.GetStream<int>(streamId);
-            var subscriptionHandles_ = await stream.GetAllSubscriptionHandles();
+            var workloadStream = streamProvider.GetStream<int>(StreamingConstants.SellerWorkerNameSpace, this.customerId.ToString());
+            var subscriptionHandles_ = await workloadStream.GetAllSubscriptionHandles();
             if (subscriptionHandles_.Count > 0)
             {
                 foreach (var subscriptionHandle in subscriptionHandles_)
@@ -61,7 +59,7 @@ namespace Grains.Workers
                     await subscriptionHandle.ResumeAsync(Run);
                 }
             }
-            await stream.SubscribeAsync<int>(Run);
+            await workloadStream.SubscribeAsync(Run);
         }
 
         public Task Init(CustomerWorkerConfig config, Customer customer)

@@ -4,7 +4,6 @@ using Common.Distribution;
 using Common.Infra;
 using Common.Streaming;
 using Common.Workload;
-using Common.Workload.Customer;
 using Common.Workload.Seller;
 using Microsoft.Extensions.Logging;
 using Orleans.Streams;
@@ -26,7 +25,8 @@ namespace Client.Workload
 
         public readonly Dictionary<TransactionType, IDiscreteDistribution> keyGeneratorPerWorkloadType;
 
-        private readonly ConcurrentDictionary<long, CustomerWorkerStatus> customerStatusCache;
+        private readonly ConcurrentDictionary<long, WorkerStatus> customerStatusCache;
+        private readonly ConcurrentDictionary<long, WorkerStatus> sellerStatusCache;
 
         private readonly int executionTime;
         private readonly int concurrencyLevel;
@@ -72,6 +72,17 @@ namespace Client.Workload
                                     new DiscreteUniform(customerRange.min, customerRange.max, new Random()) :
                                     new Zipf(0.80, customerRange.max, new Random());
 
+            this.sellerStatusCache = new();
+            for (int i = sellerRange.min; i < sellerRange.max; i++)
+            {
+                this.sellerStatusCache.TryAdd(i, WorkerStatus.IDLE);
+            }
+            this.customerStatusCache = new();
+            for (int i = customerRange.min; i < customerRange.max; i++)
+            {
+                this.customerStatusCache.TryAdd(i, WorkerStatus.IDLE);
+            }
+
             this.keyGeneratorPerWorkloadType = new()
             {
                 [TransactionType.PRICE_UPDATE] = sellerIdGenerator,
@@ -79,8 +90,6 @@ namespace Client.Workload
                 [TransactionType.DASHBOARD] = sellerIdGenerator,
                 [TransactionType.CUSTOMER_SESSION] = customerIdGenerator
             };
-
-            this.customerStatusCache = new();
 
             this.logger = LoggerProxy.GetInstance("WorkloadEmitter");
         }
@@ -95,9 +104,6 @@ namespace Client.Workload
         // for a is tricky, we never know when it completes
         public async Task<(DateTime startTime, DateTime finishTime)> Run()
 		{
-
-            //await SetUpCustomerWorkerListener();
-
             logger.LogInformation("[Workload emitter] Started sending batch of transactions with concurrency level {0}", this.concurrencyLevel);
 
             Stopwatch s = new Stopwatch();
@@ -118,19 +124,13 @@ namespace Client.Workload
 
             while (s.Elapsed < execTime)
             {
-                // wait for results
-                // logger.LogInformation("[Workload emitter] Retrieving a result...");
                 TransactionType tx = PickTransactionFromDistribution();
                 histogram[tx]++;
                 var txId = new TransactionInput(this.currentTid, tx);
                 SubmitTransaction(txId);
                 this.currentTid++;
 
-                if (!Shared.ResultQueue.Reader.TryRead(out var _))
-                {
-                    // either read or wake up when run finishes...
-                    await Task.WhenAny(Shared.ResultQueue.Reader.ReadAsync().AsTask(), Task.Delay(execTime - s.Elapsed)).ConfigureAwait(true);
-                }
+                while (!Shared.ResultQueue.Reader.TryRead(out var _) && s.Elapsed < execTime) { }
 
                 // throttle
                 if (this.delayBetweenRequests > 0)
@@ -178,11 +178,9 @@ namespace Client.Workload
                     case TransactionType.CUSTOMER_SESSION:
                     {
                         long grainID = this.keyGeneratorPerWorkloadType[txId.type].Sample();
-                        // but make sure there is no active session for the customer. if so, pick another customer
+                        // make sure there is no active session for the customer. if so, pick another customer
                         int count = 1;
-                        while ((this.customerStatusCache.ContainsKey(grainID) &&
-                                !customerStatusCache.TryUpdate(grainID, CustomerWorkerStatus.BROWSING, CustomerWorkerStatus.IDLE)) ||
-                                !customerStatusCache.TryAdd(grainID, CustomerWorkerStatus.BROWSING))
+                        while (!customerStatusCache.TryUpdate(grainID, WorkerStatus.ACTIVE, WorkerStatus.IDLE))
                         {
                             if (count == 10)
                             {
@@ -194,12 +192,8 @@ namespace Client.Workload
                             count++;
                         }
 
-                        var streamId = StreamId.Create(StreamingConstants.CustomerWorkerNameSpace, grainID.ToString());
-                        var streamOutgoing = this.streamProvider.GetStream<int>(streamId);
-
-                        streamOutgoing.OnNextAsync(txId.tid).ContinueWith(x => {
-                            this.customerStatusCache[grainID] = CustomerWorkerStatus.IDLE;
-                        });
+                        var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConstants.CustomerWorkerNameSpace, grainID.ToString());
+                        streamOutgoing.OnNextAsync(txId.tid).ContinueWith(x=>this.customerStatusCache[grainID] = WorkerStatus.IDLE);
                         break;
                     }
                     // delivery worker
@@ -211,29 +205,40 @@ namespace Client.Workload
                     }
                     // seller worker
                     case TransactionType.DASHBOARD:
-                    {
-                        long grainID = this.keyGeneratorPerWorkloadType[txId.type].Sample();
-                        var streamOutgoing = this.streamProvider.GetStream<TransactionInput>(StreamingConstants.SellerWorkerNameSpace, grainID.ToString());
-                        streamOutgoing.OnNextAsync(txId).ContinueWith(x => Shared.ResultQueue.Writer.WriteAsync(ITEM));
-                        break;
-                    }
                     case TransactionType.PRICE_UPDATE:
-                    {
-                        long grainID = this.keyGeneratorPerWorkloadType[txId.type].Sample();
-                        var grainIDStr = grainID.ToString();
-                        // logger.LogInformation("Seller worker {0} will be spawned!", grainIDStr);
-                        var streamOutgoing = this.streamProvider.GetStream<TransactionInput>(StreamingConstants.SellerWorkerNameSpace, grainIDStr);
-                        _ = streamOutgoing.OnNextAsync(txId);
-                        break;
-                    }
-                    // seller
                     case TransactionType.DELETE_PRODUCT:
                     {
                         long grainID = this.keyGeneratorPerWorkloadType[txId.type].Sample();
+
+                        int count = 1;
+                        while (!sellerStatusCache.TryUpdate(grainID, WorkerStatus.ACTIVE, WorkerStatus.IDLE))
+                        {
+                            if (count == 3)
+                            {
+                                logger.LogDebug("[Workload emitter] All sellers seem busy. Falling to a busy one...");
+                                break;
+                            }
+                            grainID = this.keyGeneratorPerWorkloadType[txId.type].Sample();
+                            count++;
+                        }
+
                         var grainIDStr = grainID.ToString();
-                        // logger.LogInformation("Seller worker {0} will be spawned!", grainIDStr);
+                        logger.LogDebug("Seller worker {0} will be spawned!", grainIDStr);
+
                         var streamOutgoing = this.streamProvider.GetStream<TransactionInput>(StreamingConstants.SellerWorkerNameSpace, grainIDStr);
-                        _ = streamOutgoing.OnNextAsync(txId);
+
+                        if (txId.type == TransactionType.DASHBOARD)
+                        {
+                            streamOutgoing.OnNextAsync(txId).ContinueWith(x =>
+                            {
+                                Shared.ResultQueue.Writer.WriteAsync(ITEM);
+                                this.sellerStatusCache[grainID] = WorkerStatus.IDLE;
+                            });
+                        }
+                        else
+                        {
+                            streamOutgoing.OnNextAsync(txId).ContinueWith(x => this.sellerStatusCache[grainID] = WorkerStatus.IDLE);
+                        }
                         break;
                     }
                     default:

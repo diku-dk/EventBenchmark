@@ -58,7 +58,7 @@ namespace Grains.Workers
             this.productIdGenerator = 
                 this.config.keyDistribution == DistributionType.UNIFORM ?
                  new DiscreteUniform(1, products.Count, new Random()) :
-                 new Zipf(0.95, products.Count, new Random());
+                 new Zipf(0.99, products.Count, new Random());
 
             this.submittedTransactions.Clear();
             this.finishedTransactions.Clear();

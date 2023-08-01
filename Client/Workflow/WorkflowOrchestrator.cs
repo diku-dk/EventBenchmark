@@ -136,7 +136,7 @@ namespace Client.Workflow
 
                 logger.LogInformation("Waiting 10 seconds for initial convergence (stock <-> product <-> cart)");
                 await Task.WhenAll(
-                    PrepareWorkers(orleansClient, config.transactionDistribution, config.customerWorkerConfig, config.sellerWorkerConfig, config.deliveryWorkerConfig, customers, numSellers, connection, runIdx == 0),
+                    PrepareWorkers(orleansClient, config.transactionDistribution, config.customerWorkerConfig, config.sellerWorkerConfig, config.deliveryWorkerConfig, customers, numSellers, connection),
                     Task.Delay(TimeSpan.FromSeconds(10)) );
 
                 WorkloadEmitter emitter = new WorkloadEmitter(
@@ -171,26 +171,23 @@ namespace Client.Workflow
                 {
                     logger.LogInformation("Post run tasks started");
                     var responses = new List<Task<HttpResponseMessage>>();
+                    List<PostRunTask> postRunTasks;
                     // must call the cleanup if next run changes number of products
-                    if (runIdx < (lastRunIdx - 1) && config.runs[runIdx + 1].numProducts != run.numProducts)
+                    if (config.runs[runIdx + 1].numProducts != run.numProducts)
                     {
                         logger.LogInformation("Next run changes the number of products.");
-                        foreach (var task in config.postExperimentTasks)
-                        {
-                            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
-                            logger.LogInformation("Post run task to URL {0}", task.url);
-                            responses.Add(HttpUtils.client.SendAsync(message));
-                        }
+                        postRunTasks = config.postExperimentTasks;
                     }
                     else
                     {
                         logger.LogInformation("Next run does not change the number of products.");
-                        foreach (var task in config.postRunTasks)
-                        {
-                            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
-                            logger.LogInformation("Post run task to URL {0}", task.url);
-                            responses.Add(HttpUtils.client.SendAsync(message));
-                        }
+                        postRunTasks = config.postRunTasks;
+                    }
+                    foreach (var task in postRunTasks)
+                    {
+                        HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
+                        logger.LogInformation("Post run task to Microservice {0} URL {1}", task.name, task.url);
+                        responses.Add(HttpUtils.client.SendAsync(message));
                     }
                     await Task.WhenAll(responses);
                     logger.LogInformation("Post run tasks finished");
@@ -420,7 +417,7 @@ namespace Client.Workflow
 
         public static async Task PrepareWorkers(IClusterClient orleansClient, IDictionary<TransactionType,int> transactionDistribution,
              CustomerWorkerConfig customerWorkerConfig, SellerWorkerConfig sellerWorkerConfig, DeliveryWorkerConfig deliveryWorkerConfig,
-             List<Customer> customers, long numSellers, DuckDBConnection connection, bool initCustomers = true)
+             List<Customer> customers, long numSellers, DuckDBConnection connection)
         {
             logger.LogInformation("Preparing workers...");
             List<Task> tasks = new();
@@ -429,7 +426,7 @@ namespace Client.Workflow
             customerWorkerConfig.sellerRange = new Interval(1, (int)numSellers);
 
             // activate all customer workers
-            if (initCustomers && transactionDistribution.ContainsKey(TransactionType.CUSTOMER_SESSION))
+            if (transactionDistribution.ContainsKey(TransactionType.CUSTOMER_SESSION))
             {
                 var endValue = DuckDbUtils.Count(connection, "products");
                 if (endValue < customerWorkerConfig.maxNumberKeysToBrowse || endValue < customerWorkerConfig.maxNumberKeysToAddToCart)
