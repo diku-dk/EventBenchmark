@@ -5,7 +5,7 @@ namespace Common.Entities
     public class Cart
     {
         // no longer identified within an actor. so it requires an id
-        public long customerId { get; set; }
+        public int customerId { get; set; }
 
         public CartStatus status { get; set; } = CartStatus.OPEN;
 
@@ -14,7 +14,7 @@ namespace Common.Entities
         public int instanceId { get; set; }
 
         // to return
-        public List<ProductStatus> divergencies { get; set; } = new();
+        public List<ProductStatus>? divergencies { get; set; }
 
         // for dapr
         public Cart() { }

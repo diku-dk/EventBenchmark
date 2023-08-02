@@ -24,7 +24,7 @@ namespace Grains.Workers
 
         private IStreamProvider streamProvider;
 
-        private long sellerId;
+        private int sellerId;
 
         private IDiscreteDistribution productIdGenerator;
 
@@ -35,7 +35,7 @@ namespace Grains.Workers
         // to support: (i) customer product retrieval and (ii) the delete operation, since it uses a search string
         private List<Product> products;
 
-        private readonly IDictionary<long,byte> deletedProducts;
+        private readonly IDictionary<int, byte> deletedProducts;
 
         private readonly List<TransactionIdentifier> submittedTransactions;
         private readonly List<TransactionOutput> finishedTransactions;
@@ -45,7 +45,7 @@ namespace Grains.Workers
             this.httpClient = httpClient;
             this.logger = logger;
             this.random = new Random();
-            this.deletedProducts = new Dictionary<long,byte>();
+            this.deletedProducts = new Dictionary<int, byte>();
             this.submittedTransactions = new List<TransactionIdentifier>();
             this.finishedTransactions = new List<TransactionOutput>();
         }
@@ -69,7 +69,7 @@ namespace Grains.Workers
 
         public override async Task OnActivateAsync(CancellationToken cancellationToken)
         {
-            this.sellerId = this.GetPrimaryKeyLong();
+            this.sellerId = (int) this.GetPrimaryKeyLong();
             this.streamProvider = this.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
             var workloadStream = streamProvider.GetStream<TransactionInput>(StreamingConstants.SellerWorkerNameSpace, this.sellerId.ToString());
             var subscriptionHandles_ = await workloadStream.GetAllSubscriptionHandles();
@@ -250,7 +250,7 @@ namespace Grains.Workers
             }
         }
 
-        public Task<long> GetProductId()
+        public Task<int> GetProductId()
         {
             var idx = this.productIdGenerator.Sample() - 1;
             return Task.FromResult(products[idx].product_id);

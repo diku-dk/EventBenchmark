@@ -3,6 +3,10 @@
   "connectionString": "DataSource=:memory:",
   "numCustomers": 1000,
   "numProdPerSeller": 10,
+  "executionTime": 360000,
+  "epoch": 2000,
+  "delayBetweenRequests": 0,
+  "concurrencyLevel": 16,
   "ingestionConfig": {
     "strategy": "WORKER_PER_CPU",
     "concurrencyLevel": 6,
@@ -119,10 +123,6 @@
     "DELETE_PRODUCT": 85,
     "UPDATE_DELIVERY": 100
   },
-  "executionTime": 360000,
-  "epoch": 2000,
-  "delayBetweenRequests": 0,
-  "concurrencyLevel": 16,
   "streamingConfig": {
     "type": "REDIS",
     "host": "redis",

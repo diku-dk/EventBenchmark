@@ -16,7 +16,7 @@ namespace Grains.Workers
 
         private readonly ILogger<DeliveryProxy> logger;
 
-        private long actorId;
+        private int actorId;
 
         private readonly List<TransactionIdentifier> submittedTransactions;
         private readonly List<TransactionOutput> finishedTransactions;
@@ -38,7 +38,7 @@ namespace Grains.Workers
 
         public override async Task OnActivateAsync(CancellationToken cancellationToken)
         {
-            this.actorId = this.GetPrimaryKeyLong();
+            this.actorId = (int) this.GetPrimaryKeyLong();
             this.streamProvider = this.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
             var workloadStream = streamProvider.GetStream<int>(StreamingConstants.DeliveryWorkerNameSpace, actorId.ToString());
             var subscriptionHandles_ = await workloadStream.GetAllSubscriptionHandles();

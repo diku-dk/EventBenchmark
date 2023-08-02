@@ -29,7 +29,7 @@ namespace Client.DataGeneration
 
         protected readonly Dictionary<string, string> mapTableToCreateStmt = new()
         {
-            ["sellers"] = "CREATE OR REPLACE TABLE sellers (id INTEGER, name VARCHAR, company_name VARCHAR, email VARCHAR, phone VARCHAR, mobile_phone VARCHAR, cpf VARCHAR, cnpj VARCHAR, address VARCHAR, complement VARCHAR, city VARCHAR, state VARCHAR, zip_code_prefix VARCHAR, order_count INTEGER);",
+            ["sellers"] = "CREATE OR REPLACE TABLE sellers (id INTEGER, name VARCHAR, company_name VARCHAR, email VARCHAR, phone VARCHAR, mobile_phone VARCHAR, cpf VARCHAR, cnpj VARCHAR, address VARCHAR, complement VARCHAR, city VARCHAR, state VARCHAR, zip_code VARCHAR, order_count INTEGER);",
             ["products"] = "CREATE OR REPLACE TABLE products (seller_id INTEGER, product_id INTEGER, name VARCHAR, sku VARCHAR, category VARCHAR, description VARCHAR, price REAL, freight_value REAL, created_at datetime, updated_at datetime, active BOOLEAN, status VARCHAR);",
             ["stock_items"] = "CREATE OR REPLACE TABLE stock_items (seller_id INTEGER, product_id INTEGER, qty_available INTEGER, qty_reserved INTEGER, order_count INTEGER, ytd INTEGER, data VARCHAR);",
             ["customers"] = "CREATE OR REPLACE TABLE customers (id INTEGER, first_name VARCHAR, last_name VARCHAR, address VARCHAR, complement VARCHAR, birth_date VARCHAR, " +
@@ -46,7 +46,7 @@ namespace Client.DataGeneration
             // ["customers"] = "DELETE FROM customers;"
         };
 
-        protected readonly string baseSellerQuery = "INSERT INTO sellers(id, name, company_name, email, phone, mobile_phone, cpf, cnpj, address, complement, city, state, zip_code_prefix, order_count) VALUES ";
+        protected readonly string baseSellerQuery = "INSERT INTO sellers(id, name, company_name, email, phone, mobile_phone, cpf, cnpj, address, complement, city, state, zip_code, order_count) VALUES ";
 
         protected readonly string baseProductQuery = "INSERT INTO products (seller_id, product_id, name, sku, category, description, price, freight_value, active, status) VALUES ";
 
@@ -147,12 +147,12 @@ namespace Client.DataGeneration
 
         }
 
-        protected void GenerateSeller(DuckDbCommand command, long sellerId)
+        protected void GenerateSeller(DuckDbCommand command, int sellerId)
         {
             GenerateSeller(command, sellerId, Geolocation());
         }
 
-        protected void GenerateSeller(DuckDbCommand command, long sellerId, Geolocation geolocation)
+        protected void GenerateSeller(DuckDbCommand command, int sellerId, Geolocation geolocation)
         {
             string name = RemoveBadCharacter(faker.Name.FullName());
             string company_name = RemoveBadCharacter(faker.Company.CompanyName());
@@ -189,12 +189,12 @@ namespace Client.DataGeneration
             command.ExecuteNonQuery();
         }
 
-        protected void GenerateProduct(DuckDbCommand command, long productId, long sellerId)
+        protected void GenerateProduct(DuckDbCommand command, int productId, int sellerId)
         {
             this.GenerateProduct(command, productId, sellerId, faker.Commerce.Categories(1)[0]);
         }
 
-        protected void GenerateProduct(DuckDbCommand command, long productId, long sellerId, string category)
+        protected void GenerateProduct(DuckDbCommand command, int productId, int sellerId, string category)
         {
             var name = faker.Commerce.ProductName();
             // e.g., "PRDQQ1UCPOFRHWAA"

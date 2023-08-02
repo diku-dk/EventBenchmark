@@ -7,7 +7,6 @@ using Common.Workload;
 using Common.Workload.Seller;
 using Microsoft.Extensions.Logging;
 using Orleans.Streams;
-using Orleans.Runtime;
 using MathNet.Numerics.Distributions;
 
 namespace Client.Workload
@@ -25,8 +24,8 @@ namespace Client.Workload
 
         public readonly Dictionary<TransactionType, IDiscreteDistribution> keyGeneratorPerWorkloadType;
 
-        private readonly ConcurrentDictionary<long, WorkerStatus> customerStatusCache;
-        private readonly ConcurrentDictionary<long, WorkerStatus> sellerStatusCache;
+        private readonly ConcurrentDictionary<int, WorkerStatus> customerStatusCache;
+        private readonly ConcurrentDictionary<int, WorkerStatus> sellerStatusCache;
 
         private readonly int executionTime;
         private readonly int concurrencyLevel;
@@ -127,6 +126,7 @@ namespace Client.Workload
                 TransactionType tx = PickTransactionFromDistribution();
                 histogram[tx]++;
                 var txId = new TransactionInput(this.currentTid, tx);
+                // spawning in a different thread may lead to duplicate tids in actors
                 SubmitTransaction(txId);
                 this.currentTid++;
 
@@ -177,12 +177,12 @@ namespace Client.Workload
                 {
                     case TransactionType.CUSTOMER_SESSION:
                     {
-                        long grainID = this.keyGeneratorPerWorkloadType[txId.type].Sample();
+                        var grainID = this.keyGeneratorPerWorkloadType[txId.type].Sample();
                         // make sure there is no active session for the customer. if so, pick another customer
                         int count = 1;
                         while (!customerStatusCache.TryUpdate(grainID, WorkerStatus.ACTIVE, WorkerStatus.IDLE))
                         {
-                            if (count == 10)
+                            if (count > 5)
                             {
                                 logger.LogWarning("[Workload emitter] Could not find an available customer! Perhaps should increase the number of customer next time?");
                                 while (!Shared.ResultQueue.Writer.TryWrite(ITEM)) { }
@@ -208,14 +208,14 @@ namespace Client.Workload
                     case TransactionType.PRICE_UPDATE:
                     case TransactionType.DELETE_PRODUCT:
                     {
-                        long grainID = this.keyGeneratorPerWorkloadType[txId.type].Sample();
+                        var grainID = this.keyGeneratorPerWorkloadType[txId.type].Sample();
 
                         int count = 1;
                         while (!sellerStatusCache.TryUpdate(grainID, WorkerStatus.ACTIVE, WorkerStatus.IDLE))
                         {
-                            if (count == 3)
+                            if (count > 5)
                             {
-                                logger.LogDebug("[Workload emitter] All sellers seem busy. Falling to a busy one...");
+                                logger.LogDebug("[Workload emitter] A lot of sellers seem busy. Picking to a busy one...");
                                 break;
                             }
                             grainID = this.keyGeneratorPerWorkloadType[txId.type].Sample();
@@ -231,8 +231,8 @@ namespace Client.Workload
                         {
                             streamOutgoing.OnNextAsync(txId).ContinueWith(x =>
                             {
-                                Shared.ResultQueue.Writer.WriteAsync(ITEM);
                                 this.sellerStatusCache[grainID] = WorkerStatus.IDLE;
+                                while (!Shared.ResultQueue.Writer.TryWrite(ITEM)) { }
                             });
                         }
                         else

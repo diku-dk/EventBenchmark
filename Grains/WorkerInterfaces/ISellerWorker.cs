@@ -10,7 +10,7 @@ namespace Grains.WorkerInterfaces
 
         Task<(List<TransactionIdentifier>, List<TransactionOutput>)> Collect();
 
-        Task<long> GetProductId();
+        Task<int> GetProductId();
 
         Task<Product> GetProduct();
     }

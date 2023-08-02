@@ -54,7 +54,7 @@ namespace Client.Workflow
 
             var streamProvider = orleansClient.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
             List<Customer> customers = null;
-            long numSellers = 0;
+            int numSellers = 0;
             Interval customerRange = new Interval(1, config.numCustomers);
 
             List<CancellationTokenSource> tokens = new(3);
@@ -89,7 +89,7 @@ namespace Client.Workflow
             var dataGen = new SyntheticDataGenerator(previousData);
             dataGen.CreateSchema(connection);
             // dont need to generate customers on every run. only once
-            dataGen.GenerateCustomers(connection, previousData.numCustomers);
+            dataGen.GenerateCustomers(connection);
             // customers are fixed accross runs
             customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
 
@@ -131,7 +131,7 @@ namespace Client.Workflow
                     }
 
                     // get number of sellers
-                    numSellers = DuckDbUtils.Count(connection, "sellers");
+                    numSellers = (int) DuckDbUtils.Count(connection, "sellers");
                 }
 
                 logger.LogInformation("Waiting 10 seconds for initial convergence (stock <-> product <-> cart)");
@@ -319,7 +319,7 @@ namespace Client.Workflow
                 using var connection = new DuckDBConnection(workloadConfig.connectionString);
                 connection.Open();
                 List<Customer> customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
-                long numSellers = DuckDbUtils.Count(connection, "sellers");
+                var numSellers = (int) DuckDbUtils.Count(connection, "sellers");
                 var customerRange = new Interval(1, customers.Count());
 
                 // initialize all workers
@@ -415,9 +415,9 @@ namespace Client.Workflow
             // DuckDbUtils.DeleteAll(connection, "products", "seller_id = " + i);
         }
 
-        public static async Task PrepareWorkers(IClusterClient orleansClient, IDictionary<TransactionType,int> transactionDistribution,
+        public static async Task PrepareWorkers(IClusterClient orleansClient, IDictionary<TransactionType, int> transactionDistribution,
              CustomerWorkerConfig customerWorkerConfig, SellerWorkerConfig sellerWorkerConfig, DeliveryWorkerConfig deliveryWorkerConfig,
-             List<Customer> customers, long numSellers, DuckDBConnection connection)
+             List<Customer> customers, int numSellers, DuckDBConnection connection)
         {
             logger.LogInformation("Preparing workers...");
             List<Task> tasks = new();
@@ -469,10 +469,6 @@ namespace Client.Workflow
 
         private static readonly byte ITEM = 0;
 
-        // unfortunately redis streams reads can show duplicates across reads. that can add some overhead to orleans due to extra calls.
-        // a way to circumvent that is deleting the streams right after reading them all and delivering them to the handler
-        // https://redis.io/commands/xtrim/
-        // ...
         private static Task SubscribeToRedisStream(string redisConnection, string channel, CancellationTokenSource token)
         {
             return Task.Factory.StartNew(async () =>

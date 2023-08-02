@@ -18,11 +18,11 @@ namespace Client.Collection
     {
         private readonly IClusterClient orleansClient;
         private readonly List<Customer> customers;
-        private readonly long numSellers;
+        private readonly int numSellers;
         private readonly CollectionConfig collectionConfig;
         private static readonly ILogger logger = LoggerProxy.GetInstance("MetricGather");
 
-        public MetricGather(IClusterClient orleansClient, List<Customer> customers, long numSellers, CollectionConfig collectionConfig)
+        public MetricGather(IClusterClient orleansClient, List<Customer> customers, int numSellers, CollectionConfig collectionConfig)
         {
             this.orleansClient = orleansClient;
             this.customers = customers;
@@ -30,7 +30,7 @@ namespace Client.Collection
             this.collectionConfig = collectionConfig;
         }
 
-        private List<Latency> BuildLatencyList(Dictionary<long, TransactionIdentifier> submitted, Dictionary<long, TransactionOutput> finished, DateTime finishTime, string workerType = "")
+        private List<Latency> BuildLatencyList(Dictionary<int, TransactionIdentifier> submitted, Dictionary<int, TransactionOutput> finished, DateTime finishTime, string workerType = "")
         {
             var targetValues = finished.Values.Where(e => e.timestamp.CompareTo(finishTime) <= 0);
             var latencyList = new List<Latency>(targetValues.Count());
@@ -66,8 +66,8 @@ namespace Client.Collection
             }
             await Task.WhenAll(taskList);
 
-            Dictionary<long, TransactionIdentifier> sellerSubmitted = new();
-            Dictionary<long, TransactionOutput> sellerFinished = new();
+            Dictionary<int, TransactionIdentifier> sellerSubmitted = new();
+            Dictionary<int, TransactionOutput> sellerFinished = new();
 
             foreach (var task in taskList)
             {
@@ -124,8 +124,8 @@ namespace Client.Collection
             }
             await Task.WhenAll(taskList);
 
-            Dictionary<long, TransactionIdentifier> customerSubmitted = new();
-            Dictionary<long, TransactionOutput> customerFinished = new();
+            Dictionary<int, TransactionIdentifier> customerSubmitted = new();
+            Dictionary<int, TransactionOutput> customerFinished = new();
 
             foreach (var task in taskList)
             {
@@ -167,8 +167,8 @@ namespace Client.Collection
             int dupFin = 0;
             var worker = this.orleansClient.GetGrain<IDeliveryProxy>(0);
             var res = await worker.Collect();
-            Dictionary<long, TransactionIdentifier> deliverySubmitted = new();
-            Dictionary<long, TransactionOutput> deliveryFinished = new();
+            Dictionary<int, TransactionIdentifier> deliverySubmitted = new();
+            Dictionary<int, TransactionOutput> deliveryFinished = new();
             foreach (var submitted in res.Item1)
             {
                 if(!deliverySubmitted.TryAdd(submitted.tid, submitted))

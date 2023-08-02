@@ -7,7 +7,7 @@
      */
     public record CustomerCheckout(
 
-        long CustomerId,
+        int CustomerId,
 
         /**
         * Delivery address (could be different from customer's address)

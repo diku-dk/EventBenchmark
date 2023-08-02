@@ -130,7 +130,7 @@ namespace Client.DataGeneration.Real
 
             while (queryResult.Read())
             {
-                long sellerID = queryResult.GetInt64(0);
+                int sellerID = queryResult.GetInt32(0);
                 
                 // get from original tuple
                 string zip = queryResult.GetString(2);

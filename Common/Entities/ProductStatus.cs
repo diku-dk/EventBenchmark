@@ -2,15 +2,15 @@
 {
     public class ProductStatus
     {
-        public long Id { get; set; }
+        public int Id { get; set; }
         public ItemStatus Status { get; set; }
-        public decimal UnitPrice { get; set; } = 0;
-        public decimal OldUnitPrice { get; set; } = 0;
+        public float UnitPrice { get; set; } = 0;
+        public float OldUnitPrice { get; set; } = 0;
         public int QtyAvailable { get; set; } = 0;
 
         public ProductStatus() { }
 
-        public ProductStatus(long id, ItemStatus status, decimal price, decimal oldPrice)
+        public ProductStatus(int id, ItemStatus status, float price, float oldPrice)
         {
             this.Id = id;
             this.Status = status;
@@ -18,13 +18,13 @@
             this.OldUnitPrice = oldPrice;
         }
 
-        public ProductStatus(long id, ItemStatus status)
+        public ProductStatus(int id, ItemStatus status)
         {
             this.Id = id;
             this.Status = status;
         }
 
-        public ProductStatus(long id, ItemStatus status, int qtyAvailable)
+        public ProductStatus(int id, ItemStatus status, int qtyAvailable)
         {
             this.Id = id;
             this.Status = status;

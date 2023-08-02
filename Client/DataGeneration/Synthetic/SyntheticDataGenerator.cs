@@ -31,7 +31,7 @@ namespace Client.DataGeneration
             }
         }
 
-        public void TruncateTables(DuckDBConnection connection, bool truncateCustomersTable = false)
+        public void TruncateTables(DuckDBConnection connection)
         {
             var command = connection.CreateCommand();
             foreach (var entry in mapTableToTruncateStmt)
@@ -41,7 +41,7 @@ namespace Client.DataGeneration
             }
         }
 
-        public void GenerateCustomers(DuckDBConnection connection, int numCustomers, DuckDbCommand command = null)
+        public void GenerateCustomers(DuckDBConnection connection, DuckDbCommand command = null)
         {
             DuckDbCommand command_;
             if (command is null)
@@ -94,7 +94,7 @@ namespace Client.DataGeneration
             // customers
             if (genCustomer)
             {
-                GenerateCustomers(connection, config.numCustomers, command);
+                GenerateCustomers(connection, command);
             }
 
             logger.LogInformation("Synthetic data generation has terminated.");

@@ -2,13 +2,13 @@
 {
     public record CartItem
     (
-       long SellerId,
-       long ProductId,
+       int SellerId,
+       int ProductId,
        string ProductName,
-       decimal UnitPrice,
-       decimal FreightValue,
+       float UnitPrice,
+       float FreightValue,
        int Quantity,
-       decimal[] Vouchers
+       float[] Vouchers
     );
 }
 

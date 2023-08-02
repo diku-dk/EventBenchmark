@@ -1,4 +1,4 @@
 ﻿namespace Common.Requests
 {
-    public record DeleteProduct(long sellerId, long productId, int instanceId);
+    public record DeleteProduct(int sellerId, int productId, int instanceId);
 }

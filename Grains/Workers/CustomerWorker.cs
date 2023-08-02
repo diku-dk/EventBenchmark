@@ -27,7 +27,7 @@ namespace Grains.Workers
         private IDiscreteDistribution sellerIdGenerator;
 
         // the customer this worker is simulating
-        private long customerId;
+        private int customerId;
 
         // the object respective to this worker
         private Customer customer;
@@ -48,9 +48,9 @@ namespace Grains.Workers
 
         public override async Task OnActivateAsync(CancellationToken cancellationToken)
         {
-            this.customerId = this.GetPrimaryKeyLong();
+            this.customerId = (int) this.GetPrimaryKeyLong();
             var streamProvider = this.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
-            var workloadStream = streamProvider.GetStream<int>(StreamingConstants.SellerWorkerNameSpace, this.customerId.ToString());
+            var workloadStream = streamProvider.GetStream<int>(StreamingConstants.CustomerWorkerNameSpace, this.customerId.ToString());
             var subscriptionHandles_ = await workloadStream.GetAllSubscriptionHandles();
             if (subscriptionHandles_.Count > 0)
             {
@@ -98,7 +98,8 @@ namespace Grains.Workers
                 // adding to cart
                 try
                 {
-                    await AddItemsToCart(DefineKeysToCheckout(keyMap.ToList(), numberOfKeysToCheckout));
+                    var res = DefineKeysToCheckout(keyMap.ToList(), numberOfKeysToCheckout);
+                    await AddItemsToCartFromSet(res);
                     GetCart();
                     Checkout(tid);
                 }
@@ -119,9 +120,9 @@ namespace Grains.Workers
         /**
          * From the list of browsed keys, picks randomly the keys to checkout
          */
-        private ISet<(long sellerId, long productId)> DefineKeysToCheckout(List<(long sellerId, long productId)> browsedKeys, int numberOfKeysToCheckout)
+        private ISet<(int sellerId, int productId)> DefineKeysToCheckout(List<(int sellerId, int productId)> browsedKeys, int numberOfKeysToCheckout)
         {
-            ISet<(long sellerId, long productId)> set = new HashSet<(long sellerId, long productId)>(numberOfKeysToCheckout);
+            ISet<(int sellerId, int productId)> set = new HashSet<(int sellerId, int productId)>(numberOfKeysToCheckout);
             while (set.Count < numberOfKeysToCheckout)
             {
                 set.Add(browsedKeys[random.Next(0, browsedKeys.Count)]);
@@ -133,11 +134,10 @@ namespace Grains.Workers
         {
             List<Product> list = new(numberOfProducts);
             ISellerWorker sellerWorker;
-            long sellerId;
             List<Task<Product>> tasksToAwait = new();
             for (int i = 0; i < numberOfProducts; i++)
             {
-                sellerId = this.sellerIdGenerator.Sample();
+                var sellerId = this.sellerIdGenerator.Sample();
                 sellerWorker = GrainFactory.GetGrain<ISellerWorker>(sellerId);
 
                 tasksToAwait.Add(sellerWorker.GetProduct());
@@ -151,20 +151,18 @@ namespace Grains.Workers
             return list;
         }
 
-        private async Task<ISet<(long sellerId,long productId)>> DefineKeysToBrowseAsync(int numberOfKeysToBrowse)
+        private async Task<ISet<(int sellerId, int productId)>> DefineKeysToBrowseAsync(int numberOfKeysToBrowse)
         {
-            ISet<(long sellerId, long productId)> keyMap = new HashSet<(long sellerId, long productId)>(numberOfKeysToBrowse);
+            ISet<(int sellerId, int productId)> keyMap = new HashSet<(int sellerId, int productId)>(numberOfKeysToBrowse);
             ISellerWorker sellerWorker;
             StringBuilder sb = new StringBuilder();
-            long sellerId;
-            long productId;
             for (int i = 0; i < numberOfKeysToBrowse; i++)
             {
-                sellerId = this.sellerIdGenerator.Sample();
+                var sellerId = this.sellerIdGenerator.Sample();
                 sellerWorker = GrainFactory.GetGrain<ISellerWorker>(sellerId);
 
                 // we dont measure the performance of the benchmark, only the system. as long as we can submit enough workload we are fine
-                productId = await sellerWorker.GetProductId();
+                var productId = await sellerWorker.GetProductId();
                 while (keyMap.Contains((sellerId,productId)))
                 {
                     sellerId = this.sellerIdGenerator.Sample();
@@ -259,7 +257,7 @@ namespace Grains.Workers
             }
         }
 
-        private async Task AddItemsToCart(ISet<(long sellerId, long productId)> keyMap)
+        private async Task AddItemsToCartFromSet(ISet<(int sellerId, int productId)> keyMap)
         {
             foreach (var entry in keyMap)
             {
@@ -305,7 +303,7 @@ namespace Grains.Workers
 
         }
 
-        private async Task Browse(ISet<(long sellerId, long productId)> keyMap)
+        private async Task Browse(ISet<(int sellerId, int productId)> keyMap)
         {
             this.logger.LogInformation("Customer {0} started browsing...", this.customerId);
             int delay;
@@ -330,12 +328,12 @@ namespace Grains.Workers
         private StringContent BuildCartItem(Product product, int quantity)
         {
             // define voucher from distribution
-            var vouchers = Array.Empty<decimal>();
+            var vouchers = Array.Empty<float>();
             int probVoucher = this.random.Next(0, 101);
             if(probVoucher <= this.config.voucherProbability)
             {
                 int numVouchers = this.random.Next(1, this.config.maxNumberVouchers + 1);
-                vouchers = new decimal[numVouchers];
+                vouchers = new float[numVouchers];
                 for(int i = 0; i < numVouchers; i++)
                 {
                     vouchers[i] = this.random.Next(1, 10);
