@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Common.Streaming;
 using Orleans.Serialization;
 using Microsoft.Extensions.DependencyInjection;
+using Orleans.Configuration;
 
 var builder = new HostBuilder()
    .UseOrleans(siloBuilder =>
@@ -20,7 +21,11 @@ var builder = new HostBuilder()
                 });
             })
             .UseLocalhostClustering()
-            .AddMemoryStreams(StreamingConstants.DefaultStreamProvider)
+            .Configure<SiloMessagingOptions>(options => {
+                 options.ResponseTimeout = TimeSpan.FromMinutes(10);
+                 options.DropExpiredMessages = true;
+             })
+            .AddMemoryStreams(StreamingConstants.DefaultStreamProvider) //, op=>op.ConfigurePullingAgent(opt=>opt.))
             .AddMemoryGrainStorage(StreamingConstants.DefaultStreamStorage)
             .ConfigureLogging(logging =>
             {

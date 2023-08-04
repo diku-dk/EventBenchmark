@@ -31,6 +31,7 @@ namespace Client.Workflow
 
         public async static Task Run(ExperimentConfig config)
         {
+            string ts = new DateTimeOffset(DateTime.UtcNow).ToUnixTimeMilliseconds().ToString();
             SyntheticDataSourceConfig previousData = new SyntheticDataSourceConfig()
             {
                 numCustomers = config.numCustomers,
@@ -134,7 +135,7 @@ namespace Client.Workflow
                     numSellers = (int) DuckDbUtils.Count(connection, "sellers");
                 }
 
-                logger.LogInformation("Waiting 10 seconds for initial convergence (stock <-> product <-> cart)");
+                logger.LogInformation("Waiting 10 seconds for initial convergence (stock <- product -> cart)");
                 await Task.WhenAll(
                     PrepareWorkers(orleansClient, config.transactionDistribution, config.customerWorkerConfig, config.sellerWorkerConfig, config.deliveryWorkerConfig, customers, numSellers, connection),
                     Task.Delay(TimeSpan.FromSeconds(10)) );
@@ -163,8 +164,7 @@ namespace Client.Workflow
                 await metricGather.Collect(startTime, finishTime, config.epoch, string.Format("#{0}_{1}_{2}_{3}_{4}", runIdx, config.concurrencyLevel, run.numProducts, run.sellerDistribution, run.keyDistribution));
 
                 // trim first to avoid receiving events after the post run task
-                // await TrimStreams(config.streamingConfig.host, config.streamingConfig.port, config.streamingConfig.streams.ToList());
-                // if trim, maybe we lose the position read by the consumers?
+                await TrimStreams(config.streamingConfig.host, config.streamingConfig.port, config.streamingConfig.streams.ToList());
 
                 // reset data in microservices - post run
                 if (runIdx < lastRunIdx)
@@ -193,8 +193,18 @@ namespace Client.Workflow
                     logger.LogInformation("Post run tasks finished");
                 }
 
+                await TrimStreams(config.streamingConfig.host, config.streamingConfig.port, config.streamingConfig.streams.ToList());
+
                 logger.LogInformation("Run #{0} finished at {1}", runIdx, DateTime.UtcNow);
                 runIdx++;
+
+                logger.LogInformation("Memory used before collection:       {0:N0}",
+                        GC.GetTotalMemory(false));
+
+                // Collect all generations of memory.
+                GC.Collect();
+                logger.LogInformation("Memory used after full collection:   {0:N0}",
+                GC.GetTotalMemory(true));
 
                 if (runIdx < lastRunIdx)
                 {

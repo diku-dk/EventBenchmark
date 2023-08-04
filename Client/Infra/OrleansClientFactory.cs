@@ -3,6 +3,7 @@ using Orleans.Runtime.Messaging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Orleans.Serialization;
+using Orleans.Configuration;
 
 namespace Client.Infra
 {
@@ -20,6 +21,10 @@ namespace Client.Infra
                 var host = new HostBuilder()
                             .UseOrleansClient(
                                     client => client.UseLocalhostClustering()
+                                    .Configure<ClientMessagingOptions>(options => {
+                                        options.ResponseTimeout = TimeSpan.FromMinutes(10);
+                                        options.DropExpiredMessages = true;
+                                    })
                                     .AddMemoryStreams(StreamingConstants.DefaultStreamProvider)
                                     .AddClusterConnectionLostHandler((x,y) =>
                                     {

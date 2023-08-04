@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using DuckDB.NET.Data;
+﻿using DuckDB.NET.Data;
 using System.Text;
 using Bogus;
 using Bogus.Extensions.Brazil;

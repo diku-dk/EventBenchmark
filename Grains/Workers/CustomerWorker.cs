@@ -13,6 +13,7 @@ using Common.Workload;
 using Common.Workload.Metrics;
 using Orleans.Concurrency;
 using MathNet.Numerics.Distributions;
+using System.Net;
 
 namespace Grains.Workers
 {
@@ -48,7 +49,7 @@ namespace Grains.Workers
 
         public override async Task OnActivateAsync(CancellationToken cancellationToken)
         {
-            this.customerId = (int) this.GetPrimaryKeyLong();
+            this.customerId = (int) this.GetPrimaryKeyLong();// await base.OnActivateAsync(cancellationToken);
             var streamProvider = this.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
             var workloadStream = streamProvider.GetStream<int>(StreamingConstants.CustomerWorkerNameSpace, this.customerId.ToString());
             var subscriptionHandles_ = await workloadStream.GetAllSubscriptionHandles();
@@ -67,7 +68,7 @@ namespace Grains.Workers
             this.logger.LogInformation("Customer worker {0} Init", this.customerId);
             this.config = config;
             this.customer = customer;
-            this.sellerIdGenerator = 
+            this.sellerIdGenerator =
                 this.config.sellerDistribution == DistributionType.UNIFORM ?
                 new DiscreteUniform(this.config.sellerRange.min, this.config.sellerRange.max, new Random()) :
                 new Zipf(0.80, this.config.sellerRange.max, new Random());
@@ -78,6 +79,11 @@ namespace Grains.Workers
         }
 
         public async Task Run(int tid, StreamSequenceToken token)
+        {
+            await this.Run(tid);
+        }
+
+        public async Task Run(int tid)//, StreamSequenceToken token)
         {
             this.logger.LogInformation("Customer worker {0} starting new TID: {1}", this.customerId, tid);
 
@@ -200,37 +206,36 @@ namespace Grains.Workers
 
             this.logger.LogInformation("Customer {0} decided to send a checkout", this.customerId);
             // inform checkout intent. optional feature
+            var payload = BuildCheckoutPayload(tid, this.customer);
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, this.config.cartUrl + "/" + this.customerId + "/checkout");
-            message.Content = BuildCheckoutPayload(tid, this.customer);
-            var now = DateTime.UtcNow;
+            message.Content = payload;
+
+            var now1 = DateTime.UtcNow;
             HttpResponseMessage resp = httpClient.Send(message);
             if (resp.IsSuccessStatusCode)
             {
-                TransactionIdentifier txId = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, now);
+                TransactionIdentifier txId = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, now1);
                 submittedTransactions.AddLast(txId);
-            } else
+            }
+            // TODO add config param Resubmit on Checkout Reject
+            else if (resp.StatusCode == HttpStatusCode.MethodNotAllowed)
             {
+                var now2 = DateTime.UtcNow;
+                message = new HttpRequestMessage(HttpMethod.Post, this.config.cartUrl + "/" + this.customerId + "/checkout");
+                message.Content = payload;
+                resp = httpClient.Send(message);
+                if (resp.IsSuccessStatusCode)
+                {
+                    TransactionIdentifier txId = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, now2);
+                    submittedTransactions.AddLast(txId);
+                }
+            }
+            else
+            {
+                var now = DateTime.UtcNow;
                 logger.LogDebug("Customer {0} failed checkout for TID {0} at {1}. Status {2}", customerId, tid, now, resp.StatusCode);
                 InformFailedCheckout();
             }
-
-            /*
-             * TODO add config param Resubmit on Checkout Reject
-            // perhaps there is price divergence. checking out again means the customer agrees with the new prices
-            if(resp.StatusCode == HttpStatusCode.MethodNotAllowed)
-            {
-                txId = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, DateTime.UtcNow);
-                resp = httpClient.Send(message);
-            }
-
-            if (resp == null || !resp.IsSuccessStatusCode)
-            {
-                return;
-            }
-
-            submittedTransactions.Add(txId);
-            // very unlikely to have another price update (depending on the distribution)
-            */
         }
 
         private async Task AddItemsToCart(List<Product> products)

@@ -111,10 +111,6 @@ namespace Client.Streaming.Redis
                                 handler(entry);
                             }
                         }
-
-                        // it does not work. redis streams still delivers duplicates
-                        // await db.ExecuteAsync("XTRIM", new List<object>() { streamName, "MINID", currentId }).ConfigureAwait(false);
-
                     }
                 }
             }

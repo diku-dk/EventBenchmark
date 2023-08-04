@@ -9,5 +9,7 @@ namespace Grains.WorkerInterfaces
         Task Init(CustomerWorkerConfig config, Customer customer);
 
         Task<List<TransactionIdentifier>> Collect();
+
+        Task Run(int tid);
     }
 }

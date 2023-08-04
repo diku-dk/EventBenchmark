@@ -150,7 +150,7 @@ namespace Grains.Workers
             int count = 1;
             while (deletedProducts.ContainsKey(idx) )
             {
-                if(count == 10)
+                if(count > 5)
                 {
                     this.logger.LogWarning("Seller {0}: Cannot define a product to delete! Cancelling this request at {0}", this.sellerId, DateTime.UtcNow);
                     return;
@@ -165,11 +165,11 @@ namespace Grains.Workers
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Delete, config.productUrl);
             message.Content = HttpUtils.BuildPayload(obj);
 
-            this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.DELETE_PRODUCT, DateTime.UtcNow));
+            var now = DateTime.UtcNow;
             var resp = httpClient.Send(message, HttpCompletionOption.ResponseHeadersRead);
-
             if (resp.IsSuccessStatusCode)
             {
+                this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.DELETE_PRODUCT, now));
                 this.logger.LogDebug("Seller {0}: Product {1} deleted.", this.sellerId, products[idx].product_id);
             }
             else

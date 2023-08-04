@@ -8,6 +8,7 @@ using Common.Workload.Seller;
 using Microsoft.Extensions.Logging;
 using Orleans.Streams;
 using MathNet.Numerics.Distributions;
+using Grains.WorkerInterfaces;
 
 namespace Client.Workload
 {
@@ -194,6 +195,9 @@ namespace Client.Workload
 
                         var streamOutgoing = this.streamProvider.GetStream<int>(StreamingConstants.CustomerWorkerNameSpace, grainID.ToString());
                         streamOutgoing.OnNextAsync(txId.tid).ContinueWith(x=>this.customerStatusCache[grainID] = WorkerStatus.IDLE);
+
+                        //var grain = this.orleansClient.GetGrain<ICustomerWorker>(grainID);
+                        //grain.Run(txId.tid).ContinueWith(x => this.customerStatusCache[grainID] = WorkerStatus.IDLE);
                         break;
                     }
                     // delivery worker
@@ -215,7 +219,7 @@ namespace Client.Workload
                         {
                             if (count > 5)
                             {
-                                logger.LogDebug("[Workload emitter] A lot of sellers seem busy. Picking to a busy one...");
+                                logger.LogDebug("[Workload emitter] A lot of sellers seem busy. Picking a busy one...");
                                 break;
                             }
                             grainID = this.keyGeneratorPerWorkloadType[txId.type].Sample();
