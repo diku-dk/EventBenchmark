@@ -1,7 +1,7 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>Library</OutputType>
     <TargetFramework>net7.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
@@ -16,9 +16,7 @@
     <None Remove="Newtonsoft.Json" />
     <None Remove="DataGeneration\" />
     <None Remove="Ingestion\" />
-    <None Remove="DataGeneration\Real\" />
     <None Remove="Http\" />
-    <None Remove="Ingestion\Config\" />
     <None Remove="Collection\" />
     <None Remove="Cleaning\" />
     <None Remove="Experiment\" />
@@ -33,26 +31,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Grains\Grains.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
     <None Include="..\Configuration\*.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Infra\" />
-    <Folder Include="Streaming\" />
-    <Folder Include="DataGeneration\" />
-    <Folder Include="Ingestion\" />
-    <Folder Include="DataGeneration\Real\" />
-    <Folder Include="Http\" />
-    <Folder Include="Ingestion\Config\" />
-    <Folder Include="Collection\" />
-    <Folder Include="Cleaning\" />
-    <Folder Include="Experiment\" />
   </ItemGroup>
   
 </Project>

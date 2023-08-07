@@ -17,6 +17,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Common\Common.csproj" />
-    <ProjectReference Include="..\Grains\Grains.csproj" />
+    <ProjectReference Include="..\Grains\Orleans.csproj" />
   </ItemGroup>
 </Project>

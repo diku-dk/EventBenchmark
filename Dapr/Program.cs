@@ -1,0 +1,46 @@
+﻿using CartMS.Infra;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container
+builder.Services.AddDaprClient();
+
+builder.Services.AddControllers();
+
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+// Add functionality to inject IOptions<T>
+builder.Services.AddOptions();
+
+// Add our Config object so it can be injected
+builder.Services.Configure<DaprConfig>( builder.Configuration.GetSection("DaprConfig") );
+
+builder.Services.AddHttpClient("default").ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    UseProxy = false,
+    Proxy = null,
+    UseCookies = false,
+    AllowAutoRedirect = false,
+    PreAuthenticate = false,
+
+});
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline.
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseCloudEvents();
+
+app.MapControllers();
+
+// not needed unless using pub/sub
+app.MapSubscribeHandler();
+
+app.Run();

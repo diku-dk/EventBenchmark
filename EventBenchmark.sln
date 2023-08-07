@@ -1,24 +1,23 @@
-
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.31911.196
+# Visual Studio Version 17
+VisualStudioVersion = 17.6.33815.320
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Silo", "Silo\Silo.csproj", "{CB4B7EBE-0E53-45C4-AC63-9CF79A10703C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Grains", "Grains\Grains.csproj", "{C16AA96C-3825-4046-BFBC-86D4EFECECD1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Orleans", "Grains\Orleans.csproj", "{C16AA96C-3825-4046-BFBC-86D4EFECECD1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Common", "Common\Common.csproj", "{F8CA5AB6-04C2-4245-858F-9B27C854A6E8}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Client", "Client\Client.csproj", "{B1FA91D2-E9BD-421D-B364-0E3F7C394F9D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Common", "Common\Common.csproj", "{F8CA5AB6-04C2-4245-858F-9B27C854A6E8}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{6E292FB7-57DF-4C20-8725-ACE4B928CBC5}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
-		README.md = README.md
 		.gitignore = .gitignore
+		README.md = README.md
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests", "Tests\Tests.csproj", "{2BC39A65-8D44-4A36-A944-142D2FE5AAF1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Tests", "Tests\Tests.csproj", "{2BC39A65-8D44-4A36-A944-142D2FE5AAF1}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Dapr", "Dapr\Dapr.csproj", "{EFCA2593-0E13-4E2C-946A-57726276F37B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -38,22 +37,20 @@ Global
 		{F8CA5AB6-04C2-4245-858F-9B27C854A6E8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F8CA5AB6-04C2-4245-858F-9B27C854A6E8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F8CA5AB6-04C2-4245-858F-9B27C854A6E8}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B1FA91D2-E9BD-421D-B364-0E3F7C394F9D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B1FA91D2-E9BD-421D-B364-0E3F7C394F9D}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B1FA91D2-E9BD-421D-B364-0E3F7C394F9D}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B1FA91D2-E9BD-421D-B364-0E3F7C394F9D}.Release|Any CPU.Build.0 = Release|Any CPU
 		{2BC39A65-8D44-4A36-A944-142D2FE5AAF1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{2BC39A65-8D44-4A36-A944-142D2FE5AAF1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2BC39A65-8D44-4A36-A944-142D2FE5AAF1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2BC39A65-8D44-4A36-A944-142D2FE5AAF1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EFCA2593-0E13-4E2C-946A-57726276F37B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EFCA2593-0E13-4E2C-946A-57726276F37B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EFCA2593-0E13-4E2C-946A-57726276F37B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EFCA2593-0E13-4E2C-946A-57726276F37B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {0EE07368-B3B9-49FD-A13B-38C78EA3E782}
-	EndGlobalSection
-	GlobalSection(NestedProjects) = preSolution
 	EndGlobalSection
 	GlobalSection(MonoDevelopProperties) = preSolution
 		Policies = $0

@@ -23,10 +23,12 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Streaming\" />
+    <Folder Include="Workload\Customer\" />
     <Folder Include="Serdes\" />
     <Folder Include="Workload\Seller\" />
     <Folder Include="Infra\" />
     <Folder Include="Entities\" />
+    <Folder Include="Http\" />
     <Folder Include="Workload\Metrics\" />
     <Folder Include="Workload\Delivery\" />
   </ItemGroup>
