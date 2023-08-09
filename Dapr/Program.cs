@@ -1,6 +1,4 @@
-﻿using CartMS.Infra;
-
-var builder = WebApplication.CreateBuilder(args);
+﻿var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container
 builder.Services.AddDaprClient();
@@ -12,9 +10,6 @@ builder.Services.AddSwaggerGen();
 
 // Add functionality to inject IOptions<T>
 builder.Services.AddOptions();
-
-// Add our Config object so it can be injected
-builder.Services.Configure<DaprConfig>( builder.Configuration.GetSection("DaprConfig") );
 
 builder.Services.AddHttpClient("default").ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
 {

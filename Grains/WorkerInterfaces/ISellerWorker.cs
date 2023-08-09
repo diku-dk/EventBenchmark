@@ -4,7 +4,7 @@ using Common.Workload.Seller;
 
 namespace Grains.WorkerInterfaces
 {
-	public interface ISellerWorker : IGrainWithIntegerKey
+	public interface ISellerGrain : IGrainWithIntegerKey
 	{
         Task Init(SellerWorkerConfig sellerConfig, List<Product> products);
 

@@ -31,6 +31,8 @@ public abstract class ExperimentManager
         // customers are fixed accross runs
         this.customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
         this.customerRange = new Interval(1, config.numCustomers);
+
+        // this.sellerRange = new Interval(1, config.num);
     }
 
     protected abstract void PreExperiment();
@@ -41,7 +43,7 @@ public abstract class ExperimentManager
 
     protected abstract void PreWorkload();
 
-    protected abstract WorkloadEmitter GetEmitter(int runIdx);
+    protected abstract WorkloadManager GetEmitter(int runIdx);
 
     protected abstract void Collect(int runIdx, DateTime startTime, DateTime finishTime);
 
@@ -116,7 +118,7 @@ public abstract class ExperimentManager
 
             PreWorkload();
 
-            WorkloadEmitter emitter = GetEmitter(runIdx);
+            WorkloadManager emitter = GetEmitter(runIdx);
 
             var emitTask = await emitter.Run();
 

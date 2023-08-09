@@ -24,6 +24,7 @@ namespace Common.Infra
         {
             return loggerFactory.CreateLogger(categoryName);
         }
+
     }
 }
 

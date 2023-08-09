@@ -139,12 +139,12 @@ public sealed class CustomerGrain : Grain, ICustomerGrain
     private async Task<List<Product>> DefineProductsToCheckout(int numberOfProducts)
     {
         List<Product> list = new(numberOfProducts);
-        ISellerWorker sellerWorker;
+        ISellerGrain sellerWorker;
         List<Task<Product>> tasksToAwait = new();
         for (int i = 0; i < numberOfProducts; i++)
         {
             var sellerId = this.sellerIdGenerator.Sample();
-            sellerWorker = GrainFactory.GetGrain<ISellerWorker>(sellerId);
+            sellerWorker = GrainFactory.GetGrain<ISellerGrain>(sellerId);
 
             tasksToAwait.Add(sellerWorker.GetProduct());
         }
@@ -160,19 +160,19 @@ public sealed class CustomerGrain : Grain, ICustomerGrain
     private async Task<ISet<(int sellerId, int productId)>> DefineKeysToBrowseAsync(int numberOfKeysToBrowse)
     {
         ISet<(int sellerId, int productId)> keyMap = new HashSet<(int sellerId, int productId)>(numberOfKeysToBrowse);
-        ISellerWorker sellerWorker;
+        ISellerGrain sellerWorker;
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < numberOfKeysToBrowse; i++)
         {
             var sellerId = this.sellerIdGenerator.Sample();
-            sellerWorker = GrainFactory.GetGrain<ISellerWorker>(sellerId);
+            sellerWorker = GrainFactory.GetGrain<ISellerGrain>(sellerId);
 
             // we dont measure the performance of the benchmark, only the system. as long as we can submit enough workload we are fine
             var productId = await sellerWorker.GetProductId();
             while (keyMap.Contains((sellerId,productId)))
             {
                 sellerId = this.sellerIdGenerator.Sample();
-                sellerWorker = GrainFactory.GetGrain<ISellerWorker>(sellerId);
+                sellerWorker = GrainFactory.GetGrain<ISellerGrain>(sellerId);
                 productId = await sellerWorker.GetProductId();
             }
 
@@ -216,19 +216,6 @@ public sealed class CustomerGrain : Grain, ICustomerGrain
         {
             TransactionIdentifier txId = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, now1);
             submittedTransactions.AddLast(txId);
-        }
-        // TODO add config param Resubmit on Checkout Reject
-        else if (resp.StatusCode == HttpStatusCode.MethodNotAllowed)
-        {
-            var now2 = DateTime.UtcNow;
-            message = new HttpRequestMessage(HttpMethod.Post, this.config.cartUrl + "/" + this.customerId + "/checkout");
-            message.Content = payload;
-            resp = httpClient.Send(message);
-            if (resp.IsSuccessStatusCode)
-            {
-                TransactionIdentifier txId = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, now2);
-                submittedTransactions.AddLast(txId);
-            }
         }
         else
         {
@@ -395,6 +382,7 @@ public sealed class CustomerGrain : Grain, ICustomerGrain
         HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, this.config.cartUrl + "/" + customerId + "/seal");
         httpClient.Send(message);
     }
+
     public Task<List<TransactionIdentifier>> Collect()
     {
         return Task.FromResult(submittedTransactions.ToList());

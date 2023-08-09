@@ -10,9 +10,9 @@ using MathNet.Numerics.Distributions;
 namespace Common.Workload;
 
 
-public abstract class WorkloadEmitter
+public abstract class WorkloadManager
 {
-    protected static readonly byte ITEM = 0;
+    public static readonly byte ITEM = 0;
 
     private readonly IDictionary<TransactionType, int> transactionDistribution;
     private readonly Random random;     
@@ -31,7 +31,7 @@ public abstract class WorkloadEmitter
 
     private readonly IDictionary<TransactionType, int> histogram;
 
-    public WorkloadEmitter(
+    public WorkloadManager(
                             IDictionary<TransactionType,int> transactionDistribution,
                             DistributionType sellerDistribution,
                             Interval sellerRange,

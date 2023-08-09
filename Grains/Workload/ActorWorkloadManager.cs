@@ -6,12 +6,13 @@ using Orleans.Streams;
 using Common.Distribution;
 
 namespace Grains.Workload;
-public sealed class ActorBasedWorkloadEmitter : WorkloadEmitter
+
+public sealed class ActorWorkloadManager : WorkloadManager
 {
     private readonly IClusterClient orleansClient;
     private readonly IStreamProvider streamProvider;
 
-    public ActorBasedWorkloadEmitter(IClusterClient clusterClient,
+    public ActorWorkloadManager(IClusterClient clusterClient,
         IDictionary<TransactionType, int> transactionDistribution, 
         DistributionType sellerDistribution, Interval sellerRange, 
         DistributionType customerDistribution, Interval customerRange,

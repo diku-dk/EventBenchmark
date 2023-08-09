@@ -23,7 +23,7 @@ public abstract class AbstractCustomerWorker
     // the object respective to this worker
     private Customer customer;
 
-    private readonly LinkedList<TransactionIdentifier> submittedTransactions;
+    private readonly List<TransactionIdentifier> submittedTransactions;
 
     private readonly HttpClient httpClient;
 

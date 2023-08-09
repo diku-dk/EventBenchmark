@@ -1,20 +1,21 @@
 ﻿using System.Net;
-using CartMS.Services;
 using Common.Experiment;
+using Daprr.Workload;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Dapr.Controllers;
+namespace Daprr.Controllers;
 
 [ApiController]
 public class DaprController : ControllerBase
 {
     private readonly IHttpClientFactory httpClientFactory;
     private readonly ILogger<DaprController> logger;
-    private readonly IExperimentService experimentService;
 
-    public DaprController(IExperimentService experimentService, IHttpClientFactory httpClientFactory, ILogger<DaprController> logger)
+    //0 for false, 1 for true.
+    private static int usingResource = 0;
+
+    public DaprController(IHttpClientFactory httpClientFactory, ILogger<DaprController> logger)
     {
-        this.experimentService = experimentService;
         this.httpClientFactory = httpClientFactory;
         this.logger = logger;
     }
@@ -22,12 +23,19 @@ public class DaprController : ControllerBase
     [Route("/runExperiment")]
     [HttpPost]
     [ProducesResponseType((int)HttpStatusCode.Accepted)]
-    public ActionResult Reset([FromBody] ExperimentConfig experimentConfig)
+    public async Task<ActionResult> RunExperiment([FromBody] ExperimentConfig config)
     {
-        logger.LogWarning("Reset requested at {0}", DateTime.UtcNow);
-        return Ok();
+        //0 indicates that the method is not in use.
+        if (0 == Interlocked.Exchange(ref usingResource, 1))
+        {
+            DaprExperimentManager experimentManager = new DaprExperimentManager(httpClientFactory, config);
+            await experimentManager.Run();
+            Interlocked.Exchange(ref usingResource, 0);
+            return Ok();
+        }
+        return StatusCode((int)HttpStatusCode.MethodNotAllowed, "An experiment is in progress already");
     }
-
+    // https://learn.microsoft.com/en-us/dotnet/api/system.threading.interlocked?view=net-7.0
 
 
 }

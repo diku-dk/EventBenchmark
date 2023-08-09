@@ -61,7 +61,7 @@ public class MetricGather
         List<Task<(List<TransactionIdentifier>, List<TransactionOutput>)>> taskList = new();
         for (int i = 1; i <= numSellers; i++)
         {
-            var sellerWorker = this.orleansClient.GetGrain<ISellerWorker>(i);
+            var sellerWorker = this.orleansClient.GetGrain<ISellerGrain>(i);
             taskList.Add(sellerWorker.Collect());
         }
         await Task.WhenAll(taskList);

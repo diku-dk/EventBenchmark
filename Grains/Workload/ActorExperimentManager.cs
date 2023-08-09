@@ -23,14 +23,14 @@ using System.Threading.Tasks;
 
 namespace Orleans.Workload;
 
-public class ActorBasedExperimentManager : ExperimentManager
+public class ActorExperimentManager : ExperimentManager
 {
     private IClusterClient orleansClient;
 
     List<CancellationTokenSource> tokens = new(3);
     List<Task> listeningTasks = new(3);
 
-    public ActorBasedExperimentManager(ExperimentConfig config) : base(config)
+    public ActorExperimentManager(ExperimentConfig config) : base(config)
     {
 
     }
@@ -121,7 +121,7 @@ public class ActorBasedExperimentManager : ExperimentManager
             for (int i = 1; i <= numSellers; i++)
             {
                 List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
-                var sellerWorker = orleansClient.GetGrain<ISellerWorker>(i);
+                var sellerWorker = orleansClient.GetGrain<ISellerGrain>(i);
                 tasks.Add(sellerWorker.Init(sellerWorkerConfig, products));
             }
             await Task.WhenAll(tasks);
@@ -137,9 +137,9 @@ public class ActorBasedExperimentManager : ExperimentManager
         logger.LogInformation("Workers prepared!");
     }
 
-    protected override WorkloadEmitter GetEmitter(int runIdx)
+    protected override WorkloadManager GetEmitter(int runIdx)
     {
-        return new ActorBasedWorkloadEmitter(
+        return new ActorWorkloadManager(
                 this.orleansClient,
                 config.transactionDistribution,
                 config.runs[runIdx].sellerDistribution,

@@ -1,26 +1,19 @@
-﻿using CartMS.Services;
-using Common.Streaming;
+﻿using Common.Streaming;
 using Common.Workload;
-using Dapr;
-using Dapr.Client;
 using Microsoft.AspNetCore.Mvc;
-using System.Text;
+using Dapr;
 
-namespace CartMS.Controllers;
+namespace Daprr.Controllers;
 
 [ApiController]
 public class EventHandler : ControllerBase
 {
     private const string PUBSUB_NAME = "pubsub";
 
-    private readonly DaprClient daprClient;
-
     private readonly ILogger<EventHandler> logger;
 
-    public EventHandler(DaprClient daprClient,
-                            ILogger<EventHandler> logger)
+    public EventHandler(ILogger<EventHandler> logger)
     {
-        this.daprClient = daprClient;
         this.logger = logger;
     }
 
@@ -32,7 +25,26 @@ public class EventHandler : ControllerBase
     [Topic(PUBSUB_NAME, deleteMark)]
     public async Task<ActionResult> ProcessDeleteMark([FromBody] TransactionMark deleteMark)
     {
-        await Task.Delay(100);
+        await Task.WhenAll(Shared.ResultQueue.Writer.WriteAsync(WorkloadManager.ITEM).AsTask(),
+                            Shared.FinishedTransactionMarks.Writer.WriteAsync(deleteMark).AsTask());
+        return Ok();
+    }
+
+    [HttpPost("/priceUpdateMark")]
+    [Topic(PUBSUB_NAME, updateMark)]
+    public async Task<ActionResult> ProcessPriceUpdateMark([FromBody] TransactionMark priceUpdateMark)
+    {
+        await Task.WhenAll(Shared.ResultQueue.Writer.WriteAsync(WorkloadManager.ITEM).AsTask(),
+                        Shared.FinishedTransactionMarks.Writer.WriteAsync(priceUpdateMark).AsTask());
+        return Ok();
+    }
+
+    [HttpPost("/checkoutMark")]
+    [Topic(PUBSUB_NAME, checkoutMark)]
+    public async Task<ActionResult> ProcessCheckoutMark([FromBody] TransactionMark checkoutMark)
+    {
+        await Task.WhenAll(Shared.ResultQueue.Writer.WriteAsync(WorkloadManager.ITEM).AsTask(),
+                        Shared.FinishedTransactionMarks.Writer.WriteAsync(checkoutMark).AsTask());
         return Ok();
     }
 
