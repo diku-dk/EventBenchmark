@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace Common.Collection
+﻿namespace Common.Collection
 {
 	public class CollectionConfig
 	{

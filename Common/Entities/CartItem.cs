@@ -8,7 +8,8 @@
        float UnitPrice,
        float FreightValue,
        int Quantity,
-       float[] Vouchers
+       float Voucher,
+       int Version
     );
 }
 

@@ -1,0 +1,64 @@
+Run from 8/14/2023 1:06:38 PM to 8/14/2023 1:06:48 PM
+===========================================
+Transaction: CUSTOMER_SESSION - Average end-to-end latency: 0
+Transaction: QUERY_DASHBOARD - Average end-to-end latency: 0
+Transaction: PRICE_UPDATE - Average end-to-end latency: 41.16007142857143
+Transaction: UPDATE_PRODUCT - Average end-to-end latency: 0
+Transaction: UPDATE_DELIVERY - Average end-to-end latency: 0
+Transaction: NONE - Average end-to-end latency: 0
+Number of seconds: 10.000119
+Number of completed transactions: 14
+Transactions per second: 1.3999833401982518
+=====================================================
+5 blocks for epoch 2000
+Block 1 results:
+Transaction: CUSTOMER_SESSION - Average end-to-end latency: 0
+Transaction: QUERY_DASHBOARD - Average end-to-end latency: 0
+Transaction: PRICE_UPDATE - Average end-to-end latency: 41.16007142857143
+Transaction: UPDATE_PRODUCT - Average end-to-end latency: 0
+Transaction: UPDATE_DELIVERY - Average end-to-end latency: 0
+Transaction: NONE - Average end-to-end latency: 0
+Number of completed transactions: 14
+Transactions per second: 7
+===========================================
+Block 2 results:
+Transaction: CUSTOMER_SESSION - Average end-to-end latency: 0
+Transaction: QUERY_DASHBOARD - Average end-to-end latency: 0
+Transaction: PRICE_UPDATE - Average end-to-end latency: 0
+Transaction: UPDATE_PRODUCT - Average end-to-end latency: 0
+Transaction: UPDATE_DELIVERY - Average end-to-end latency: 0
+Transaction: NONE - Average end-to-end latency: 0
+Number of completed transactions: 0
+Transactions per second: 0
+===========================================
+Block 3 results:
+Transaction: CUSTOMER_SESSION - Average end-to-end latency: 0
+Transaction: QUERY_DASHBOARD - Average end-to-end latency: 0
+Transaction: PRICE_UPDATE - Average end-to-end latency: 0
+Transaction: UPDATE_PRODUCT - Average end-to-end latency: 0
+Transaction: UPDATE_DELIVERY - Average end-to-end latency: 0
+Transaction: NONE - Average end-to-end latency: 0
+Number of completed transactions: 0
+Transactions per second: 0
+===========================================
+Block 4 results:
+Transaction: CUSTOMER_SESSION - Average end-to-end latency: 0
+Transaction: QUERY_DASHBOARD - Average end-to-end latency: 0
+Transaction: PRICE_UPDATE - Average end-to-end latency: 0
+Transaction: UPDATE_PRODUCT - Average end-to-end latency: 0
+Transaction: UPDATE_DELIVERY - Average end-to-end latency: 0
+Transaction: NONE - Average end-to-end latency: 0
+Number of completed transactions: 0
+Transactions per second: 0
+===========================================
+Block 5 results:
+Transaction: CUSTOMER_SESSION - Average end-to-end latency: 0
+Transaction: QUERY_DASHBOARD - Average end-to-end latency: 0
+Transaction: PRICE_UPDATE - Average end-to-end latency: 0
+Transaction: UPDATE_PRODUCT - Average end-to-end latency: 0
+Transaction: UPDATE_DELIVERY - Average end-to-end latency: 0
+Transaction: NONE - Average end-to-end latency: 0
+Number of completed transactions: 0
+Transactions per second: 0
+===========================================
+=================    THE END   ================

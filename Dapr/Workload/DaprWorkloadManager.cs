@@ -1,4 +1,3 @@
-using Common.Distribution;
 using Common.Workload;
 using Daprr.Services;
 
@@ -12,14 +11,13 @@ public class DaprWorkflowManager : WorkloadManager
     private readonly IDeliveryService deliveryService;
 
     public DaprWorkflowManager(
-        ISellerService sellerService, ICustomerService customerService,
+        ISellerService sellerService,
+        ICustomerService customerService,
         IDeliveryService deliveryService,
         IDictionary<TransactionType, int> transactionDistribution,
-        DistributionType sellerDistribution, Interval sellerRange,
-        DistributionType customerDistribution, Interval customerRange,
+        Interval customerRange,
         int concurrencyLevel, int executionTime, int delayBetweenRequests) :
-        base(transactionDistribution, sellerDistribution, sellerRange, customerDistribution,
-        customerRange, concurrencyLevel, executionTime, delayBetweenRequests)
+        base(transactionDistribution, customerRange, concurrencyLevel, executionTime, delayBetweenRequests)
     {
         this.sellerService = sellerService;
         this.customerService = customerService;
@@ -34,62 +32,30 @@ public class DaprWorkflowManager : WorkloadManager
             {
                 case TransactionType.CUSTOMER_SESSION:
                     {
-                        int customerId = this.keyGeneratorPerWorkloadType[type].Sample();
-                        // make sure there is no active session for the customer. if so, pick another customer
-                        int count = 1;
-                        while (!customerStatusCache.TryUpdate(customerId, WorkerStatus.ACTIVE, WorkerStatus.IDLE))
-                        {
-                            if (count > 5)
-                            {
-                                logger.LogWarning("[Workload emitter] Could not find an available customer! Perhaps should increase the number of customer next time?");
-                                while (!Shared.ResultQueue.Writer.TryWrite(ITEM)) { }
-                                return;
-                            }
-                            customerId = this.keyGeneratorPerWorkloadType[type].Sample();
-                            count++;
-                        }
+                        int customerId;
+                        while (!this.customerIdleQueue.TryDequeue(out customerId)) { }
 
-                        Task.Run(() => customerService.Run(customerId, tid)).ContinueWith(x => this.customerStatusCache[customerId] = WorkerStatus.IDLE);
+                        Task.Run(() => customerService.Run(customerId, tid)).ContinueWith(x => this.customerIdleQueue.Enqueue(customerId)); //.ConfigureAwait(true);
                         break;
                     }
                 // delivery worker
                 case TransactionType.UPDATE_DELIVERY:
                     {
-                        Task.Run(() => deliveryService.Run(tid)).ContinueWith(x => Shared.ResultQueue.Writer.WriteAsync(ITEM));
+                        Task.Run(() => deliveryService.Run(tid)).ContinueWith(async x => await Shared.ResultQueue.Writer.WriteAsync(ITEM));
                         break;
                     }
                 // seller worker
-                case TransactionType.DASHBOARD:
+                case TransactionType.QUERY_DASHBOARD:
                     {
-                        int sellerId = this.keyGeneratorPerWorkloadType[type].Sample();
-                        Task.Run(() => sellerService.Run(sellerId, tid, type)).ContinueWith(x =>
-                        {
-                            this.sellerStatusCache[sellerId] = WorkerStatus.IDLE;
-                            while (!Shared.ResultQueue.Writer.TryWrite(ITEM)) { }
-                        });
+                        int sellerId = this.sellerIdGenerator.Sample();
+                        Task.Run(() => sellerService.Run(sellerId, tid, type)).ContinueWith(async x => await Shared.ResultQueue.Writer.WriteAsync(ITEM));
                         break;
                     }
                 case TransactionType.PRICE_UPDATE:
-                case TransactionType.DELETE_PRODUCT:
+                case TransactionType.UPDATE_PRODUCT:
                     {
-                        int sellerId = this.keyGeneratorPerWorkloadType[type].Sample();
-
-                        int count = 1;
-                        while (!sellerService.HasAvailableProduct(sellerId) || sellerStatusCache[sellerId] == WorkerStatus.ACTIVE || !sellerStatusCache.TryUpdate(sellerId, WorkerStatus.ACTIVE, WorkerStatus.IDLE))
-                        {
-                            if (count > 5)
-                            {
-                                logger.LogDebug("[Workload emitter] A lot of sellers seem busy or without products. Aborting seller operation!");
-                                while (!Shared.ResultQueue.Writer.TryWrite(ITEM)) { }
-                                break;
-                            }
-                            sellerId = this.keyGeneratorPerWorkloadType[type].Sample();
-                            count++;
-                        }
-   
-                        Task.Run(() => sellerService.Run(sellerId, tid, type)).
-                            ContinueWith(x => this.sellerStatusCache[sellerId] = WorkerStatus.IDLE);
-                        
+                        int sellerId = this.sellerIdGenerator.Sample();
+                        Task.Run(() => sellerService.Run(sellerId, tid, type));
                         break;
                     }
                 default:

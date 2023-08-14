@@ -1,4 +1,3 @@
-using System.Net;
 using Common.Distribution;
 using Common.Entities;
 using Common.Http;
@@ -20,9 +19,8 @@ public sealed class CustomerThread : ICustomerWorker
     private CustomerWorkerConfig config;
 
     private IDiscreteDistribution sellerIdGenerator;
-
-    // the customer this worker is simulating
-    private int customerId;
+    private readonly int numberOfProducts;
+    private IDiscreteDistribution productIdGenerator;
 
     // the object respective to this worker
     private Customer customer;
@@ -35,75 +33,65 @@ public sealed class CustomerThread : ICustomerWorker
 
     private readonly ILogger logger;
 
-    public static CustomerThread BuildCustomerThread(IHttpClientFactory httpClientFactory, ISellerService sellerService, CustomerWorkerConfig config, Customer customer)
+    public static CustomerThread BuildCustomerThread(IHttpClientFactory httpClientFactory, ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer)
     {
         var logger = LoggerProxy.GetInstance("Customer" + customer.id.ToString());
-        return new CustomerThread(sellerService, config, customer, httpClientFactory.CreateClient(), logger);
+        return new CustomerThread(sellerService, numberOfProducts, config, customer, httpClientFactory.CreateClient(), logger);
     }
 
-    private CustomerThread(ISellerService sellerService, CustomerWorkerConfig config, Customer customer, HttpClient httpClient, ILogger logger)
+    private CustomerThread(ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer, HttpClient httpClient, ILogger logger)
     {
         this.sellerService = sellerService;
         this.httpClient = httpClient;
         this.config = config;
         this.customer = customer;
-        this.sellerIdGenerator =
-            this.config.sellerDistribution == DistributionType.UNIFORM ?
-            new DiscreteUniform(this.config.sellerRange.min, this.config.sellerRange.max, new Random()) :
-            new Zipf(0.80, this.config.sellerRange.max, new Random());
-
+        this.numberOfProducts = numberOfProducts;
         this.logger = logger;
         this.submittedTransactions = new();
         this.random = new Random();
     }
 
+    public void SetDistribution(DistributionType sellerDistribution, Interval sellerRange, DistributionType keyDistribution)
+    {
+        this.sellerIdGenerator = sellerDistribution == DistributionType.UNIFORM ?
+                                  new DiscreteUniform(sellerRange.min, sellerRange.max, new Random()) :
+                                  new Zipf(0.80, sellerRange.max, new Random());
+        this.productIdGenerator = keyDistribution == DistributionType.UNIFORM ?
+                                new DiscreteUniform(1, numberOfProducts, new Random()) :
+                                new Zipf(0.99, numberOfProducts, new Random());
+    }
+
     public void Run(int tid)
     {
         int numberOfProducts = random.Next(1, this.config.maxNumberKeysToAddToCart + 1);
-        List<Product> products = GetProductsToCheckout(numberOfProducts);
-        AddItemsToCart(products);
+        AddItemsToCart(numberOfProducts);
         Checkout(tid);
     }
 
-    private List<Product> GetProductsToCheckout(int numberOfProducts)
+    private void AddItemsToCart(int numberOfProducts)
     {
-        ISet<(int, int)> set = new HashSet<(int,int)>();
-        List<Product> list = new(numberOfProducts);
-        
-        for (int i = 0; i < numberOfProducts; i++)
+        ISet<(int, int)> set = new HashSet<(int, int)>();
+        while (set.Count < numberOfProducts)
         {
             var sellerId = this.sellerIdGenerator.Sample();
-            var product = sellerService.GetProduct(sellerId);
-
-            while (set.Contains((sellerId, product.product_id)))
+            var product = sellerService.GetProduct(sellerId, this.productIdGenerator.Sample());
+            if (set.Add((sellerId, product.product_id)))
             {
-                sellerId = this.sellerIdGenerator.Sample();
-                product = sellerService.GetProduct(sellerId);
-            }
-            list.Add(product);
-        }
-        return list;
-    }
-
-    private void AddItemsToCart(List<Product> products)
-    {
-        foreach (var product in products)
-        {            
-            var qty = random.Next(this.config.minMaxQtyRange.min, this.config.minMaxQtyRange.max + 1);
-            var payload = BuildCartItem(product, qty);
-            try
-            {
-                HttpRequestMessage message = new(HttpMethod.Patch, this.config.cartUrl + "/" + customerId + "/add")
+                var qty = random.Next(this.config.minMaxQtyRange.min, this.config.minMaxQtyRange.max + 1);
+                var payload = BuildCartItem(product, qty);
+                try
                 {
-                    Content = payload
-                };
-                httpClient.Send(message, HttpCompletionOption.ResponseHeadersRead);
+                    HttpRequestMessage message = new(HttpMethod.Patch, this.config.cartUrl + "/" + customer.id + "/add")
+                    {
+                        Content = payload
+                    };
+                    httpClient.Send(message, HttpCompletionOption.ResponseHeadersRead);
+                }
+                catch (Exception e)
+                {
+                    this.logger.LogWarning("Customer {0} Url {1} Seller {2} Key {3}: Exception Message: {5} ", customer.id, this.config.productUrl, product.seller_id, product.product_id, e.Message);
+                }
             }
-            catch (Exception e)
-            {
-                this.logger.LogWarning("Customer {0} Url {1} Seller {2} Key {3}: Exception Message: {5} ", customerId, this.config.productUrl, product.seller_id, product.product_id, e.Message);
-            }
-            
         }
     }
 
@@ -113,40 +101,23 @@ public sealed class CustomerThread : ICustomerWorker
         if (random.Next(0, 100) > this.config.checkoutProbability)
         {
             InformFailedCheckout();
-            this.logger.LogInformation("Customer {0} decided to not send a checkout.", this.customerId);
             return;
         }
 
-        this.logger.LogInformation("Customer {0} decided to send a checkout", this.customerId);
         // inform checkout intent. optional feature
         var payload = BuildCheckoutPayload(tid, this.customer);
-        HttpRequestMessage message = new(HttpMethod.Post, this.config.cartUrl + "/" + this.customerId + "/checkout");
+        HttpRequestMessage message = new(HttpMethod.Post, this.config.cartUrl + "/" + this.customer.id + "/checkout");
         message.Content = payload;
 
-        var now1 = DateTime.UtcNow;
+        var now = DateTime.UtcNow;
         HttpResponseMessage resp = httpClient.Send(message);
         if (resp.IsSuccessStatusCode)
         {
-            TransactionIdentifier txId = new(tid, TransactionType.CUSTOMER_SESSION, now1);
+            TransactionIdentifier txId = new(tid, TransactionType.CUSTOMER_SESSION, now);
             submittedTransactions.Add(txId);
-        }
-        // TODO add config param Resubmit on Checkout Reject
-        else if (resp.StatusCode == HttpStatusCode.MethodNotAllowed)
-        {
-            var now2 = DateTime.UtcNow;
-            message = new HttpRequestMessage(HttpMethod.Post, this.config.cartUrl + "/" + this.customerId + "/checkout");
-            message.Content = payload;
-            resp = httpClient.Send(message);
-            if (resp.IsSuccessStatusCode)
-            {
-                TransactionIdentifier txId = new(tid, TransactionType.CUSTOMER_SESSION, now2);
-                submittedTransactions.Add(txId);
-            }
         }
         else
         {
-            var now = DateTime.UtcNow;
-            logger.LogDebug("Customer {0} failed checkout for TID {0} at {1}. Status {2}", customerId, tid, now, resp.StatusCode);
             InformFailedCheckout();
         }
     }
@@ -154,7 +125,7 @@ public sealed class CustomerThread : ICustomerWorker
     private void InformFailedCheckout()
     {
         // just cleaning cart state for next browsing
-        HttpRequestMessage message = new(HttpMethod.Patch, this.config.cartUrl + "/" + customerId + "/seal");
+        HttpRequestMessage message = new(HttpMethod.Patch, this.config.cartUrl + "/" + customer.id + "/seal");
         httpClient.Send(message);
     }
 
@@ -191,16 +162,11 @@ public sealed class CustomerThread : ICustomerWorker
     private StringContent BuildCartItem(Product product, int quantity)
     {
         // define voucher from distribution
-        var vouchers = Array.Empty<float>();
+        float voucher = 0;
         int probVoucher = this.random.Next(0, 101);
         if (probVoucher <= this.config.voucherProbability)
         {
-            int numVouchers = this.random.Next(1, this.config.maxNumberVouchers + 1);
-            vouchers = new float[numVouchers];
-            for (int i = 0; i < numVouchers; i++)
-            {
-                vouchers[i] = this.random.Next(1, 10);
-            }
+            voucher = product.price * 0.10f;
         }
 
         // build a basket item
@@ -211,10 +177,16 @@ public sealed class CustomerThread : ICustomerWorker
                 product.price,
                 product.freight_value,
                 quantity,
-                vouchers
+                voucher,
+                product.version
         );
         var payload = JsonConvert.SerializeObject(basketItem);
         return HttpUtils.BuildPayload(payload);
+    }
+
+    public List<TransactionIdentifier> GetSubmittedTransactions()
+    {
+        return this.submittedTransactions;
     }
 
 }

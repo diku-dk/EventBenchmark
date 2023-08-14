@@ -38,15 +38,25 @@ public class DeliveryThread
 	{
         HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, config.shipmentUrl + "/" + tid);
         var initTime = DateTime.UtcNow;
-        var init = new TransactionIdentifier(tid, TransactionType.UPDATE_DELIVERY, initTime);
         var resp = httpClient.Send(message);
         if (resp.IsSuccessStatusCode)
         {
+            var init = new TransactionIdentifier(tid, TransactionType.UPDATE_DELIVERY, initTime);
             var endTime = DateTime.UtcNow;
             var end = new TransactionOutput(tid, endTime);
             while (!ResultQueue.Writer.TryWrite((init, end))) { }
         }
     }
-}
 
+    public List<(TransactionIdentifier, TransactionOutput)> GetResults()
+    {
+        var list = new List<(TransactionIdentifier, TransactionOutput)>();
+        while (ResultQueue.Reader.TryRead(out (TransactionIdentifier, TransactionOutput) item))
+        {
+            list.Add(item);
+        }
+        return list;
+    }
+
+}
 

@@ -14,25 +14,20 @@ public abstract class ExperimentManager
 
     protected readonly ExperimentConfig config;
     protected readonly DuckDBConnection connection;
-    protected readonly List<Customer> customers;
-    protected readonly Interval customerRange;
+    protected List<Customer> customers;
+    protected Interval customerRange;
 
     protected static readonly byte ITEM = 0;
 
     protected static readonly ILogger logger = LoggerProxy.GetInstance("WorkflowOrchestrator");
 
-    protected static readonly List<TransactionType> transactions = new() { TransactionType.CUSTOMER_SESSION, TransactionType.PRICE_UPDATE, TransactionType.DELETE_PRODUCT };
+    protected static readonly List<TransactionType> eventualCompletionTransactions = new() { TransactionType.CUSTOMER_SESSION, TransactionType.PRICE_UPDATE, TransactionType.UPDATE_PRODUCT };
 
     public ExperimentManager(ExperimentConfig config)
     {
         this.config = config;
         this.connection = new DuckDBConnection(config.connectionString);
         connection.Open();
-        // customers are fixed accross runs
-        this.customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
-        this.customerRange = new Interval(1, config.numCustomers);
-
-        // this.sellerRange = new Interval(1, config.num);
     }
 
     protected abstract void PreExperiment();
@@ -41,17 +36,15 @@ public abstract class ExperimentManager
 
     protected abstract void TrimStreams();
 
-    protected abstract void PreWorkload();
+    protected abstract void PreWorkload(int runIdx);
 
-    protected abstract WorkloadManager GetEmitter(int runIdx);
+    protected abstract WorkloadManager SetUpManager(int runIdx);
 
     protected abstract void Collect(int runIdx, DateTime startTime, DateTime finishTime);
 
     public async Task Run()
     {
-        PreExperiment();
-
-        string ts = new DateTimeOffset(DateTime.UtcNow).ToUnixTimeMilliseconds().ToString();
+        
         SyntheticDataSourceConfig previousData = new SyntheticDataSourceConfig()
         {
             numCustomers = config.numCustomers,
@@ -60,7 +53,6 @@ public abstract class ExperimentManager
 
         int runIdx = 0;
         int lastRunIdx = config.runs.Count() - 1;
-
 
         // cleanup microservice states
         var resps_ = new List<Task<HttpResponseMessage>>();
@@ -77,13 +69,15 @@ public abstract class ExperimentManager
         // dont need to generate customers on every run. only once
         dataGen.GenerateCustomers(connection);
 
+        // customers are fixed accross runs
+        this.customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
+        this.customerRange = new Interval(1, config.numCustomers);
+
+        PreExperiment();
+
         foreach (var run in config.runs)
         {
             logger.LogInformation("Run #{0} started at {0}", runIdx, DateTime.UtcNow);
-
-            // set the distributions accordingly
-            config.customerWorkerConfig.sellerDistribution = run.sellerDistribution;
-            config.sellerWorkerConfig.keyDistribution = run.keyDistribution;
 
             if (run.numProducts != previousData.numProducts)
             {
@@ -116,14 +110,14 @@ public abstract class ExperimentManager
 
             }
 
-            PreWorkload();
+            PreWorkload(runIdx);
 
-            WorkloadManager emitter = GetEmitter(runIdx);
+            WorkloadManager workloadManager = SetUpManager(runIdx);
 
-            var emitTask = await emitter.Run();
+            var workloadTask = await workloadManager.Run();
 
-            DateTime startTime = emitTask.startTime;
-            DateTime finishTime = emitTask.finishTime;
+            DateTime startTime = workloadTask.startTime;
+            DateTime finishTime = workloadTask.finishTime;
 
             logger.LogInformation("Waiting 10 seconds for results to arrive from Redis...");
             await Task.Delay(TimeSpan.FromSeconds(10));

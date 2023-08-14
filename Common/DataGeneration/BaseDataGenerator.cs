@@ -27,8 +27,8 @@ namespace Common.DataGeneration
         protected readonly Dictionary<string, string> mapTableToCreateStmt = new()
         {
             ["sellers"] = "CREATE OR REPLACE TABLE sellers (id INTEGER, name VARCHAR, company_name VARCHAR, email VARCHAR, phone VARCHAR, mobile_phone VARCHAR, cpf VARCHAR, cnpj VARCHAR, address VARCHAR, complement VARCHAR, city VARCHAR, state VARCHAR, zip_code VARCHAR, order_count INTEGER);",
-            ["products"] = "CREATE OR REPLACE TABLE products (seller_id INTEGER, product_id INTEGER, name VARCHAR, sku VARCHAR, category VARCHAR, description VARCHAR, price REAL, freight_value REAL, created_at datetime, updated_at datetime, active BOOLEAN, status VARCHAR);",
-            ["stock_items"] = "CREATE OR REPLACE TABLE stock_items (seller_id INTEGER, product_id INTEGER, qty_available INTEGER, qty_reserved INTEGER, order_count INTEGER, ytd INTEGER, data VARCHAR);",
+            ["products"] = "CREATE OR REPLACE TABLE products (seller_id INTEGER, product_id INTEGER, name VARCHAR, sku VARCHAR, category VARCHAR, description VARCHAR, price REAL, freight_value REAL, created_at datetime, updated_at datetime, version INTEGER, status VARCHAR);",
+            ["stock_items"] = "CREATE OR REPLACE TABLE stock_items (seller_id INTEGER, product_id INTEGER, qty_available INTEGER, qty_reserved INTEGER, order_count INTEGER, ytd INTEGER, data VARCHAR, version INTEGER);",
             ["customers"] = "CREATE OR REPLACE TABLE customers (id INTEGER, first_name VARCHAR, last_name VARCHAR, address VARCHAR, complement VARCHAR, birth_date VARCHAR, " +
                             "zip_code VARCHAR, city VARCHAR, state VARCHAR, " +
                             "card_number VARCHAR, card_security_number VARCHAR, card_expiration VARCHAR, card_holder_name VARCHAR, card_type VARCHAR, " +
@@ -45,9 +45,9 @@ namespace Common.DataGeneration
 
         protected readonly string baseSellerQuery = "INSERT INTO sellers(id, name, company_name, email, phone, mobile_phone, cpf, cnpj, address, complement, city, state, zip_code, order_count) VALUES ";
 
-        protected readonly string baseProductQuery = "INSERT INTO products (seller_id, product_id, name, sku, category, description, price, freight_value, active, status) VALUES ";
+        protected readonly string baseProductQuery = "INSERT INTO products (seller_id, product_id, name, sku, category, description, price, freight_value, version, status) VALUES ";
 
-        protected readonly string baseStockQuery = "INSERT INTO stock_items (seller_id, product_id, qty_available, qty_reserved, order_count, ytd, data) VALUES ";
+        protected readonly string baseStockQuery = "INSERT INTO stock_items (seller_id, product_id, qty_available, qty_reserved, order_count, ytd, version, data) VALUES ";
 
         protected readonly string baseCustomerQuery = "INSERT INTO customers (id, first_name, last_name, address, complement, birth_date, " +
                                                         "zip_code, city, state, " +
@@ -70,6 +70,7 @@ namespace Common.DataGeneration
             sb.Append(0).Append(',');
             sb.Append(0).Append(',');
             sb.Append(ytd).Append(',');
+            sb.Append(1).Append(',');
             sb.Append('\'').Append(data).Append("');");
 
             logger.LogDebug(sb.ToString());
@@ -201,8 +202,6 @@ namespace Common.DataGeneration
             var description = RemoveBadCharacter( faker.Commerce.ProductDescription() );
             var sb = new StringBuilder(baseProductQuery);
 
-            DateTime now = DateTime.UtcNow;
-
             sb.Append('(').Append(sellerId).Append(',');
             sb.Append(productId).Append(',');
             sb.Append('\'').Append(name).Append("',");
@@ -211,7 +210,7 @@ namespace Common.DataGeneration
             sb.Append('\'').Append(description).Append("',");
             sb.Append(price).Append(',');
             sb.Append(freight_value).Append(',');
-            sb.Append("TRUE").Append(',');
+            sb.Append(1).Append(',');
             sb.Append('\'').Append("approved").Append("');");
 
             logger.LogDebug(sb.ToString());

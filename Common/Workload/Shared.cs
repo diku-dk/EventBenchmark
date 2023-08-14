@@ -1,6 +1,7 @@
 ﻿using System.Threading.Channels;
 using Common.Streaming;
 using Common.Streaming.Redis;
+using Common.Workload.Metrics;
 
 namespace Common.Workload
 {
@@ -14,7 +15,42 @@ namespace Common.Workload
             AllowSynchronousContinuations = false,
         });
 
-        public static readonly Channel<TransactionMark> FinishedTransactionMarks = Channel.CreateUnbounded<TransactionMark>(new UnboundedChannelOptions()
+        public static readonly Channel<TransactionOutput> ProductUpdateOutputs = Channel.CreateUnbounded<TransactionOutput>(new UnboundedChannelOptions()
+        {
+            SingleWriter = false,
+            SingleReader = true,
+            AllowSynchronousContinuations = false,
+        });
+
+        public static readonly Channel<TransactionMark> PoisonProductUpdateOutputs = Channel.CreateUnbounded<TransactionMark>(new UnboundedChannelOptions()
+        {
+            SingleWriter = false,
+            SingleReader = true,
+            AllowSynchronousContinuations = false,
+        });
+
+        public static readonly Channel<TransactionOutput> PriceUpdateOutputs = Channel.CreateUnbounded<TransactionOutput>(new UnboundedChannelOptions()
+        {
+            SingleWriter = false,
+            SingleReader = true,
+            AllowSynchronousContinuations = false,
+        });
+
+        public static readonly Channel<TransactionMark> PoisonPriceUpdateOutputs = Channel.CreateUnbounded<TransactionMark>(new UnboundedChannelOptions()
+        {
+            SingleWriter = false,
+            SingleReader = true,
+            AllowSynchronousContinuations = false,
+        });
+
+        public static readonly Channel<TransactionOutput> CheckoutOutputs = Channel.CreateUnbounded<TransactionOutput>(new UnboundedChannelOptions()
+        {
+            SingleWriter = false,
+            SingleReader = true,
+            AllowSynchronousContinuations = false,
+        });
+
+        public static readonly Channel<TransactionMark> PoisonCheckoutOutputs = Channel.CreateUnbounded<TransactionMark>(new UnboundedChannelOptions()
         {
             SingleWriter = false,
             SingleReader = true,

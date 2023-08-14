@@ -14,35 +14,29 @@ namespace Daprr.Workers;
 public sealed class SellerThread
 {
     private readonly Random random;
-    private SellerWorkerConfig config;
+    private readonly SellerWorkerConfig config;
 
     private int sellerId;
 
-    private IDiscreteDistribution fixedIdGenerator;
-    private IDiscreteDistribution dynamicIdGenerator;
+    private IDiscreteDistribution productIdGenerator;
 
     private readonly HttpClient httpClient;
 
     private readonly ILogger logger;
 
-    // to support: (i) customer product retrieval and (ii) the delete operation, since it uses a search string
-    private List<Product> products;
-    private List<Product> availableProducts;
-    
+    private Product[] products;
+
     private readonly List<TransactionIdentifier> submittedTransactions;
     private readonly List<TransactionOutput> finishedTransactions;
 
-    private static object LockDist = new object();
-    private static object LockAvail = new object();
-
-    public SellerThread BuildSellerThread(int sellerId, IHttpClientFactory httpClientFactory, SellerWorkerConfig workerConfig, List<Product> products)
+    public static SellerThread BuildSellerThread(int sellerId, IHttpClientFactory httpClientFactory, SellerWorkerConfig workerConfig)
     {
         var logger = LoggerProxy.GetInstance("SellerThread_"+ sellerId);
         var httpClient = httpClientFactory.CreateClient();
-        return new SellerThread(sellerId, httpClient, workerConfig, products, logger);
+        return new SellerThread(sellerId, httpClient, workerConfig, logger);
     }
 
-    private SellerThread(int sellerId, HttpClient httpClient, SellerWorkerConfig sellerConfig, List<Product> products, ILogger logger)
+    private SellerThread(int sellerId, HttpClient httpClient, SellerWorkerConfig workerConfig, ILogger logger)
 	{
         this.random = new Random();
         this.logger = logger;
@@ -50,30 +44,29 @@ public sealed class SellerThread
         this.finishedTransactions = new List<TransactionOutput>();
         this.sellerId = sellerId;
         this.httpClient = httpClient;
-        this.config = sellerConfig;
-        this.products = products;
-        this.availableProducts = new(products);
-        this.fixedIdGenerator = this.config.keyDistribution == DistributionType.UNIFORM ?
-                new DiscreteUniform(1, products.Count, new Random()) :
-                new Zipf(0.99, products.Count, new Random());
-        this.dynamicIdGenerator =
-            this.config.keyDistribution == DistributionType.UNIFORM ?
-                new DiscreteUniform(1, products.Count, new Random()) :
-                new Zipf(0.99, products.Count, new Random()); 
+        this.config = workerConfig;
+    }
+
+    public void SetUp(List<Product> products, DistributionType keyDistribution)
+    {
+        this.products = products.ToArray();
+        this.productIdGenerator = keyDistribution == DistributionType.UNIFORM ?
+                                 new DiscreteUniform(1, products.Count, new Random()) :
+                                 new Zipf(0.99, products.Count, new Random());
     }
 
     public void Run(int tid, TransactionType type)
     {
         switch (type)
         {
-            case TransactionType.DASHBOARD:
+            case TransactionType.QUERY_DASHBOARD:
             {
                 BrowseDashboard(tid);
                 break;
             }
-            case TransactionType.DELETE_PRODUCT:
+            case TransactionType.UPDATE_PRODUCT:
             {
-                DeleteProduct(tid);
+                UpdateProduct(tid);
                 break;
             }
             case TransactionType.PRICE_UPDATE:
@@ -84,20 +77,21 @@ public sealed class SellerThread
         }
     }
 
+    /**
+     * The method is only called if there are available products, so the while loop always finishes at some point
+     */
     private void UpdatePrice(int tid)
     {
-
-        int idx = this.dynamicIdGenerator.Sample() - 1;
+        int idx = this.productIdGenerator.Sample() - 1;
+        var productToUpdate = products[idx];
 
         int percToAdjust = random.Next(config.adjustRange.min, config.adjustRange.max);
-
-        var productToUpdate = availableProducts[idx];
         var currPrice = productToUpdate.price;
         var newPrice = currPrice + ((currPrice * percToAdjust) / 100);
         productToUpdate.price = newPrice;
 
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Patch, config.productUrl);
-        string serializedObject = JsonConvert.SerializeObject(new UpdatePrice(this.sellerId, productToUpdate.product_id, newPrice, tid));
+        string serializedObject = JsonConvert.SerializeObject(new PriceUpdate(this.sellerId, productToUpdate.product_id, newPrice, tid));
         request.Content = HttpUtils.BuildPayload(serializedObject);
 
         var initTime = DateTime.UtcNow;
@@ -105,7 +99,6 @@ public sealed class SellerThread
         if (resp.IsSuccessStatusCode)
         {
             this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.PRICE_UPDATE, initTime));
-            this.logger.LogDebug("Seller {0}: Finished product {1} price update.", this.sellerId, productToUpdate.product_id);
         }
         else
         {
@@ -113,12 +106,42 @@ public sealed class SellerThread
         }
     }
 
+    private void UpdateProduct(int tid)
+    {
+        int idx = this.productIdGenerator.Sample() - 1;        
+        Product product = new Product(products[idx], true, tid);
+        SendProductUpdateRequest(product, tid);
+        // trick so customer do not need to synchronize to get a product (it may refer to an older version though)
+        products[idx] = product;
+    }
+
+    private void SendProductUpdateRequest(Product product, int tid)
+    {
+        var obj = JsonConvert.SerializeObject(product);
+        HttpRequestMessage message = new(HttpMethod.Put, config.productUrl)
+        {
+            Content = HttpUtils.BuildPayload(obj)
+        };
+
+        var now = DateTime.UtcNow;
+        httpClient.Send(message, HttpCompletionOption.ResponseHeadersRead);
+        this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.UPDATE_PRODUCT, now));
+    }
+
+    // yes, we may retrieve a product that is being concurrently deleted
+    // at first, I was thinking to always get available product..
+    // because concurrently a seller can delete a product and the time spent on finding a available product is lost
+    public Product GetProduct(int idx)
+    {
+        return this.products[idx];
+    }
+
     private void BrowseDashboard(int tid)
     {
         try
         {
             HttpRequestMessage message = new(HttpMethod.Get, config.sellerUrl + "/" + this.sellerId);
-            this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.DASHBOARD, DateTime.UtcNow));
+            this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.QUERY_DASHBOARD, DateTime.UtcNow));
             var response = httpClient.Send(message);
             if (response.IsSuccessStatusCode)
             {
@@ -135,63 +158,15 @@ public sealed class SellerThread
         }
     }
 
-    private void UpdateDist(int upper)
+    public List<TransactionOutput> GetFinishedTransactions()
     {
-        this.dynamicIdGenerator =
-            this.config.keyDistribution == DistributionType.UNIFORM ?
-                new DiscreteUniform(1, upper, new Random()) :
-                new Zipf(0.99, upper, new Random());
+        return this.finishedTransactions;
     }
 
-    private void DeleteProduct(int tid)
+    public List<TransactionIdentifier> GetSubmittedTransactions()
     {
-        int idx = this.dynamicIdGenerator.Sample() - 1;
-       
-        Product toDelete;
-        int count = 0;
-        lock (LockAvail)
-        {
-            toDelete = availableProducts[idx];
-            availableProducts.RemoveAt(idx);
-            count = availableProducts.Count();
-        }
-        UpdateDist(count);
-        
-        var obj = JsonConvert.SerializeObject(new DeleteProduct(this.sellerId, toDelete.product_id, tid));
-        HttpRequestMessage message = new(HttpMethod.Delete, config.productUrl)
-        {
-            Content = HttpUtils.BuildPayload(obj)
-        };
-
-        var now = DateTime.UtcNow;
-        var resp = httpClient.Send(message, HttpCompletionOption.ResponseHeadersRead);
-        if (resp.IsSuccessStatusCode)
-        {
-            this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.DELETE_PRODUCT, now));
-        }
-    }
-
-    public bool HasAvailableProducts()
-    {
-        bool res = false;
-        lock (LockAvail)
-        {
-            res = this.availableProducts.Count() > 0;
-        }
-        return res;
-    }
-
-    // synchronization only across customers
-    public Product GetProduct()
-	{
-        int idx;
-        lock (LockDist)
-        {
-            idx = this.fixedIdGenerator.Sample() - 1;
-        }
-        return products[idx];
+        return this.submittedTransactions;
     }
 
 }
-
 

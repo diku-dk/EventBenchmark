@@ -17,25 +17,40 @@ public class EventHandler : ControllerBase
         this.logger = logger;
     }
 
-    private const string deleteMark = "TransactionMark_DELETE_PRODUCT";
-    private const string updateMark = "TransactionMark_PRICE_UPDATE";
+    private const string productUpdateMark = "TransactionMark_UPDATE_PRODUCT";
+    private const string priceUpdateMark = "TransactionMark_PRICE_UPDATE";
     private const string checkoutMark = "TransactionMark_CUSTOMER_SESSION";
 
-    [HttpPost("/deleteMark")]
-    [Topic(PUBSUB_NAME, deleteMark)]
-    public async Task<ActionResult> ProcessDeleteMark([FromBody] TransactionMark deleteMark)
+    [HttpPost("/productUpdateMark")]
+    [Topic(PUBSUB_NAME, productUpdateMark)]
+    public async Task<ActionResult> ProcessProductUpdateMark([FromBody] TransactionMark productUpdateMark)
     {
-        await Task.WhenAll(Shared.ResultQueue.Writer.WriteAsync(WorkloadManager.ITEM).AsTask(),
-                            Shared.FinishedTransactionMarks.Writer.WriteAsync(deleteMark).AsTask());
+        var ts = DateTime.UtcNow;
+        await Shared.ResultQueue.Writer.WriteAsync(WorkloadManager.ITEM);
+        if (productUpdateMark.status == MarkStatus.SUCCESS)
+        {
+            await Shared.ProductUpdateOutputs.Writer.WriteAsync(new(productUpdateMark.tid, ts));
+        } else
+        {
+            await Shared.PoisonProductUpdateOutputs.Writer.WriteAsync(productUpdateMark);
+        }
         return Ok();
     }
 
     [HttpPost("/priceUpdateMark")]
-    [Topic(PUBSUB_NAME, updateMark)]
+    [Topic(PUBSUB_NAME, priceUpdateMark)]
     public async Task<ActionResult> ProcessPriceUpdateMark([FromBody] TransactionMark priceUpdateMark)
     {
-        await Task.WhenAll(Shared.ResultQueue.Writer.WriteAsync(WorkloadManager.ITEM).AsTask(),
-                        Shared.FinishedTransactionMarks.Writer.WriteAsync(priceUpdateMark).AsTask());
+        var ts = DateTime.UtcNow;
+        await Shared.ResultQueue.Writer.WriteAsync(WorkloadManager.ITEM);
+        if (priceUpdateMark.status == MarkStatus.SUCCESS)
+        {
+            await Shared.PriceUpdateOutputs.Writer.WriteAsync(new(priceUpdateMark.tid, ts));
+        }
+        else
+        {
+            await Shared.PoisonPriceUpdateOutputs.Writer.WriteAsync(priceUpdateMark);
+        }
         return Ok();
     }
 
@@ -43,8 +58,16 @@ public class EventHandler : ControllerBase
     [Topic(PUBSUB_NAME, checkoutMark)]
     public async Task<ActionResult> ProcessCheckoutMark([FromBody] TransactionMark checkoutMark)
     {
-        await Task.WhenAll(Shared.ResultQueue.Writer.WriteAsync(WorkloadManager.ITEM).AsTask(),
-                        Shared.FinishedTransactionMarks.Writer.WriteAsync(checkoutMark).AsTask());
+        var ts = DateTime.UtcNow;
+        await Shared.ResultQueue.Writer.WriteAsync(WorkloadManager.ITEM);
+        if (checkoutMark.status == MarkStatus.SUCCESS)
+        {
+            await Shared.CheckoutOutputs.Writer.WriteAsync(new(checkoutMark.tid, ts));
+        }
+        else
+        {
+            await Shared.PoisonCheckoutOutputs.Writer.WriteAsync(checkoutMark);
+        }
         return Ok();
     }
 

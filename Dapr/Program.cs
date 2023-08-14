@@ -3,7 +3,7 @@
 // Add services to the container
 builder.Services.AddDaprClient();
 
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddNewtonsoftJson();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

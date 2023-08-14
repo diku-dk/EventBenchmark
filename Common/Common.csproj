@@ -11,7 +11,6 @@
     <None Remove="Streaming\" />
     <None Remove="Workload\YCSB\" />
     <None Remove="Scenario\Customer\" />
-    <None Remove="Serdes\" />
     <None Remove="Newtonsoft.Json" />
     <None Remove="Scenario\Seller\" />
     <None Remove="Infra\" />
@@ -23,7 +22,6 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Streaming\" />
-    <Folder Include="Serdes\" />
     <Folder Include="Workload\Seller\" />
     <Folder Include="Infra\" />
     <Folder Include="Entities\" />

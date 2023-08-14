@@ -1,15 +1,14 @@
 ﻿using Common.Entities;
 using Common.Workload;
+using Common.Workload.Metrics;
 
 namespace Daprr.Services;
 
 public interface ISellerService
 {
-
-    Product GetProduct(int sellerId);
-
+    Product GetProduct(int sellerId, int idx);
     void Run(int sellerId, int tid, TransactionType type);
 
-    bool HasAvailableProduct(int sellerId);
-
+    List<TransactionIdentifier> GetSubmittedTransactions(int sellerId);
+    List<TransactionOutput> GetFinishedTransactions(int sellerId);
 }

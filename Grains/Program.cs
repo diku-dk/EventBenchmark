@@ -8,7 +8,7 @@ using Common.Infra;
 using Common.Collection;
 using Common.Cleaning;
 using Common.Experiment;
-using Orleans.Workload;
+//using Orleans.Workload;
 
 namespace Common
 {
@@ -48,8 +48,8 @@ namespace Common
             if(masterConfig_.Item2 is not null)
             {
                 logger.LogInformation("Starting experiment...");
-                var workflowOrc = new ActorExperimentManager(masterConfig_.Item2);
-                await workflowOrc.Run();
+                //var workflowOrc = new ActorExperimentManager(masterConfig_.Item2);
+                //await workflowOrc.Run();
                 logger.LogInformation("Experiment finished!");
             } else
             {
