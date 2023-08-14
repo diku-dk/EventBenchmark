@@ -118,3 +118,4 @@ local.properties
 testdb
 
 Configuration/results*.txt
+Dapr/*.txt
