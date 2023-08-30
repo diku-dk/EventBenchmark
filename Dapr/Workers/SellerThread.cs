@@ -112,10 +112,13 @@ public sealed class SellerThread
     {
         int idx = this.productIdGenerator.Sample() - 1;
 
+        object locked = products[idx];
+
         // only one update of a given version is allowed
-        while(!Monitor.TryEnter(products[idx]))
+        while(!Monitor.TryEnter(locked))
         {
             idx = this.productIdGenerator.Sample() - 1;
+            locked = products[idx];
         }
 
         try
@@ -127,7 +130,7 @@ public sealed class SellerThread
         }
         finally
         {
-            Monitor.Exit(products[idx]);
+            Monitor.Exit(locked);
         }
         
     }
