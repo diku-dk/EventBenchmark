@@ -119,8 +119,8 @@ public abstract class ExperimentManager
             DateTime startTime = workloadTask.startTime;
             DateTime finishTime = workloadTask.finishTime;
 
-            logger.LogInformation("Waiting 10 seconds for results to arrive from Redis...");
-            await Task.Delay(TimeSpan.FromSeconds(10));
+            logger.LogInformation("Wait for microservices to converge (i.e., finish receiving events) for {0} seconds...", config.delayBetweenRuns / 1000);
+            await Task.Delay(config.delayBetweenRuns);
 
             // set up data collection for metrics
             Collect(runIdx, startTime, finishTime);
@@ -129,10 +129,10 @@ public abstract class ExperimentManager
             TrimStreams();
 
             PostRunTasks(runIdx, lastRunIdx);
-        }
 
-        logger.LogInformation("Wait for microservices to converge (i.e. finish receiving events) for {0} seconds...", config.delayBetweenRuns / 1000);
-        await Task.Delay(config.delayBetweenRuns);
+            // increment run index
+            runIdx++;
+        }
 
         logger.LogInformation("Post experiment cleanup tasks started.");
 
@@ -181,7 +181,6 @@ public abstract class ExperimentManager
         }
 
         logger.LogInformation("Run #{0} finished at {1}", runIdx, DateTime.UtcNow);
-        runIdx++;
 
         logger.LogInformation("Memory used before collection:       {0:N0}",
                 GC.GetTotalMemory(false));
@@ -191,11 +190,6 @@ public abstract class ExperimentManager
         logger.LogInformation("Memory used after full collection:   {0:N0}",
         GC.GetTotalMemory(true));
 
-        if (runIdx < lastRunIdx)
-        {
-            logger.LogInformation("Starting new run in {0} seconds...", config.delayBetweenRuns / 1000);
-            await Task.Delay(config.delayBetweenRuns);
-        }
     }
 
 }
