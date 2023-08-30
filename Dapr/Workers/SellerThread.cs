@@ -90,7 +90,7 @@ public sealed class SellerThread
         var newPrice = currPrice + ((currPrice * percToAdjust) / 100);
         productToUpdate.price = newPrice;
 
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Patch, config.productUrl);
+        HttpRequestMessage request = new(HttpMethod.Patch, config.productUrl);
         string serializedObject = JsonConvert.SerializeObject(new PriceUpdate(this.sellerId, productToUpdate.product_id, newPrice, tid));
         request.Content = HttpUtils.BuildPayload(serializedObject);
 
@@ -106,13 +106,29 @@ public sealed class SellerThread
         }
     }
 
+    // https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/lock
     private void UpdateProduct(int tid)
     {
-        int idx = this.productIdGenerator.Sample() - 1;        
-        Product product = new Product(products[idx], true, tid);
-        SendProductUpdateRequest(product, tid);
-        // trick so customer do not need to synchronize to get a product (it may refer to an older version though)
-        products[idx] = product;
+        int idx = this.productIdGenerator.Sample() - 1;
+
+        // only one update of a given version is allowed
+        while(!Monitor.TryEnter(products[idx]))
+        {
+            idx = this.productIdGenerator.Sample() - 1;
+        }
+
+        try
+        {
+            Product product = new Product(products[idx], tid);
+            SendProductUpdateRequest(product, tid);
+            // trick so customer do not need to synchronize to get a product (it may refer to an older version though)
+            products[idx] = product;
+        }
+        finally
+        {
+            Monitor.Exit(products[idx]);
+        }
+        
     }
 
     private void SendProductUpdateRequest(Product product, int tid)

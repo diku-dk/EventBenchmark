@@ -25,7 +25,7 @@
 
         public Product() { }
 
-        public Product(Product product, bool active, int version)
+        public Product(Product product, int version)
         {
             this.seller_id = product.seller_id;
             this.product_id = product.product_id;
