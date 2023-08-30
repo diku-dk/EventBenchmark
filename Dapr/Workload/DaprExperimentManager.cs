@@ -2,15 +2,13 @@ using Common.Entities;
 using Common.Experiment;
 using Common.Infra;
 using Common.Streaming;
-using Common.Streaming.Redis;
-using Common.Workload;
-using Dapr.Metric;
-using Daprr.Services;
-using Daprr.Workers;
-using Daprr.Workrs;
+using Common.Metric;
+using Common.Services;
+using Common.Workers;
 using System.Text;
+using Daprr.Streaming.Redis;
 
-namespace Daprr.Workload;
+namespace Common.Workload;
 
 public class DaprExperimentManager : ExperimentManager
 {
@@ -73,9 +71,9 @@ public class DaprExperimentManager : ExperimentManager
         return workflowManager;
     }
 
-    protected override void PostExperiment()
+    protected override async void PostExperiment()
     {
-        TrimStreams();
+        await RedisUtils.TrimStreams(redisConnection, channelsToTrim);
     }
 
     /**

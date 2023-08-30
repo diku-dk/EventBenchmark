@@ -14,4 +14,12 @@
   <ItemGroup>
     <ProjectReference Include="..\Common\Common.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Remove="Metric\" />
+    <None Remove="Workflow\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Metric\" />
+    <Folder Include="Workflow\" />
+  </ItemGroup>
 </Project>

@@ -1,9 +1,9 @@
 ﻿using System.Net;
 using Common.Experiment;
-using Daprr.Workload;
+using Common.Workload;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Daprr.Controllers;
+namespace Common.Controllers;
 
 [ApiController]
 public class DaprController : ControllerBase

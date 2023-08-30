@@ -1,9 +1,8 @@
-﻿using Common.Metric;
-using Common.Workload;
+﻿using Common.Workload;
 using Common.Workload.Metrics;
-using Daprr.Services;
+using Common.Services;
 
-namespace Dapr.Metric;
+namespace Common.Metric;
 
 public class DaprMetricManager : MetricManager
 {
@@ -28,7 +27,7 @@ public class DaprMetricManager : MetricManager
 
     protected override Dictionary<TransactionType, int> CollectAborts(DateTime finishTime)
     {
-        Dictionary<TransactionType, int> dictCount = new()
+        Dictionary<TransactionType, int> abortCount = new()
         {
             { TransactionType.PRICE_UPDATE, 0 },
              { TransactionType.UPDATE_PRODUCT, 0 },
@@ -36,19 +35,19 @@ public class DaprMetricManager : MetricManager
         };
         while (Shared.PoisonPriceUpdateOutputs.Reader.TryRead(out _))
         {
-            dictCount[TransactionType.PRICE_UPDATE]++;
+            abortCount[TransactionType.PRICE_UPDATE]++;
         }
 
         while (Shared.PoisonProductUpdateOutputs.Reader.TryRead(out _))
         {
-            dictCount[TransactionType.UPDATE_PRODUCT]++;
+            abortCount[TransactionType.UPDATE_PRODUCT]++;
         }
 
         while (Shared.PoisonCheckoutOutputs.Reader.TryRead(out _))
         {
-            dictCount[TransactionType.CUSTOMER_SESSION]++;
+            abortCount[TransactionType.CUSTOMER_SESSION]++;
         }
-        return dictCount;
+        return abortCount;
     }
 
     protected override List<Latency> CollectFromCustomer(DateTime finishTime)
@@ -61,7 +60,7 @@ public class DaprMetricManager : MetricManager
 
         for (int i = 1; i <= numCustomers; i++)
         {
-            var submitted = customerService.GetSubmittedTransactions(i);
+            var submitted = this.customerService.GetSubmittedTransactions(i);
             foreach (var tx in submitted)
             {
                 if (!customerSubmitted.TryAdd(tx.tid, tx))
@@ -72,8 +71,7 @@ public class DaprMetricManager : MetricManager
             }
         }
 
-        TransactionOutput item;
-        while (Shared.CheckoutOutputs.Reader.TryRead(out item))
+        while (Shared.CheckoutOutputs.Reader.TryRead(out TransactionOutput item))
         {
             if (!customerFinished.TryAdd(item.tid, item))
             {
@@ -129,7 +127,7 @@ public class DaprMetricManager : MetricManager
 
         for (int i = 1; i <= numSellers; i++)
         {
-            var submitted = sellerService.GetSubmittedTransactions(i);
+            var submitted = this.sellerService.GetSubmittedTransactions(i);
             foreach (var tx in submitted)
             {
                 if (!sellerSubmitted.TryAdd(tx.tid, tx))
@@ -139,7 +137,7 @@ public class DaprMetricManager : MetricManager
                 }
             }
 
-            var finished = sellerService.GetFinishedTransactions(i);
+            var finished = this.sellerService.GetFinishedTransactions(i);
             foreach (var tx in finished)
             {
                 if (!sellerFinished.TryAdd(tx.tid, tx))

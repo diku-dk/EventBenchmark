@@ -3,7 +3,7 @@ using Common.Workload;
 using Microsoft.AspNetCore.Mvc;
 using Dapr;
 
-namespace Daprr.Controllers;
+namespace Common.Controllers;
 
 [ApiController]
 public class EventHandler : ControllerBase

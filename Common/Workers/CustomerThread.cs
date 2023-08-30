@@ -6,11 +6,12 @@ using Common.Requests;
 using Common.Workload;
 using Common.Workload.CustomerWorker;
 using Common.Workload.Metrics;
-using Daprr.Services;
+using Common.Services;
 using MathNet.Numerics.Distributions;
 using Newtonsoft.Json;
+using Microsoft.Extensions.Logging;
 
-namespace Daprr.Workrs;
+namespace Common.Workers;
 
 public sealed class CustomerThread : ICustomerWorker
 {  
@@ -85,7 +86,7 @@ public sealed class CustomerThread : ICustomerWorker
                     {
                         Content = payload
                     };
-                    httpClient.Send(message, HttpCompletionOption.ResponseHeadersRead);
+                    this.httpClient.Send(message, HttpCompletionOption.ResponseHeadersRead);
                 }
                 catch (Exception e)
                 {
@@ -114,7 +115,7 @@ public sealed class CustomerThread : ICustomerWorker
         if (resp.IsSuccessStatusCode)
         {
             TransactionIdentifier txId = new(tid, TransactionType.CUSTOMER_SESSION, now);
-            submittedTransactions.Add(txId);
+            this.submittedTransactions.Add(txId);
         }
         else
         {
@@ -126,7 +127,7 @@ public sealed class CustomerThread : ICustomerWorker
     {
         // just cleaning cart state for next browsing
         HttpRequestMessage message = new(HttpMethod.Patch, this.config.cartUrl + "/" + customer.id + "/seal");
-        httpClient.Send(message);
+        this.httpClient.Send(message);
     }
 
     private StringContent BuildCheckoutPayload(int tid, Customer customer)

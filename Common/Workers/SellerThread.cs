@@ -7,9 +7,10 @@ using Common.Workload;
 using Common.Workload.Metrics;
 using Common.Workload.Seller;
 using MathNet.Numerics.Distributions;
+using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 
-namespace Daprr.Workers;
+namespace Common.Workers;
 
 public sealed class SellerThread
 {

@@ -1,7 +1,7 @@
 ﻿using Common.Workload.Metrics;
-using Daprr.Workrs;
+using Common.Workers;
 
-namespace Daprr.Services;
+namespace Common.Services;
 
 public sealed class CustomerService : ICustomerService
 {

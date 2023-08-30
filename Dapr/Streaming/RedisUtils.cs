@@ -1,8 +1,7 @@
 ﻿using Common.Infra;
-using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 
-namespace Common.Streaming.Redis
+namespace Daprr.Streaming.Redis
 {
     /**
 	 * No async stream consumtpion (aka XREAD command) support in Redis C# client:

@@ -1,7 +1,6 @@
-using Common.Workload;
-using Daprr.Services;
+using Common.Services;
 
-namespace Daprr.Workload;
+namespace Common.Workload;
 
 public class DaprWorkflowManager : WorkloadManager
 {
@@ -35,7 +34,7 @@ public class DaprWorkflowManager : WorkloadManager
                         int customerId;
                         while (!this.customerIdleQueue.TryDequeue(out customerId)) { }
 
-                        Task.Run(() => customerService.Run(customerId, tid)).ContinueWith(x => this.customerIdleQueue.Enqueue(customerId)); //.ConfigureAwait(true);
+                        Task.Run(() => customerService.Run(customerId, tid)).ContinueWith(x => this.customerIdleQueue.Enqueue(customerId));
                         break;
                     }
                 // delivery worker

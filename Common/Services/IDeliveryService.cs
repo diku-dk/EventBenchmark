@@ -1,6 +1,6 @@
 ﻿using Common.Workload.Metrics;
 
-namespace Daprr.Services;
+namespace Common.Services;
 
 public interface IDeliveryService
 {

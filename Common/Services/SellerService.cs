@@ -1,9 +1,9 @@
 ﻿using Common.Entities;
 using Common.Workload;
 using Common.Workload.Metrics;
-using Daprr.Workers;
+using Common.Workers;
 
-namespace Daprr.Services;
+namespace Common.Services;
 
 public sealed class SellerService : ISellerService
 {

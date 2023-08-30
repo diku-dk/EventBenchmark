@@ -28,8 +28,10 @@
   </ItemGroup>
   <ItemGroup>
     <None Remove="Events\" />
+    <None Remove="Driver\" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Events\" />
+    <Folder Include="Driver\" />
   </ItemGroup>
 </Project>

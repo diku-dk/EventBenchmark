@@ -8,10 +8,8 @@ using DuckDB.NET.Data;
 using Microsoft.Extensions.Logging;
 using Common.Collection;
 using Common.Cleaning;
-using Common.Streaming.Redis;
 using Common.Ingestion.Config;
 using Common.Streaming;
-using Grains.Collection;
 using System.Text;
 
 namespace Common.Workflow;
@@ -171,7 +169,7 @@ public class WorkflowOrchestrator
 
     private static async Task Clean(CleaningConfig cleaningConfig)
     {
-        await RedisUtils.TrimStreams(cleaningConfig.streamingConfig.host, cleaningConfig.streamingConfig.streams.ToList());
+        // await RedisUtils.TrimStreams(cleaningConfig.streamingConfig.host, cleaningConfig.streamingConfig.streams.ToList());
 
         List<Task> responses = new();
         // truncate duckdb tables

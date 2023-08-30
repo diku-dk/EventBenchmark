@@ -12,12 +12,14 @@
     <PackageReference Include="Dapr.AspNetCore" Version="1.11.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="7.0.10" />
+    <PackageReference Include="StackExchange.Redis" Version="2.6.122" />
   </ItemGroup>
   
   <ItemGroup>
     <None Remove="Infra\" />
     <None Remove="Services\" />
     <None Remove="Metric\" />
+    <None Remove="Streaming\" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Common\Common.csproj" />
@@ -33,5 +35,6 @@
   
   <ItemGroup>
     <Folder Include="Metric\" />
+    <Folder Include="Streaming\" />
   </ItemGroup>
 </Project>

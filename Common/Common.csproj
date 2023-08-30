@@ -19,6 +19,8 @@
     <None Remove="Http\" />
     <None Remove="Workload\Metrics\" />
     <None Remove="Workload\Delivery\" />
+    <None Remove="Services\" />
+    <None Remove="Workers\" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Streaming\" />
@@ -27,15 +29,17 @@
     <Folder Include="Entities\" />
     <Folder Include="Workload\Metrics\" />
     <Folder Include="Workload\Delivery\" />
+    <Folder Include="Services\" />
+    <Folder Include="Workers\" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="StackExchange.Redis" Version="2.6.122" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-	<PackageReference Include="Dapper" Version="2.0.143" />
+	<PackageReference Include="Dapper" Version="2.0.151" />
     <PackageReference Include="Bogus" Version="34.0.2" />
     <PackageReference Include="DuckDB.NET.Data.Full" Version="0.8.1" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="7.0.0" />
     <PackageReference Include="Microsoft.Orleans.Serialization.NewtonsoftJson" Version="7.2.1" />
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="7.0.0" />
   </ItemGroup>
 </Project>
