@@ -45,6 +45,9 @@ public class DeliveryThread
             var endTime = DateTime.UtcNow;
             var end = new TransactionOutput(tid, endTime);
             while (!ResultQueue.Writer.TryWrite((init, end))) { }
+        } else
+        {
+            this.logger.LogError("Delivery worker failed to update delivery for TID {0}: {1}", tid, resp.ReasonPhrase);
         }
     }
 

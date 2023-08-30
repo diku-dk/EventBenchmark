@@ -13,6 +13,7 @@ namespace Daprr.Workers;
 
 public sealed class SellerThread
 {
+
     private readonly Random random;
     private readonly SellerWorkerConfig config;
 
@@ -38,7 +39,7 @@ public sealed class SellerThread
 
     private SellerThread(int sellerId, HttpClient httpClient, SellerWorkerConfig workerConfig, ILogger logger)
 	{
-        this.random = new Random();
+        this.random = Random.Shared;
         this.logger = logger;
         this.submittedTransactions = new List<TransactionIdentifier>();
         this.finishedTransactions = new List<TransactionOutput>();
@@ -51,8 +52,8 @@ public sealed class SellerThread
     {
         this.products = products.ToArray();
         this.productIdGenerator = keyDistribution == DistributionType.UNIFORM ?
-                                 new DiscreteUniform(1, products.Count, new Random()) :
-                                 new Zipf(0.99, products.Count, new Random());
+                                 new DiscreteUniform(1, products.Count, Random.Shared) :
+                                 new Zipf(0.99, products.Count, Random.Shared);
     }
 
     public void Run(int tid, TransactionType type)
@@ -122,7 +123,7 @@ public sealed class SellerThread
             Product product = new Product(products[idx], tid);
             SendProductUpdateRequest(product, tid);
             // trick so customer do not need to synchronize to get a product (it may refer to an older version though)
-            products[idx] = product;
+            this.products[idx] = product;
         }
         finally
         {
@@ -140,8 +141,17 @@ public sealed class SellerThread
         };
 
         var now = DateTime.UtcNow;
-        httpClient.Send(message, HttpCompletionOption.ResponseHeadersRead);
-        this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.UPDATE_PRODUCT, now));
+        var resp = httpClient.Send(message, HttpCompletionOption.ResponseHeadersRead);
+
+        if (resp.IsSuccessStatusCode)
+        {
+             this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.UPDATE_PRODUCT, now));
+        }
+        else
+        {
+            this.logger.LogError("Seller {0} failed to update product {1} version: {2}", this.sellerId, product.product_id, resp.ReasonPhrase);
+        }
+       
     }
 
     // yes, we may retrieve a product that is being concurrently deleted

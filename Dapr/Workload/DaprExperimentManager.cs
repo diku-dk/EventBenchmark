@@ -49,8 +49,6 @@ public class DaprExperimentManager : ExperimentManager
 
         this.channelsToTrim = new();
 
-
-
         this.metricManager = new DaprMetricManager(sellerService, customerService, deliveryService);
     }
 
