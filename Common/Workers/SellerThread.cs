@@ -12,7 +12,7 @@ using Newtonsoft.Json;
 
 namespace Common.Workers;
 
-public sealed class SellerThread
+public sealed class SellerThread : ISellerWorker
 {
 
     private readonly Random random;
@@ -57,32 +57,10 @@ public sealed class SellerThread
                                  new Zipf(0.99, products.Count, Random.Shared);
     }
 
-    public void Run(int tid, TransactionType type)
-    {
-        switch (type)
-        {
-            case TransactionType.QUERY_DASHBOARD:
-            {
-                BrowseDashboard(tid);
-                break;
-            }
-            case TransactionType.UPDATE_PRODUCT:
-            {
-                UpdateProduct(tid);
-                break;
-            }
-            case TransactionType.PRICE_UPDATE:
-            {   
-                UpdatePrice(tid);
-                break;
-            }
-        }
-    }
-
     /**
      * The method is only called if there are available products, so the while loop always finishes at some point
      */
-    private void UpdatePrice(int tid)
+    public void UpdatePrice(int tid)
     {
         int idx = this.productIdGenerator.Sample() - 1;
         var productToUpdate = products[idx];
@@ -109,7 +87,7 @@ public sealed class SellerThread
     }
 
     // https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/lock
-    private void UpdateProduct(int tid)
+    public void UpdateProduct(int tid)
     {
         int idx = this.productIdGenerator.Sample() - 1;
 
@@ -166,7 +144,7 @@ public sealed class SellerThread
         return this.products[idx];
     }
 
-    private void BrowseDashboard(int tid)
+    public void BrowseDashboard(int tid)
     {
         try
         {

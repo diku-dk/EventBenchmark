@@ -8,9 +8,9 @@ namespace Common.Services;
 public sealed class SellerService : ISellerService
 {
 
-    private readonly Dictionary<int, SellerThread> sellers;
+    private readonly Dictionary<int, ISellerWorker> sellers;
 
-    public SellerService(Dictionary<int, SellerThread> sellers)
+    public SellerService(Dictionary<int, ISellerWorker> sellers)
     {
         this.sellers = sellers;
     }

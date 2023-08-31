@@ -7,6 +7,8 @@ using Common.Services;
 using Common.Workers;
 using System.Text;
 using Daprr.Streaming.Redis;
+using Common.Http;
+using Common.Ingestion;
 
 namespace Common.Workload;
 
@@ -21,7 +23,7 @@ public class DaprExperimentManager : ExperimentManager
     private readonly CustomerService customerService;
     private readonly DeliveryService deliveryService;
 
-    private readonly Dictionary<int, SellerThread> sellerThreads;
+    private readonly Dictionary<int, ISellerWorker> sellerThreads;
     private readonly Dictionary<int, CustomerThread> customerThreads;
     private readonly DeliveryThread deliveryThread;
 
@@ -38,7 +40,7 @@ public class DaprExperimentManager : ExperimentManager
         this.deliveryThread = DeliveryThread.BuildDeliveryThread(httpClientFactory, config.deliveryWorkerConfig);
         this.deliveryService = new DeliveryService(this.deliveryThread);
 
-        this.sellerThreads = new Dictionary<int, SellerThread>();
+        this.sellerThreads = new Dictionary<int, ISellerWorker>();
         this.sellerService = new SellerService(this.sellerThreads);
         this.customerThreads = new Dictionary<int, CustomerThread>();
         this.customerService = new CustomerService(this.customerThreads);
@@ -74,6 +76,16 @@ public class DaprExperimentManager : ExperimentManager
     protected override async void PostExperiment()
     {
         await RedisUtils.TrimStreams(redisConnection, channelsToTrim);
+
+        var resps = new List<Task<HttpResponseMessage>>();
+        foreach (var task in config.postExperimentTasks)
+        {
+            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
+            logger.LogInformation("Post experiment task to URL {0}", task.url);
+            resps.Add(HttpUtils.client.SendAsync(message));
+        }
+        await Task.WhenAll(resps);
+        logger.LogInformation("Post experiment cleanup tasks finished");
     }
 
     /**
@@ -81,8 +93,18 @@ public class DaprExperimentManager : ExperimentManager
      * 2. Initialize all customer objects
      * 3. Initialize delivery as a single object, but multithreaded
      */
-    protected override void PreExperiment()
+    protected override async void PreExperiment()
     {
+        // cleanup microservice states
+        var resps_ = new List<Task<HttpResponseMessage>>();
+        foreach (var task in config.postExperimentTasks)
+        {
+            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
+            logger.LogInformation("Pre experiment task to URL {0}", task.url);
+            resps_.Add(HttpUtils.client.SendAsync(message));
+        }
+        await Task.WhenAll(resps_);
+
         this.channelsToTrim.AddRange(config.streamingConfig.streams);
 
         // should also iterate over all transaction mark streams and trim them
@@ -134,6 +156,53 @@ public class DaprExperimentManager : ExperimentManager
     protected override async void TrimStreams()
     {
         await RedisUtils.TrimStreams(redisConnection, channelsToTrim);
+    }
+
+    protected override async void RunIngestion()
+    {
+        var ingestionOrchestrator = new IngestionOrchestrator(config.ingestionConfig);
+        await ingestionOrchestrator.Run(connection);
+    }
+
+    protected override async void PostRunTasks(int runIdx, int lastRunIdx)
+    {
+        // reset data in microservices - post run
+        if (runIdx < lastRunIdx)
+        {
+            logger.LogInformation("Post run tasks started");
+            var responses = new List<Task<HttpResponseMessage>>();
+            List<PostRunTask> postRunTasks;
+            // must call the cleanup if next run changes number of products
+            if (config.runs[runIdx + 1].numProducts != config.runs[runIdx].numProducts)
+            {
+                logger.LogInformation("Next run changes the number of products.");
+                postRunTasks = config.postExperimentTasks;
+            }
+            else
+            {
+                logger.LogInformation("Next run does not change the number of products.");
+                postRunTasks = config.postRunTasks;
+            }
+            foreach (var task in postRunTasks)
+            {
+                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
+                logger.LogInformation("Post run task to Microservice {0} URL {1}", task.name, task.url);
+                responses.Add(HttpUtils.client.SendAsync(message));
+            }
+            await Task.WhenAll(responses);
+            logger.LogInformation("Post run tasks finished");
+        }
+
+        logger.LogInformation("Run #{0} finished at {1}", runIdx, DateTime.UtcNow);
+
+        logger.LogInformation("Memory used before collection:       {0:N0}",
+                GC.GetTotalMemory(false));
+
+        // Collect all generations of memory.
+        GC.Collect();
+        logger.LogInformation("Memory used after full collection:   {0:N0}",
+        GC.GetTotalMemory(true));
+
     }
 
 }

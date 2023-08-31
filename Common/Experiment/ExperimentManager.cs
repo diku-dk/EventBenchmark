@@ -1,8 +1,6 @@
 ﻿using Common.DataGeneration;
 using Common.Entities;
-using Common.Http;
 using Common.Infra;
-using Common.Ingestion;
 using Common.Workload;
 using DuckDB.NET.Data;
 using Microsoft.Extensions.Logging;
@@ -32,11 +30,15 @@ public abstract class ExperimentManager
 
     protected abstract void PreExperiment();
 
+    protected abstract void RunIngestion();
+
     protected abstract void PostExperiment();
 
     protected abstract void TrimStreams();
 
     protected abstract void PreWorkload(int runIdx);
+
+    protected abstract void PostRunTasks(int runIdx, int lastRunIdx);
 
     protected abstract WorkloadManager SetUpManager(int runIdx);
 
@@ -53,16 +55,6 @@ public abstract class ExperimentManager
 
         int runIdx = 0;
         int lastRunIdx = config.runs.Count() - 1;
-
-        // cleanup microservice states
-        var resps_ = new List<Task<HttpResponseMessage>>();
-        foreach (var task in config.postExperimentTasks)
-        {
-            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
-            logger.LogInformation("Pre experiment task to URL {0}", task.url);
-            resps_.Add(HttpUtils.client.SendAsync(message));
-        }
-        await Task.WhenAll(resps_);
 
         var dataGen = new SyntheticDataGenerator(previousData);
         dataGen.CreateSchema(connection);
@@ -99,8 +91,7 @@ public abstract class ExperimentManager
 
                 syntheticDataGenerator.Generate(connection);
 
-                var ingestionOrchestrator = new IngestionOrchestrator(config.ingestionConfig);
-                await ingestionOrchestrator.Run(connection);
+                RunIngestion();
 
                 if (runIdx == 0)
                 {
@@ -138,58 +129,7 @@ public abstract class ExperimentManager
 
         PostExperiment();
 
-        var resps = new List<Task<HttpResponseMessage>>();
-        foreach (var task in config.postExperimentTasks)
-        {
-            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
-            logger.LogInformation("Post experiment task to URL {0}", task.url);
-            resps.Add(HttpUtils.client.SendAsync(message));
-        }
-        await Task.WhenAll(resps);
-        logger.LogInformation("Post experiment cleanup tasks finished");
-
         logger.LogInformation("Experiment finished");
-    }
-
-    private async void PostRunTasks(int runIdx, int lastRunIdx)
-    {
-        // reset data in microservices - post run
-        if (runIdx < lastRunIdx)
-        {
-            logger.LogInformation("Post run tasks started");
-            var responses = new List<Task<HttpResponseMessage>>();
-            List<PostRunTask> postRunTasks;
-            // must call the cleanup if next run changes number of products
-            if (config.runs[runIdx + 1].numProducts != config.runs[runIdx].numProducts)
-            {
-                logger.LogInformation("Next run changes the number of products.");
-                postRunTasks = config.postExperimentTasks;
-            }
-            else
-            {
-                logger.LogInformation("Next run does not change the number of products.");
-                postRunTasks = config.postRunTasks;
-            }
-            foreach (var task in postRunTasks)
-            {
-                HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
-                logger.LogInformation("Post run task to Microservice {0} URL {1}", task.name, task.url);
-                responses.Add(HttpUtils.client.SendAsync(message));
-            }
-            await Task.WhenAll(responses);
-            logger.LogInformation("Post run tasks finished");
-        }
-
-        logger.LogInformation("Run #{0} finished at {1}", runIdx, DateTime.UtcNow);
-
-        logger.LogInformation("Memory used before collection:       {0:N0}",
-                GC.GetTotalMemory(false));
-
-        // Collect all generations of memory.
-        GC.Collect();
-        logger.LogInformation("Memory used after full collection:   {0:N0}",
-        GC.GetTotalMemory(true));
-
     }
 
 }

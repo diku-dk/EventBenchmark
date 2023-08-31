@@ -4,16 +4,17 @@ using Common.Http;
 using Common.Infra;
 using Common.Requests;
 using Common.Workload;
-using Common.Workload.CustomerWorker;
 using Common.Workload.Metrics;
 using Common.Services;
 using MathNet.Numerics.Distributions;
 using Newtonsoft.Json;
 using Microsoft.Extensions.Logging;
+using Common.Workload.Workers;
+using Common.Workload.CustomerWorker;
 
 namespace Common.Workers;
 
-public sealed class CustomerThread : ICustomerWorker
+public class CustomerThread : ICustomerWorker
 {  
     private readonly Random random;
 
@@ -64,13 +65,13 @@ public sealed class CustomerThread : ICustomerWorker
 
     public void Run(int tid)
     {
-        int numberOfProducts = random.Next(1, this.config.maxNumberKeysToAddToCart + 1);
-        AddItemsToCart(numberOfProducts);
+        AddItemsToCart();
         Checkout(tid);
     }
 
-    private void AddItemsToCart(int numberOfProducts)
+    public void AddItemsToCart()
     {
+        int numberOfProducts = random.Next(1, this.config.maxNumberKeysToAddToCart + 1);
         ISet<(int, int)> set = new HashSet<(int, int)>();
         while (set.Count < numberOfProducts)
         {
@@ -96,7 +97,7 @@ public sealed class CustomerThread : ICustomerWorker
         }
     }
 
-    private void Checkout(int tid)
+    public void Checkout(int tid)
     {
         // define whether client should send a checkout request
         if (random.Next(0, 100) > this.config.checkoutProbability)

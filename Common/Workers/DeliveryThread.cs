@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Common.Workers;
 
-public class DeliveryThread
+public class DeliveryThread : IDeliveryWorker
 {
     private readonly HttpClient httpClient;
     private readonly DeliveryWorkerConfig config;

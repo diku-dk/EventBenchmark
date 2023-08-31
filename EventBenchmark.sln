@@ -2,7 +2,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.6.33815.320
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Orleans", "Grains\Orleans.csproj", "{C16AA96C-3825-4046-BFBC-86D4EFECECD1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Orleans", "Orleans\Orleans.csproj", "{C16AA96C-3825-4046-BFBC-86D4EFECECD1}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Common", "Common\Common.csproj", "{F8CA5AB6-04C2-4245-858F-9B27C854A6E8}"
 EndProject
@@ -16,6 +16,8 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Tests", "Tests\Tests.csproj", "{2BC39A65-8D44-4A36-A944-142D2FE5AAF1}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Dapr", "Dapr\Dapr.csproj", "{EFCA2593-0E13-4E2C-946A-57726276F37B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Statefun", "Statefun\Statefun.csproj", "{33336DE5-0DF9-4EA1-A4F1-1E61DE72B031}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -39,6 +41,10 @@ Global
 		{EFCA2593-0E13-4E2C-946A-57726276F37B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EFCA2593-0E13-4E2C-946A-57726276F37B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EFCA2593-0E13-4E2C-946A-57726276F37B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{33336DE5-0DF9-4EA1-A4F1-1E61DE72B031}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{33336DE5-0DF9-4EA1-A4F1-1E61DE72B031}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{33336DE5-0DF9-4EA1-A4F1-1E61DE72B031}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{33336DE5-0DF9-4EA1-A4F1-1E61DE72B031}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
