@@ -9,6 +9,7 @@ using System.Text;
 using Daprr.Streaming.Redis;
 using Common.Http;
 using Common.Ingestion;
+using Dapr.Workers;
 
 namespace Common.Workload;
 

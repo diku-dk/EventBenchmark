@@ -89,7 +89,8 @@ public abstract class WorkloadManager
         {
             TransactionType tx = PickTransactionFromDistribution();
             histogram[tx]++;
-            SubmitTransaction(this.currentTid, tx);
+            var toPass = this.currentTid;
+            SubmitTransaction(toPass, tx);
             this.currentTid++;
         }
 
