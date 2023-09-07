@@ -10,17 +10,17 @@ using Newtonsoft.Json;
 
 namespace Dapr.Workers;
 
-public sealed class SellerThread : AbstractSellerThread
+public sealed class DaprSellerThread : AbstractSellerThread
 {
-	public SellerThread(int sellerId, HttpClient httpClient, SellerWorkerConfig workerConfig, ILogger logger) : base(sellerId, httpClient, workerConfig, logger)
+	public DaprSellerThread(int sellerId, HttpClient httpClient, SellerWorkerConfig workerConfig, ILogger logger) : base(sellerId, httpClient, workerConfig, logger)
 	{
 	}
 
-	public static SellerThread BuildSellerThread(int sellerId, IHttpClientFactory httpClientFactory, SellerWorkerConfig workerConfig)
+	public static DaprSellerThread BuildSellerThread(int sellerId, IHttpClientFactory httpClientFactory, SellerWorkerConfig workerConfig)
     {
         var logger = LoggerProxy.GetInstance("SellerThread_"+ sellerId);
         var httpClient = httpClientFactory.CreateClient();
-        return new SellerThread(sellerId, httpClient, workerConfig, logger);
+        return new DaprSellerThread(sellerId, httpClient, workerConfig, logger);
     }
 
     protected override void SendUpdatePriceRequest(int tid, Product productToUpdate, float newPrice)

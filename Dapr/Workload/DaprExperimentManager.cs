@@ -137,7 +137,7 @@ public class DaprExperimentManager : ExperimentManager
             List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
             if (!sellerThreads.ContainsKey(i))
             {
-                sellerThreads[i] = SellerThread.BuildSellerThread(i, httpClientFactory, config.sellerWorkerConfig);
+                sellerThreads[i] = DaprSellerThread.BuildSellerThread(i, httpClientFactory, config.sellerWorkerConfig);
                 sellerThreads[i].SetUp(products, config.runs[runIdx].keyDistribution);
             }
             else
