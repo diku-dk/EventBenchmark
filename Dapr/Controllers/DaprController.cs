@@ -1,6 +1,6 @@
 ﻿using System.Net;
 using Common.Experiment;
-using Common.Workload;
+using Dapr.Workload;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Common.Controllers;

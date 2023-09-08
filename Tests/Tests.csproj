@@ -32,13 +32,13 @@
     <None Remove="Driver\" />
     <None Remove="Orleans\" />
     <None Remove="Http\" />
-    <None Remove="Dapr\" />
+    <None Remove="Thread\" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Events\" />
     <Folder Include="Driver\" />
     <Folder Include="Orleans\" />
     <Folder Include="Http\" />
-    <Folder Include="Dapr\" />
+    <Folder Include="Thread\" />
   </ItemGroup>
 </Project>

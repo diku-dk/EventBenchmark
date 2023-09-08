@@ -1,12 +1,11 @@
 ﻿using Common.Distribution;
 using Common.Entities;
-using Common.Workload;
 using Common.Workload.Metrics;
 using Common.Workload.Seller;
 using MathNet.Numerics.Distributions;
 using Microsoft.Extensions.Logging;
 
-namespace Common.Workers;
+namespace Common.Workers.Seller;
 
 public abstract class AbstractSellerThread : ISellerWorker
 {
@@ -19,8 +18,6 @@ public abstract class AbstractSellerThread : ISellerWorker
 
     private IDiscreteDistribution productIdGenerator;
 
-    protected readonly HttpClient httpClient;
-
     protected readonly ILogger logger;
 
     private Product[] products;
@@ -29,14 +26,13 @@ public abstract class AbstractSellerThread : ISellerWorker
 
     protected readonly List<TransactionOutput> finishedTransactions;
 
-    protected AbstractSellerThread(int sellerId, HttpClient httpClient, SellerWorkerConfig workerConfig, ILogger logger)
+    protected AbstractSellerThread(int sellerId, SellerWorkerConfig workerConfig, ILogger logger)
 	{
         this.random = Random.Shared;
         this.logger = logger;
         this.submittedTransactions = new List<TransactionIdentifier>();
         this.finishedTransactions = new List<TransactionOutput>();
         this.sellerId = sellerId;
-        this.httpClient = httpClient;
         this.config = workerConfig;
     }
 
@@ -114,27 +110,7 @@ public abstract class AbstractSellerThread : ISellerWorker
         return this.products[idx];
     }
 
-    public void BrowseDashboard(int tid)
-    {
-        try
-        {
-            HttpRequestMessage message = new(HttpMethod.Get, config.sellerUrl + "/" + this.sellerId);
-            this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.QUERY_DASHBOARD, DateTime.UtcNow));
-            var response = httpClient.Send(message);
-            if (response.IsSuccessStatusCode)
-            {
-                this.finishedTransactions.Add(new TransactionOutput(tid, DateTime.UtcNow));
-            }
-            else
-            {
-                this.logger.LogDebug("Seller {0}: Dashboard retrieval failed: {0}", this.sellerId, response.ReasonPhrase);
-            }
-        }
-        catch (Exception e)
-        {
-            this.logger.LogError("Seller {0}: Dashboard could not be retrieved: {1}", this.sellerId, e.Message);
-        }
-    }
+    public abstract void BrowseDashboard(int tid);
 
     public List<TransactionOutput> GetFinishedTransactions()
     {

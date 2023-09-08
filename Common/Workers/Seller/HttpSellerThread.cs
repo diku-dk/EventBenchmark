@@ -2,25 +2,28 @@
 using Common.Http;
 using Common.Infra;
 using Common.Requests;
-using Common.Workers;
+using Common.Workers.Seller;
 using Common.Workload;
 using Common.Workload.Metrics;
 using Common.Workload.Seller;
+using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 
 namespace Dapr.Workers;
 
-public sealed class DaprSellerThread : AbstractSellerThread
+public sealed class HttpSellerThread : AbstractSellerThread
 {
-	public DaprSellerThread(int sellerId, HttpClient httpClient, SellerWorkerConfig workerConfig, ILogger logger) : base(sellerId, httpClient, workerConfig, logger)
+    private readonly HttpClient httpClient;
+
+	public HttpSellerThread(int sellerId, HttpClient httpClient, SellerWorkerConfig workerConfig, ILogger logger) : base(sellerId, workerConfig, logger)
 	{
+        this.httpClient = httpClient;
 	}
 
-	public static DaprSellerThread BuildSellerThread(int sellerId, IHttpClientFactory httpClientFactory, SellerWorkerConfig workerConfig)
+	public static HttpSellerThread BuildSellerThread(int sellerId, IHttpClientFactory httpClientFactory, SellerWorkerConfig workerConfig)
     {
         var logger = LoggerProxy.GetInstance("SellerThread_"+ sellerId);
-        var httpClient = httpClientFactory.CreateClient();
-        return new DaprSellerThread(sellerId, httpClient, workerConfig, logger);
+        return new HttpSellerThread(sellerId, httpClientFactory.CreateClient(), workerConfig, logger);
     }
 
     protected override void SendUpdatePriceRequest(int tid, Product productToUpdate, float newPrice)
@@ -63,6 +66,27 @@ public sealed class DaprSellerThread : AbstractSellerThread
        
     }
 
-}
+    public override void BrowseDashboard(int tid)
+    {
+        try
+        {
+            HttpRequestMessage message = new(HttpMethod.Get, config.sellerUrl + "/" + this.sellerId);
+            this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.QUERY_DASHBOARD, DateTime.UtcNow));
+            var response = httpClient.Send(message);
+            if (response.IsSuccessStatusCode)
+            {
+                this.finishedTransactions.Add(new TransactionOutput(tid, DateTime.UtcNow));
+            }
+            else
+            {
+                this.logger.LogDebug("Seller {0}: Dashboard retrieval failed: {0}", this.sellerId, response.ReasonPhrase);
+            }
+        }
+        catch (Exception e)
+        {
+            this.logger.LogError("Seller {0}: Dashboard could not be retrieved: {1}", this.sellerId, e.Message);
+        }
+    }
 
+}
 

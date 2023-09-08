@@ -17,7 +17,7 @@ public abstract class ExperimentManager
 
     protected static readonly byte ITEM = 0;
 
-    protected static readonly ILogger logger = LoggerProxy.GetInstance("WorkflowOrchestrator");
+    protected static readonly ILogger logger = LoggerProxy.GetInstance("ExperimentManager");
 
     protected static readonly List<TransactionType> eventualCompletionTransactions = new() { TransactionType.CUSTOMER_SESSION, TransactionType.PRICE_UPDATE, TransactionType.UPDATE_PRODUCT };
 

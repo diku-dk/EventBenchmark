@@ -7,6 +7,8 @@ public interface ICustomerService
     void Run(int customerId, int tid);
 
     List<TransactionIdentifier> GetSubmittedTransactions(int sellerId);
+
+    List<TransactionOutput> GetFinishedTransactions(int i);
 }
 
 

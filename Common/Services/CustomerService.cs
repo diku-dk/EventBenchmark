@@ -1,14 +1,15 @@
 ﻿using Common.Workload.Metrics;
-using Common.Workers;
+using Common.Workers.Customer;
+using Common.Entities;
 
 namespace Common.Services;
 
 public sealed class CustomerService : ICustomerService
 {
 
-    private readonly Dictionary<int, CustomerThread> customers;
+    private readonly Dictionary<int, AbstractCustomerThread> customers;
 
-    public CustomerService(Dictionary<int, CustomerThread> customers)
+    public CustomerService(Dictionary<int, AbstractCustomerThread> customers)
     {
         this.customers = customers;
     }
@@ -20,5 +21,9 @@ public sealed class CustomerService : ICustomerService
         return customers[sellerId].GetSubmittedTransactions();
     }
 
+    public List<TransactionOutput> GetFinishedTransactions(int sellerId)
+    {
+        return customers[sellerId].GetFinishedTransactions();
+    }
 }
 

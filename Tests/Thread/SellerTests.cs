@@ -1,14 +1,14 @@
 ﻿using System.Collections.Concurrent;
 using Common.Entities;
 using Common.Infra;
-using Common.Workers;
+using Common.Workers.Seller;
 using Common.Workload;
 using Common.Workload.Seller;
 using Microsoft.Extensions.Logging;
 
-namespace Tests.Dapr;
+namespace Tests.Thread;
 
-public class DaprTest
+public class SellerTests
 {
 
     private static readonly ConcurrentQueue<Message> messages = new ConcurrentQueue<Message>();
@@ -24,7 +24,7 @@ public class DaprTest
 		// example: ----- price update with version 1 -------- product update to version 2
 		// cannot send the price update (v1) after the product update (v2) above
         var logger = LoggerProxy.GetInstance("SellerThread_"+ 1);
-        var testSeller = new TestSeller(1, null, new SellerWorkerConfig(){ adjustRange = new Interval(1,10) }, logger);
+        var testSeller = new TestSeller(1, new SellerWorkerConfig(){ adjustRange = new Interval(1,10) }, logger);
 
         testSeller.SetUp( new List<Product>(){ new Product(){ product_id = 1, price = 10, version = 0 },
             //    new Product(){ product_id = 2, price = 10, version = 0 }, }
@@ -82,8 +82,13 @@ public class DaprTest
 
     protected class TestSeller : AbstractSellerThread
     {
-        public TestSeller(int sellerId, HttpClient httpClient, SellerWorkerConfig workerConfig, ILogger logger) : base(sellerId, httpClient, workerConfig, logger)
+        public TestSeller(int sellerId, SellerWorkerConfig workerConfig, ILogger logger) : base(sellerId, workerConfig, logger)
         {
+        }
+
+        public override void BrowseDashboard(int tid)
+        {
+            throw new NotImplementedException();
         }
 
         protected override void SendProductUpdateRequest(Product product, int tid)
@@ -96,6 +101,8 @@ public class DaprTest
             messages.Enqueue(new Message(TransactionType.PRICE_UPDATE, tid, productToUpdate.version));
         }
     }
+
+
 
 }
 

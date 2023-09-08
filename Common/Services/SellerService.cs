@@ -1,7 +1,7 @@
 ﻿using Common.Entities;
 using Common.Workload;
 using Common.Workload.Metrics;
-using Common.Workers;
+using Common.Workers.Seller;
 
 namespace Common.Services;
 

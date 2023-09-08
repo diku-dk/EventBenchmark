@@ -10,8 +10,11 @@ using Daprr.Streaming.Redis;
 using Common.Http;
 using Common.Ingestion;
 using Dapr.Workers;
+using Common.Workers.Seller;
+using Common.Workload;
+using Common.Workers.Customer;
 
-namespace Common.Workload;
+namespace Dapr.Workload;
 
 public class DaprExperimentManager : ExperimentManager
 {
@@ -25,12 +28,12 @@ public class DaprExperimentManager : ExperimentManager
     private readonly DeliveryService deliveryService;
 
     private readonly Dictionary<int, ISellerWorker> sellerThreads;
-    private readonly Dictionary<int, CustomerThread> customerThreads;
+    private readonly Dictionary<int, AbstractCustomerThread> customerThreads;
     private readonly DeliveryThread deliveryThread;
 
     private int numSellers;
 
-    private DaprWorkflowManager workflowManager;
+    private DaprWorkloadManager workflowManager;
     private readonly DaprMetricManager metricManager;
 
     public DaprExperimentManager(IHttpClientFactory httpClientFactory, ExperimentConfig config) : base(config)
@@ -43,7 +46,7 @@ public class DaprExperimentManager : ExperimentManager
 
         this.sellerThreads = new Dictionary<int, ISellerWorker>();
         this.sellerService = new SellerService(this.sellerThreads);
-        this.customerThreads = new Dictionary<int, CustomerThread>();
+        this.customerThreads = new Dictionary<int, AbstractCustomerThread>();
         this.customerService = new CustomerService(this.customerThreads);
 
         this.numSellers = 0;
@@ -63,7 +66,7 @@ public class DaprExperimentManager : ExperimentManager
 
     protected override WorkloadManager SetUpManager(int runIdx)
     {
-        this.workflowManager ??= new DaprWorkflowManager(
+        this.workflowManager ??= new DaprWorkloadManager(
             sellerService, customerService, deliveryService,
             config.transactionDistribution,
             customerRange,
@@ -120,7 +123,7 @@ public class DaprExperimentManager : ExperimentManager
         // initialize all customer thread objects
         for (int i = this.customerRange.min; i <= this.customerRange.max; i++)
         {
-            this.customerThreads.Add(i, CustomerThread.BuildCustomerThread(httpClientFactory, sellerService, config.numProdPerSeller, config.customerWorkerConfig, customers[i-1]));
+            this.customerThreads.Add(i, HttpCustomerThread.BuildCustomerThread(httpClientFactory, sellerService, config.numProdPerSeller, config.customerWorkerConfig, customers[i-1]));
         }
 
     }
@@ -137,7 +140,7 @@ public class DaprExperimentManager : ExperimentManager
             List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
             if (!sellerThreads.ContainsKey(i))
             {
-                sellerThreads[i] = DaprSellerThread.BuildSellerThread(i, httpClientFactory, config.sellerWorkerConfig);
+                sellerThreads[i] = HttpSellerThread.BuildSellerThread(i, httpClientFactory, config.sellerWorkerConfig);
                 sellerThreads[i].SetUp(products, config.runs[runIdx].keyDistribution);
             }
             else

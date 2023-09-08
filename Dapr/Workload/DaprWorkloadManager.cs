@@ -1,15 +1,16 @@
 using Common.Services;
+using Common.Workload;
 
-namespace Common.Workload;
+namespace Dapr.Workload;
 
-public class DaprWorkflowManager : WorkloadManager
+public class DaprWorkloadManager : WorkloadManager
 {
 
     private readonly ISellerService sellerService;
     private readonly ICustomerService customerService;
     private readonly IDeliveryService deliveryService;
 
-    public DaprWorkflowManager(
+    public DaprWorkloadManager(
         ISellerService sellerService,
         ICustomerService customerService,
         IDeliveryService deliveryService,

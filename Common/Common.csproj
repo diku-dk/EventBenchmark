@@ -21,6 +21,8 @@
     <None Remove="Workload\Delivery\" />
     <None Remove="Services\" />
     <None Remove="Workers\" />
+    <None Remove="Workers\Seller\" />
+    <None Remove="Workers\Customer\" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Streaming\" />
@@ -31,6 +33,8 @@
     <Folder Include="Workload\Delivery\" />
     <Folder Include="Services\" />
     <Folder Include="Workers\" />
+    <Folder Include="Workers\Seller\" />
+    <Folder Include="Workers\Customer\" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />

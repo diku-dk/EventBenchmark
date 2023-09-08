@@ -1,194 +1,122 @@
-﻿//using Common.Collection;
-//using Common.Entities;
-//using Common.Experiment;
-//using Common.Infra;
-//using Common.Streaming;
-//using Common.Streaming.Redis;
-//using Common.Workflow;
-//using Common.Workload;
-//using Common.Workload.CustomerWorker;
-//using Common.Workload.Delivery;
-//using Common.Workload.Seller;
-//using DuckDB.NET.Data;
-//using Grains.Collection;
-//using Grains.WorkerInterfaces;
-//using Grains.Workload;
-//using Microsoft.Extensions.Logging;
-//using System.Text;
+﻿using Common.Entities;
+using System.Net.Http;
+using Common.Experiment;
+using Common.Infra;
+using Common.Workload;
+using Dapr.Workers;
+using Common.Services;
+using Common.Workers;
+using Common.Workers.Seller;
+using Dapr.Workload;
+using Common.Ingestion;
+using Microsoft.Extensions.Logging;
+using Orleans.Workers;
+using Common.Workers.Customer;
 
-//namespace Orleans.Workload;
+namespace Orleans.Workload;
 
-//public class ActorExperimentManager : ExperimentManager
-//{
-//    private IClusterClient orleansClient;
+public class ActorExperimentManager : ExperimentManager
+{
 
-//    List<CancellationTokenSource> tokens = new(3);
-//    List<Task> listeningTasks = new(3);
+    private readonly IHttpClientFactory httpClientFactory;
 
-//    public ActorExperimentManager(ExperimentConfig config) : base(config)
-//    {
+    private readonly SellerService sellerService;
+    private readonly CustomerService customerService;
+    private readonly DeliveryService deliveryService;
 
-//    }
+    private readonly Dictionary<int, ISellerWorker> sellerThreads;
+    private readonly Dictionary<int, AbstractCustomerThread> customerThreads;
+    private readonly DeliveryThread deliveryThread;
 
-//    protected override async void PreExperiment()
-//    {
-//        logger.LogInformation("Initializing Orleans client...");
-//        this.orleansClient = await OrleansClientFactory.Connect();
-//        if (orleansClient == null)
-//        {
-//            throw new Exception("Error on contacting Orleans Silo.");
-//        }
-//        var streamProvider = orleansClient.GetStreamProvider(StreamingConstants.DefaultStreamProvider);
-//        logger.LogInformation("Orleans client initialized!");
+    private int numSellers;
 
-//        // if trash from last runs are active...
-//        TrimStreams();
+    private ActorWorkloadManager workflowManager;
 
-//        // eventual completion transactions
-//        string redisConnection = string.Format("{0}:{1}", config.streamingConfig.host, config.streamingConfig.port);
-//        foreach (var type in eventualCompletionTransactions)
-//        {
-//            if (config.transactionDistribution.ContainsKey(type))
-//            {
-//                var channel = new StringBuilder(nameof(TransactionMark)).Append('_').Append(type.ToString()).ToString();
-//                var token = new CancellationTokenSource();
-//                tokens.Add(token);
-//                listeningTasks.Add(SubscribeToRedisStream(redisConnection, channel, token));
-//            }
-//        }
+    public ActorExperimentManager(IHttpClientFactory httpClientFactory, ExperimentConfig config) : base(config)
+    {
+        this.httpClientFactory = httpClientFactory;
 
-//    }
+        this.deliveryThread = DeliveryThread.BuildDeliveryThread(httpClientFactory, config.deliveryWorkerConfig);
+        this.deliveryService = new DeliveryService(this.deliveryThread);
 
-//    // clean streams beforehand. make sure microservices do not receive events from previous runs
-//    protected override async void TrimStreams()
-//    {
-//        string connection = string.Format("{0}:{1}", config.streamingConfig.host, config.streamingConfig.port);
-//        logger.LogInformation("Triggering stream cleanup on {1}", connection);
+        this.sellerThreads = new Dictionary<int, ISellerWorker>();
+        this.sellerService = new SellerService(this.sellerThreads);
+        this.customerThreads = new Dictionary<int, AbstractCustomerThread>();
+        this.customerService = new CustomerService(this.customerThreads);
 
-//        List<string> channelsToTrimPlus = new();
-//        channelsToTrimPlus.AddRange(config.streamingConfig.streams);
+        this.numSellers = 0;
+    }
 
-//        // should also iterate over all transaction mark streams and trim them
-//        foreach (var type in eventualCompletionTransactions)
-//        {
-//            var channel = new StringBuilder(nameof(TransactionMark)).Append('_').Append(type.ToString()).ToString();
-//            channelsToTrimPlus.Add(channel);
-//        }
+    protected override void PreExperiment()
+    {
+        for (int i = this.customerRange.min; i <= this.customerRange.max; i++)
+        {
+            this.customerThreads.Add(i, ActorCustomerThread.BuildCustomerThread(httpClientFactory, sellerService, config.numProdPerSeller, config.customerWorkerConfig, customers[i-1]));
+        }
+    }
 
-//        logger.LogInformation("XTRIMming the following streams: {0}", channelsToTrimPlus);
+    protected override async void RunIngestion()
+    {
+        var ingestionOrchestrator = new IngestionOrchestrator(config.ingestionConfig);
+        await ingestionOrchestrator.Run(connection);
+    }
 
-//        await RedisUtils.TrimStreams(connection, channelsToTrimPlus);
-//    }
+    protected override void PreWorkload(int runIdx)
+    {
+        this.numSellers = (int)DuckDbUtils.Count(connection, "sellers");
 
-//    public static async Task PrepareWorkers(IClusterClient orleansClient, IDictionary<TransactionType, int> transactionDistribution,
-//          CustomerWorkerConfig customerWorkerConfig, SellerWorkerConfig sellerWorkerConfig, DeliveryWorkerConfig deliveryWorkerConfig,
-//          List<Customer> customers, int numSellers, DuckDBConnection connection)
-//    {
-//        logger.LogInformation("Preparing workers...");
-//        List<Task> tasks = new();
+        for (int i = 1; i <= numSellers; i++)
+        {
+            List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
+            if (!sellerThreads.ContainsKey(i))
+            {
+                sellerThreads[i] = ActorSellerThread.BuildSellerThread(i, httpClientFactory, config.sellerWorkerConfig);
+                sellerThreads[i].SetUp(products, config.runs[runIdx].keyDistribution);
+            }
+            else
+            {
+                sellerThreads[i].SetUp(products, config.runs[runIdx].keyDistribution);
+            }
+        }
 
-//        // defined dynamically
-//        customerWorkerConfig.sellerRange = new Interval(1, (int)numSellers);
+        Interval sellerRange = new Interval(1, this.numSellers);
+        for (int i = customerRange.min; i <= customerRange.max; i++)
+        {
+            this.customerThreads[i].SetDistribution(this.config.runs[runIdx].sellerDistribution, sellerRange, this.config.runs[runIdx].keyDistribution);
+        }
 
-//        // activate all customer workers
-//        if (transactionDistribution.ContainsKey(TransactionType.CUSTOMER_SESSION))
-//        {
-//            var endValue = DuckDbUtils.Count(connection, "products");
-//            if (endValue < customerWorkerConfig.maxNumberKeysToBrowse || endValue < customerWorkerConfig.maxNumberKeysToAddToCart)
-//            {
-//                throw new Exception("Number of available products < possible number of keys to checkout. That may lead to customer grain looping forever!");
-//            }
+    }
 
-//            foreach (var customer in customers)
-//            {
-//                var customerWorker = orleansClient.GetGrain<ICustomerGrain>(customer.id);
-//                tasks.Add(customerWorker.Init(customerWorkerConfig, customer));
-//            }
-//            await Task.WhenAll(tasks);
-//            logger.LogInformation("{0} customers workers cleared!", customers.Count);
-//            tasks.Clear();
-//        }
+    protected override WorkloadManager SetUpManager(int runIdx)
+    {
+        throw new NotImplementedException();
+    }
 
-//        // make sure to activate all sellers so they can respond to customers when required
-//        // another solution is making them read from the microservice itself...
-//        if (transactionDistribution.ContainsKey(TransactionType.PRICE_UPDATE) || transactionDistribution.ContainsKey(TransactionType.UPDATE_PRODUCT) || transactionDistribution.ContainsKey(TransactionType.QUERY_DASHBOARD))
-//        {
-//            for (int i = 1; i <= numSellers; i++)
-//            {
-//                List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
-//                var sellerWorker = orleansClient.GetGrain<ISellerGrain>(i);
-//                tasks.Add(sellerWorker.Init(sellerWorkerConfig, products));
-//            }
-//            await Task.WhenAll(tasks);
-//            logger.LogInformation("{0} seller workers cleared!", numSellers);
-//        }
+        protected override void Collect(int runIdx, DateTime startTime, DateTime finishTime)
+    {
+        throw new NotImplementedException();
+    }
 
-//        // activate delivery worker
-//        if (transactionDistribution.ContainsKey(TransactionType.UPDATE_DELIVERY))
-//        {
-//            var deliveryWorker = orleansClient.GetGrain<IDeliveryProxy>(0);
-//            await deliveryWorker.Init(deliveryWorkerConfig);
-//        }
-//        logger.LogInformation("Workers prepared!");
-//    }
+    protected override void PostExperiment()
+    {
+        
+    }
 
-//    protected override WorkloadManager SetUpManager(int runIdx)
-//    {
-//        return new ActorWorkloadManager(
-//                this.orleansClient,
-//                config.transactionDistribution,
-//                config.runs[runIdx].sellerDistribution,
-//                config.customerWorkerConfig.sellerRange,
-//                config.runs[runIdx].customerDistribution,
-//                customerRange,
-//                config.concurrencyLevel,
-//                config.executionTime,
-//                config.delayBetweenRequests);
-//    }
+    protected override void PostRunTasks(int runIdx, int lastRunIdx)
+    {
+        logger.LogInformation("Run #{0} finished at {1}", runIdx, DateTime.UtcNow);
 
-//    protected override async void Collect(int runIdx, DateTime startTime, DateTime finishTime)
-//    {
-//        var numSellers = (int)DuckDbUtils.Count(connection, "sellers");
-//        MetricGather metricGather = new MetricGather(orleansClient, customers, numSellers, null);
-//        await metricGather.Collect(startTime, finishTime, config.epoch, string.Format("#{0}_{1}_{2}_{3}_{4}", runIdx, config.concurrencyLevel, 
-//            config.runs[runIdx].numProducts, config.runs[runIdx].sellerDistribution, config.runs[runIdx].keyDistribution));
+        logger.LogInformation("Memory used before collection:       {0:N0}",
+                GC.GetTotalMemory(false));
 
-//    }
+        // Collect all generations of memory.
+        GC.Collect();
+        logger.LogInformation("Memory used after full collection:   {0:N0}",
+        GC.GetTotalMemory(true));
+    }
 
-//    protected override async void PostExperiment()
-//    {
-//        foreach (var token in tokens)
-//        {
-//            token.Cancel();
-//        }
-
-//        await Task.WhenAll(listeningTasks);
-
-//        logger.LogInformation("Cleaning Redis streams....");
-//        TrimStreams();
-//    }
-
-//    protected override async void PreWorkload(int runIdx)
-//    {
-//        logger.LogInformation("Waiting 10 seconds for initial convergence (stock <- product -> cart)");
-//        var numSellers = (int)DuckDbUtils.Count(connection, "sellers");
-//        await Task.WhenAll(
-//            PrepareWorkers(orleansClient, config.transactionDistribution, config.customerWorkerConfig, config.sellerWorkerConfig, config.deliveryWorkerConfig, customers, numSellers, connection),
-//            Task.Delay(TimeSpan.FromSeconds(10)));
-//    }
-
-//    private static Task SubscribeToRedisStream(string redisConnection, string channel, CancellationTokenSource token)
-//    {
-//        return Task.Factory.StartNew(async () =>
-//        {
-//            await RedisUtils.SubscribeStream(redisConnection, channel, token.Token, (entry) =>
-//            {
-//                while (!Shared.ResultQueue.Writer.TryWrite(ITEM)) { }
-//                while (!Shared.FinishedTransactions.Writer.TryWrite(entry)) { }
-//            });
-//        }, TaskCreationOptions.LongRunning);
-
-//    }
-
-//}
-
+    protected override void TrimStreams()
+    {
+        
+    }
+}

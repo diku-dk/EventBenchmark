@@ -7,7 +7,6 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Orleans.Core.Abstractions" Version="7.2.1" />
-    <PackageReference Include="Microsoft.Orleans.Streaming" Version="7.2.1" />
     <PackageReference Include="Microsoft.Orleans.Sdk" Version="7.2.1" />
   </ItemGroup>
 
@@ -16,10 +15,10 @@
   </ItemGroup>
   <ItemGroup>
     <None Remove="Metric\" />
-    <None Remove="Workflow\" />
+    <None Remove="Infra\" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Metric\" />
-    <Folder Include="Workflow\" />
+    <Folder Include="Infra\" />
   </ItemGroup>
 </Project>

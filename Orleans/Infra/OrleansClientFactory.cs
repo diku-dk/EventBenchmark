@@ -1,11 +1,10 @@
-﻿using Common.Streaming;
-using Orleans.Runtime.Messaging;
+﻿using Orleans.Runtime.Messaging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Orleans.Serialization;
 using Orleans.Configuration;
 
-namespace Common.Infra
+namespace Orleans.Infra
 {
 	public sealed class OrleansClientFactory
 	{
@@ -25,7 +24,6 @@ namespace Common.Infra
                                         options.ResponseTimeout = TimeSpan.FromMinutes(10);
                                         options.DropExpiredMessages = true;
                                     })
-                                    .AddMemoryStreams(StreamingConstants.DefaultStreamProvider)
                                     .AddClusterConnectionLostHandler((x,y) =>
                                     {
                                         Console.WriteLine("Connection to cluster has been lost");

@@ -1,6 +1,6 @@
 ﻿using Common.Workload.Metrics;
 
-namespace Common.Workload.Workers;
+namespace Common.Workers.Customer;
 
 public interface ICustomerWorker
 {
@@ -9,6 +9,9 @@ public interface ICustomerWorker
     void Checkout(int tid);
 
     List<TransactionIdentifier> GetSubmittedTransactions();
+
+    // only for Orleans
+    List<TransactionOutput> GetFinishedTransactions();
 
 }
 
