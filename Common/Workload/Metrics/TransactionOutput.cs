@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Common.Workload.Metrics
+﻿namespace Common.Workload.Metrics
 {
     /**
 	 * Returned by worker grains

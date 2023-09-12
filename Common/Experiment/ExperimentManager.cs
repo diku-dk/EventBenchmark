@@ -13,7 +13,7 @@ public abstract class ExperimentManager
     protected readonly ExperimentConfig config;
     protected readonly DuckDBConnection connection;
     protected List<Customer> customers;
-    protected Interval customerRange;
+    protected readonly Interval customerRange;
 
     protected static readonly byte ITEM = 0;
 
@@ -24,6 +24,7 @@ public abstract class ExperimentManager
     public ExperimentManager(ExperimentConfig config)
     {
         this.config = config;
+        this.customerRange = new Interval(1, config.numCustomers);
         this.connection = new DuckDBConnection(config.connectionString);
         connection.Open();
     }
@@ -63,7 +64,6 @@ public abstract class ExperimentManager
 
         // customers are fixed accross runs
         this.customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
-        this.customerRange = new Interval(1, config.numCustomers);
 
         PreExperiment();
 
@@ -121,6 +121,10 @@ public abstract class ExperimentManager
 
             PostRunTasks(runIdx, lastRunIdx);
 
+            CollectGarbage();
+
+            logger.LogInformation("Run #{0} finished at {1}", runIdx, DateTime.UtcNow);
+
             // increment run index
             runIdx++;
         }
@@ -130,6 +134,17 @@ public abstract class ExperimentManager
         PostExperiment();
 
         logger.LogInformation("Experiment finished");
+    }
+
+    private void CollectGarbage()
+    {
+        logger.LogInformation("Memory used before collection:       {0:N0}",
+        GC.GetTotalMemory(false));
+
+        // Collect all generations of memory.
+        GC.Collect();
+        logger.LogInformation("Memory used after full collection:   {0:N0}",
+        GC.GetTotalMemory(true));
     }
 
 }

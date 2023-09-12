@@ -1,4 +1,5 @@
-﻿using Common.Distribution;
+﻿using System.Collections.Concurrent;
+using Common.Distribution;
 using Common.Entities;
 using Common.Workload.Metrics;
 using Common.Workload.Seller;
@@ -22,16 +23,16 @@ public abstract class AbstractSellerThread : ISellerWorker
 
     private Product[] products;
 
-    protected readonly List<TransactionIdentifier> submittedTransactions;
-
-    protected readonly List<TransactionOutput> finishedTransactions;
+    // concurrent bag because of concurrent writes of different products
+    protected readonly ConcurrentBag<TransactionIdentifier> submittedTransactions;
+    protected readonly ConcurrentBag<TransactionOutput> finishedTransactions;
 
     protected AbstractSellerThread(int sellerId, SellerWorkerConfig workerConfig, ILogger logger)
 	{
         this.random = Random.Shared;
         this.logger = logger;
-        this.submittedTransactions = new List<TransactionIdentifier>();
-        this.finishedTransactions = new List<TransactionOutput>();
+        this.submittedTransactions = new ConcurrentBag<TransactionIdentifier>();
+        this.finishedTransactions = new ConcurrentBag<TransactionOutput>();
         this.sellerId = sellerId;
         this.config = workerConfig;
     }
@@ -42,6 +43,8 @@ public abstract class AbstractSellerThread : ISellerWorker
         this.productIdGenerator = keyDistribution == DistributionType.UNIFORM ?
                                  new DiscreteUniform(1, products.Count, Random.Shared) :
                                  new Zipf(0.99, products.Count, Random.Shared);
+        this.submittedTransactions.Clear();
+        this.finishedTransactions.Clear();
     }
 
     /**
@@ -114,12 +117,12 @@ public abstract class AbstractSellerThread : ISellerWorker
 
     public List<TransactionOutput> GetFinishedTransactions()
     {
-        return this.finishedTransactions;
+        return this.finishedTransactions.ToList();
     }
 
     public List<TransactionIdentifier> GetSubmittedTransactions()
     {
-        return this.submittedTransactions;
+        return this.submittedTransactions.ToList();
     }
 
 }

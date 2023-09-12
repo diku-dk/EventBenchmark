@@ -43,7 +43,7 @@ public abstract class WorkloadManager
         this.executionTime = executionTime;
         this.delayBetweenRequests = delayBetweenRequests;
         this.histogram = new Dictionary<TransactionType, int>();
-        this.customerIdleQueue = new();
+        this.customerIdleQueue = new ConcurrentQueue<int>();
         this.logger = LoggerProxy.GetInstance("WorkloadEmitter");
     }
 
@@ -57,10 +57,10 @@ public abstract class WorkloadManager
 
         foreach (TransactionType tx in Enum.GetValues(typeof(TransactionType)))
         {
-            histogram[tx] = 0;
+            this.histogram[tx] = 0;
         }
 
-        customerIdleQueue.Clear();
+        this.customerIdleQueue.Clear();
         for (int i = this.customerRange.min; i < this.customerRange.max; i++)
         {
             this.customerIdleQueue.Enqueue(i);
@@ -68,7 +68,6 @@ public abstract class WorkloadManager
 
     }
 
-    // volatile because for some reason the runtime is sending old TIDs, making it duplicated inside the workers...
     private int currentTid = 1;
 
     // two classes of transactions:

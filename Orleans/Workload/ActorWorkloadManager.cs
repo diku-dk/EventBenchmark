@@ -6,7 +6,6 @@ namespace Dapr.Workload;
 
 public class ActorWorkloadManager : WorkloadManager
 {
-
     private readonly ISellerService sellerService;
     private readonly ICustomerService customerService;
     private readonly IDeliveryService deliveryService;
@@ -32,34 +31,39 @@ public class ActorWorkloadManager : WorkloadManager
             switch (type)
             {
                 case TransactionType.CUSTOMER_SESSION:
-                    {
-                        int customerId;
-                        while (!this.customerIdleQueue.TryDequeue(out customerId)) { }
+                {
+                    int customerId;
+                    while (!this.customerIdleQueue.TryDequeue(out customerId)) { }
 
-                        Task.Run(() => customerService.Run(customerId, tid)).ContinueWith(x => this.customerIdleQueue.Enqueue(customerId));
-                        break;
-                    }
+                    Task.Run(() => customerService.Run(customerId, tid)).ContinueWith(async x => {
+                            var t = Shared.ResultQueue.Writer.WriteAsync(ITEM);
+                            this.customerIdleQueue.Enqueue(customerId);
+                            await t;
+                            // while(!Shared.ResultQueue.Writer.TryWrite(ITEM)){ }
+                        }).ConfigureAwait(true);
+                    break;
+                }
                 // delivery worker
                 case TransactionType.UPDATE_DELIVERY:
-                    {
-                        Task.Run(() => deliveryService.Run(tid)).ContinueWith(async x => await Shared.ResultQueue.Writer.WriteAsync(ITEM));
-                        break;
-                    }
+                {
+                    Task.Run(() => this.deliveryService.Run(tid)).ContinueWith(async x => await Shared.ResultQueue.Writer.WriteAsync(ITEM));
+                    break;
+                }
                 // seller worker
                 case TransactionType.PRICE_UPDATE:
                 case TransactionType.UPDATE_PRODUCT:
                 case TransactionType.QUERY_DASHBOARD:
-                    {
-                        int sellerId = this.sellerIdGenerator.Sample();
-                        Task.Run(() => sellerService.Run(sellerId, tid, type)).ContinueWith(async x => await Shared.ResultQueue.Writer.WriteAsync(ITEM));
-                        break;
-                    }
+                {
+                    int sellerId = this.sellerIdGenerator.Sample();
+                    Task.Run(() => this.sellerService.Run(sellerId, tid, type)).ContinueWith(async x => await Shared.ResultQueue.Writer.WriteAsync(ITEM));
+                    break;
+                }
                 default:
-                    {
-                        long threadId = Environment.CurrentManagedThreadId;
-                        this.logger.LogError("Thread ID " + threadId + " Unknown transaction type defined!");
-                        break;
-                    }
+                {
+                    long threadId = Environment.CurrentManagedThreadId;
+                    this.logger.LogError("Thread ID " + threadId + " Unknown transaction type defined!");
+                    break;
+                }
             }
         }
         catch (Exception e)

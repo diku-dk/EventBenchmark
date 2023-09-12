@@ -28,9 +28,11 @@ public class ActorMetricManager : MetricManager
         this.numCustomers = numCustomers;
     }
 
+    private static readonly Dictionary<TransactionType, int> aborts = new();
+
     protected override Dictionary<TransactionType, int> CollectAborts(DateTime finishTime)
     {
-        throw new NotImplementedException();
+        return aborts;
     }
 
     protected override List<Latency> CollectFromCustomer(DateTime finishTime)
@@ -53,19 +55,92 @@ public class ActorMetricManager : MetricManager
                     logger.LogDebug("[Customer] Duplicate submitted transaction entry found. Existing {0} New {1} ", customerSubmitted[tx.tid], tx);
                 }
             }
+
+            foreach (var tx in finished)
+            {
+                if (!customerFinished.TryAdd(tx.tid, tx))
+                {
+                    dupFin++;
+                    logger.LogDebug("[Customer] Duplicate finished transaction entry found. Existing {0} New {1} ", customerFinished[tx.tid], tx);
+                }
+            }
+
         }
 
-        return null;
+        if (dupSub > 0)
+            logger.LogWarning("[Customer] Number of duplicated submitted transactions found: {0}", dupSub);
+        if (dupFin > 0)
+            logger.LogWarning("[Customer] Number of duplicated finished transactions found: {0}", dupFin);
+
+        return BuildLatencyList(customerSubmitted, customerFinished, finishTime, "customer");
 
     }
 
     protected override List<Latency> CollectFromDelivery(DateTime finishTime)
     {
-        throw new NotImplementedException();
+        int dupSub = 0;
+        int dupFin = 0;
+
+        var res = deliveryService.GetResults();
+        Dictionary<int, TransactionIdentifier> deliverySubmitted = new();
+        Dictionary<int, TransactionOutput> deliveryFinished = new();
+        foreach (var pair in res)
+        {
+            if (!deliverySubmitted.TryAdd(pair.Item1.tid, pair.Item1))
+            {
+                dupSub++;
+            }
+            if (!deliveryFinished.TryAdd(pair.Item2.tid, pair.Item2))
+            {
+                dupFin++;
+            }
+        }
+
+        if (dupSub > 0)
+            logger.LogWarning("[Delivery] Number of duplicated submitted transactions found: {0}", dupSub);
+        if (dupFin > 0)
+            logger.LogWarning("[Delivery] Number of duplicated finished transactions found: {0}", dupFin);
+
+        return BuildLatencyList(deliverySubmitted, deliveryFinished, finishTime, "delivery");
     }
 
     protected override List<Latency> CollectFromSeller(DateTime finishTime)
     {
-        throw new NotImplementedException();
+        Dictionary<int, TransactionIdentifier> sellerSubmitted = new();
+        Dictionary<int, TransactionOutput> sellerFinished = new();
+
+        int dupSub = 0;
+        int dupFin = 0;
+
+        for (int i = 1; i <= numSellers; i++)
+        {
+            var submitted = this.sellerService.GetSubmittedTransactions(i);
+            foreach (var tx in submitted)
+            {
+                if (!sellerSubmitted.TryAdd(tx.tid, tx))
+                {
+                    dupSub++;
+                    logger.LogDebug("[Seller] Duplicate submitted transaction entry found. Existing {0} New {1} ", sellerSubmitted[tx.tid], tx);
+                }
+            }
+
+            var finished = this.sellerService.GetFinishedTransactions(i);
+            foreach (var tx in finished)
+            {
+                if (!sellerFinished.TryAdd(tx.tid, tx))
+                {
+                    dupFin++;
+                    logger.LogDebug("[Seller] Duplicate finished transaction entry found. Existing {0} New {1} ", sellerFinished[tx.tid], finished);
+                }
+            }
+
+        }
+
+        if (dupSub > 0)
+            logger.LogWarning("[Seller] Number of duplicated submitted transactions found: {0}", dupSub);
+        if (dupFin > 0)
+            logger.LogWarning("[Seller] Number of duplicated finished transactions found: {0}", dupFin);
+
+         return BuildLatencyList(sellerSubmitted, sellerFinished, finishTime, "seller");
     }
 }

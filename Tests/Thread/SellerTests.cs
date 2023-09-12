@@ -16,7 +16,7 @@ public class SellerTests
     private static int numThreads = 100;
 
 	[Fact]
-	public async void TestSellerLinearizable()
+	public async void TestSingleProductLinearizability()
 	{
 		// the goal is to check there are no interleaving of divergent versions
 

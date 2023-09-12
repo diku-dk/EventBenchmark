@@ -1,4 +1,5 @@
-﻿using Common.Entities;
+﻿using Common.Distribution;
+using Common.Entities;
 using Common.Infra;
 using Common.Services;
 using Common.Workers.Customer;
@@ -29,11 +30,19 @@ public class ActorCustomerThread : HttpCustomerThread
         return this.finishedTransactions;
     }
 
+    public override void SetUp(DistributionType sellerDistribution, Interval sellerRange, DistributionType keyDistribution)
+    {
+        base.SetUp(sellerDistribution, sellerRange, keyDistribution);
+        this.finishedTransactions.Clear();
+    }
+
     protected override void SendCheckoutRequest(int tid)
     {
         var payload = BuildCheckoutPayload(tid, this.customer);
-        HttpRequestMessage message = new(HttpMethod.Post, this.config.cartUrl + "/" + this.customer.id + "/checkout");
-        message.Content = payload;
+        HttpRequestMessage message = new(HttpMethod.Post, this.config.cartUrl + "/" + this.customer.id + "/checkout")
+        {
+            Content = payload
+        };
 
         var now = DateTime.UtcNow;
         HttpResponseMessage resp = httpClient.Send(message);

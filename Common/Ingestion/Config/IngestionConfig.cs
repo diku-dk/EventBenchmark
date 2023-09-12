@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace Common.Ingestion.Config
+﻿namespace Common.Ingestion.Config
 {
     public class IngestionConfig
     {
@@ -8,10 +6,10 @@ namespace Common.Ingestion.Config
         public string connectionString { get; set; } //= "Data Source=file.db"; // "DataSource=:memory:"
 
         // distribution of work strategy
-        public IngestionStrategy strategy { get; set; }
+        public IngestionStrategy strategy { get; set; } = IngestionStrategy.SINGLE_WORKER;
 
         // number of logical processors by default
-        public int concurrencyLevel { get; set; }
+        public int concurrencyLevel { get; set; } = 1;
 
         public IDictionary<string, string> mapTableToUrl;
 

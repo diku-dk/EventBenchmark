@@ -25,7 +25,7 @@ namespace Common.Ingestion
         public IngestionOrchestrator(IngestionConfig config)
 		{
 			this.config = config;
-            if(this.config.concurrencyLevel == 0)
+            if(this.config.concurrencyLevel <= 0)
             {
                 this.config.concurrencyLevel = Environment.ProcessorCount;
                 logger.LogInformation("Set concurrency level of ingestion to processor count: {0}", this.config.concurrencyLevel);

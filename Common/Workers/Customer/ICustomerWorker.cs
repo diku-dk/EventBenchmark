@@ -1,4 +1,6 @@
-﻿using Common.Workload.Metrics;
+﻿using Common.Distribution;
+using Common.Workload;
+using Common.Workload.Metrics;
 
 namespace Common.Workers.Customer;
 
@@ -12,6 +14,8 @@ public interface ICustomerWorker
 
     // only for Orleans
     List<TransactionOutput> GetFinishedTransactions();
+
+    abstract void SetUp(DistributionType sellerDistribution, Interval sellerRange, DistributionType keyDistribution);
 
 }
 

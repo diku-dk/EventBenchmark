@@ -1,5 +1,4 @@
 using Common.Distribution;
-using Common.Entities;
 using Common.Workload;
 using Common.Workload.Metrics;
 using Common.Services;
@@ -39,7 +38,7 @@ public abstract class AbstractCustomerThread : ICustomerWorker
         this.random = new Random();
     }
 
-    public void SetDistribution(DistributionType sellerDistribution, Interval sellerRange, DistributionType keyDistribution)
+    public virtual void SetUp(DistributionType sellerDistribution, Interval sellerRange, DistributionType keyDistribution)
     {
         this.sellerIdGenerator = sellerDistribution == DistributionType.UNIFORM ?
                                   new DiscreteUniform(sellerRange.min, sellerRange.max, new Random()) :
@@ -47,6 +46,8 @@ public abstract class AbstractCustomerThread : ICustomerWorker
         this.productIdGenerator = keyDistribution == DistributionType.UNIFORM ?
                                 new DiscreteUniform(1, numberOfProducts, new Random()) :
                                 new Zipf(0.99, numberOfProducts, new Random());
+
+        this.submittedTransactions.Clear();
     }
 
     public void Run(int tid)

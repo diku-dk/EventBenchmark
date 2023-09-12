@@ -4,27 +4,27 @@
   "numCustomers": 1000,
   "numProdPerSeller": 10,
   "executionTime": 360000,
-  "epoch": 2000,
+  "epoch": 20000,
   "delayBetweenRequests": 0,
   "delayBetweenRuns": 15000,
   "transactionDistribution": {
     "CUSTOMER_SESSION": 70,
-    "DASHBOARD": 75,
+    "QUERY_DASHBOARD": 75,
     "PRICE_UPDATE": 82,
     "UPDATE_PRODUCT": 85,
     "UPDATE_DELIVERY": 100
   },
   "concurrencyLevel": 16,
-    "ingestionConfig": {
-        "strategy": "WORKER_PER_CPU",
-        "concurrencyLevel": 6,
-        "mapTableToUrl": {
-            "sellers": "http://dapr:5006",
-            "customers": "http://dapr:5007",
-            "stock_items": "http://dapr:5003",
-            "products": "http://dapr:5008"
-        }
-    },
+  "ingestionConfig": {
+    "strategy": "WORKER_PER_CPU",
+    "concurrencyLevel": 6,
+    "mapTableToUrl": {
+        "sellers": "http://dapr:5006",
+        "customers": "http://dapr:5007",
+        "stock_items": "http://dapr:5003",
+        "products": "http://dapr:5008"
+    }
+  },
   "runs": [
     {
       "numProducts": 1000,
@@ -153,7 +153,6 @@
     },
     "checkoutProbability": 100,
     "voucherProbability": 5,
-    "maxNumberVouchers": 10,
     "productUrl": "http://dapr:5008",
     "cartUrl": "http://dapr:5001",
     "interactive": false

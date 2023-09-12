@@ -119,3 +119,5 @@ testdb
 
 Configuration/results*.txt
 Dapr/*.txt
+
+*.txt

@@ -1,9 +1,7 @@
 ﻿using Common.Entities;
-using System.Net.Http;
 using Common.Experiment;
 using Common.Infra;
 using Common.Workload;
-using Dapr.Workers;
 using Common.Services;
 using Common.Workers;
 using Common.Workers.Seller;
@@ -12,6 +10,8 @@ using Common.Ingestion;
 using Microsoft.Extensions.Logging;
 using Orleans.Workers;
 using Common.Workers.Customer;
+using Common.Http;
+using Orleans.Metric;
 
 namespace Orleans.Workload;
 
@@ -30,7 +30,8 @@ public class ActorExperimentManager : ExperimentManager
 
     private int numSellers;
 
-    private ActorWorkloadManager workflowManager;
+    private readonly ActorWorkloadManager workloadManager;
+    private readonly ActorMetricManager metricManager;
 
     public ActorExperimentManager(IHttpClientFactory httpClientFactory, ExperimentConfig config) : base(config)
     {
@@ -45,10 +46,31 @@ public class ActorExperimentManager : ExperimentManager
         this.customerService = new CustomerService(this.customerThreads);
 
         this.numSellers = 0;
+
+        this.workloadManager = new ActorWorkloadManager(
+            sellerService, customerService, deliveryService,
+            config.transactionDistribution,
+            // set in the base class
+            this.customerRange,
+            config.concurrencyLevel,
+            config.executionTime,
+            config.delayBetweenRequests);
+
+        this.metricManager = new ActorMetricManager(sellerService, customerService, deliveryService);
     }
 
-    protected override void PreExperiment()
+    protected override async void PreExperiment()
     {
+        // reset microservice states
+        var resps_ = new List<Task<HttpResponseMessage>>();
+        foreach (var task in config.postRunTasks)
+        {
+            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
+            logger.LogInformation("Pre experiment task to URL {0}", task.url);
+            resps_.Add(HttpUtils.client.SendAsync(message));
+        }
+        await Task.WhenAll(resps_);
+
         for (int i = this.customerRange.min; i <= this.customerRange.max; i++)
         {
             this.customerThreads.Add(i, ActorCustomerThread.BuildCustomerThread(httpClientFactory, sellerService, config.numProdPerSeller, config.customerWorkerConfig, customers[i-1]));
@@ -82,41 +104,53 @@ public class ActorExperimentManager : ExperimentManager
         Interval sellerRange = new Interval(1, this.numSellers);
         for (int i = customerRange.min; i <= customerRange.max; i++)
         {
-            this.customerThreads[i].SetDistribution(this.config.runs[runIdx].sellerDistribution, sellerRange, this.config.runs[runIdx].keyDistribution);
+            this.customerThreads[i].SetUp(this.config.runs[runIdx].sellerDistribution, sellerRange, this.config.runs[runIdx].keyDistribution);
         }
 
     }
 
     protected override WorkloadManager SetUpManager(int runIdx)
     {
-        throw new NotImplementedException();
+        this.workloadManager.SetUp(config.runs[runIdx].sellerDistribution, new Interval(1, this.numSellers));
+        return workloadManager;
     }
 
-        protected override void Collect(int runIdx, DateTime startTime, DateTime finishTime)
+    protected override void Collect(int runIdx, DateTime startTime, DateTime finishTime)
     {
-        throw new NotImplementedException();
+        string ts = new DateTimeOffset(startTime).ToUnixTimeMilliseconds().ToString();
+        this.metricManager.SetUp(numSellers, config.numCustomers);
+        this.metricManager.Collect(startTime, finishTime, config.epoch, string.Format("{0}#{1}_{2}_{3}_{4}_{5}", ts, runIdx, config.concurrencyLevel,
+                    config.runs[runIdx].numProducts, config.runs[runIdx].sellerDistribution, config.runs[runIdx].keyDistribution));
     }
 
-    protected override void PostExperiment()
+    protected override async void PostExperiment()
     {
-        
+        // cleanup microservice states
+        var resps_ = new List<Task<HttpResponseMessage>>();
+        foreach (var task in config.postExperimentTasks)
+        {
+            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
+            logger.LogInformation("Pre experiment task to URL {0}", task.url);
+            resps_.Add(HttpUtils.client.SendAsync(message));
+        }
+        await Task.WhenAll(resps_);
     }
 
-    protected override void PostRunTasks(int runIdx, int lastRunIdx)
+    protected override async void PostRunTasks(int runIdx, int lastRunIdx)
     {
-        logger.LogInformation("Run #{0} finished at {1}", runIdx, DateTime.UtcNow);
-
-        logger.LogInformation("Memory used before collection:       {0:N0}",
-                GC.GetTotalMemory(false));
-
-        // Collect all generations of memory.
-        GC.Collect();
-        logger.LogInformation("Memory used after full collection:   {0:N0}",
-        GC.GetTotalMemory(true));
+        // reset microservice states
+        var resps_ = new List<Task<HttpResponseMessage>>();
+        foreach (var task in config.postRunTasks)
+        {
+            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
+            logger.LogInformation("Post run task to URL {0}", task.url);
+            resps_.Add(HttpUtils.client.SendAsync(message));
+        }
+        await Task.WhenAll(resps_);
     }
 
     protected override void TrimStreams()
     {
-        
+        // nothing to do for orleans
     }
 }

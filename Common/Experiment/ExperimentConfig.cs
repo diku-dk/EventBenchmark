@@ -9,9 +9,8 @@ namespace Common.Experiment
 {
 	public class ExperimentConfig
 	{
-
-        public bool enabled { get; set; }
-
+        // whether ingestion data is going to in disk or memory
+        // use disk for experiments involving substantial amount of data
         public string connectionString { get; set; }
 
         public int numCustomers { get; set; }

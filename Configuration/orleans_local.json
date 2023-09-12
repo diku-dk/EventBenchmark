@@ -1,0 +1,98 @@
+﻿{
+  "connectionString": "DataSource=:memory:",
+  "numCustomers": 1000,
+  "numProdPerSeller": 10,
+  "executionTime": 60000,
+  "epoch": 10000,
+  "delayBetweenRequests": 0,
+  "delayBetweenRuns": 10000,
+  "transactionDistribution": {
+    "CUSTOMER_SESSION": 70,
+    "QUERY_DASHBOARD": 75,
+    "PRICE_UPDATE": 82,
+    "UPDATE_PRODUCT": 85,
+    "UPDATE_DELIVERY": 100
+  },
+  "concurrencyLevel": 1,
+  "ingestionConfig": {
+    "strategy": "WORKER_PER_CPU",
+    "concurrencyLevel": 6,
+    "mapTableToUrl": {
+        "sellers": "http://localhost:8080/seller",
+        "customers": "http://localhost:8080/customer",
+        "stock_items": "http://localhost:8080/stock",
+        "products": "http://localhost:8080/product"
+    }
+  },
+  "runs": [
+    {
+      "numProducts": 1000,
+      "customerDistribution": "UNIFORM",
+      "sellerDistribution": "UNIFORM",
+      "keyDistribution": "UNIFORM"
+    },
+    //{
+    //  "numProducts": 1000,
+    //  "customerDistribution": "UNIFORM",
+    //  "sellerDistribution": "ZIPFIAN",
+    //  "keyDistribution": "ZIPFIAN"
+    //},
+    //{
+    //  "numProducts": 10000,
+    //  "customerDistribution": "UNIFORM",
+    //  "sellerDistribution": "UNIFORM",
+    //  "keyDistribution": "UNIFORM"
+    //},
+    //{
+    //  "numProducts": 10000,
+    //  "customerDistribution": "UNIFORM",
+    //  "sellerDistribution": "ZIPFIAN",
+    //  "keyDistribution": "ZIPFIAN"
+    //}
+  ],
+  "postRunTasks": [
+    {
+        "name": "default",
+        "url": "http://localhost:8080/reset"
+    }
+  ],
+  "postExperimentTasks": [
+    {
+        "name": "default",
+        "url": "http://localhost:8080/cleanup"
+    }
+  ],
+  "customerWorkerConfig": {
+    "maxNumberKeysToBrowse": 10,
+    "maxNumberKeysToAddToCart": 10,
+    "minMaxQtyRange": {
+      "min": 1,
+      "max": 10
+    },
+    "delayBetweenRequestsRange": {
+      "min": 1,
+      "max": 1000
+    },
+    "checkoutProbability": 100,
+    "voucherProbability": 5,
+    "productUrl": "http://localhost:8080/product",
+    "cartUrl": "http://localhost:8080/cart",
+    "interactive": false
+  },
+  "sellerWorkerConfig": {
+    "interactive": false,
+    "delayBetweenRequestsRange": {
+      "min": 1,
+      "max": 1000
+    },
+    "adjustRange": {
+      "min": 1,
+      "max": 10
+    },
+    "sellerUrl": "http://localhost:8080/seller",
+    "productUrl": "http://localhost:8080/product"
+  },
+  "deliveryWorkerConfig": {
+    "shipmentUrl": "http://localhost:8080/shipment"
+  }
+}

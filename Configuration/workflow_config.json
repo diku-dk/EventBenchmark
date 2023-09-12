@@ -1,8 +1,0 @@
-﻿{
-  "healthCheck": false,
-  "dataLoad": false,
-  "ingestion": false,
-  "transactionSubmission": false,
-  "collection": false,
-  "cleanup": false
-}

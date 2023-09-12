@@ -85,7 +85,6 @@ public class DaprMetricManager : MetricManager
         if (dupFin > 0)
             logger.LogWarning("[Customer] Number of duplicated finished transactions found: {0}", dupFin);
 
-
         return BuildLatencyList(customerSubmitted, customerFinished, finishTime, "customer");
     }
 

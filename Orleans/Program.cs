@@ -15,41 +15,33 @@ public class Program
     {
         logger.LogInformation("Initializing benchmark driver...");
         var config = BuildExperimentConfig(args);
-        logger.LogInformation("Configuration parsed.");
-        logger.LogInformation("Starting experiment...");
-        var workflowOrc = new ActorExperimentManager(new CustomHttpClientFactory(), config);
-        await workflowOrc.Run();
-        logger.LogInformation("Experiment finished!");
+        logger.LogInformation("Configuration parsed. Starting experiment...");
+        var expManager = new ActorExperimentManager(new CustomHttpClientFactory(), config);
+        await expManager.Run();
+        logger.LogInformation("Experiment finished.");
     }
 
     public static ExperimentConfig BuildExperimentConfig(string[] args)
     {
-        string initDir = Directory.GetCurrentDirectory();
-        string configFilesDir;
-        if (args is not null && args.Length > 0) {
-        configFilesDir = args[0];
-            logger.LogInformation("Directory of configuration files passsed as parameter: {0}", configFilesDir);
+        if (args is not null && args.Length > 0 && File.Exists(args[0])) {
+            logger.LogInformation("Directory of configuration files passsed as parameter: {0}", args[0]);
         } else
         {
-            configFilesDir = initDir;
+            throw new Exception("No file passed as parameter!");
         }
-        Environment.CurrentDirectory = configFilesDir;
 
-        if (File.Exists("experiment_config.json"))
+        logger.LogInformation("Init reading experiment configuration file...");
+        ExperimentConfig experimentConfig;
+        using (StreamReader r = new StreamReader(args[0]))
         {
-            logger.LogInformation("Init reading experiment configuration file...");
-            ExperimentConfig experimentConfig;
-            using (StreamReader r = new StreamReader("experiment_config.json"))
-            {
-                string json = r.ReadToEnd();
-                logger.LogInformation("experiment_config.json contents:\n {0}", json);
-                experimentConfig = JsonConvert.DeserializeObject<ExperimentConfig>(json);
-            }
-            logger.LogInformation("Workflow configuration file read succesfully");
-
-            return experimentConfig;
+            string json = r.ReadToEnd();
+            logger.LogInformation("Configuration file contents:\n {0}", json);
+            experimentConfig = JsonConvert.DeserializeObject<ExperimentConfig>(json);
         }
-        throw new Exception("Experiment config file not found");
+        logger.LogInformation("Experiment configuration read succesfully");
+
+        return experimentConfig;
+        
     }
 
 }

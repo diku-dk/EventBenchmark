@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using Common.Streaming;
+﻿using Common.Streaming;
 
 namespace Common.Cleaning
 {

@@ -33,7 +33,7 @@ public class DaprExperimentManager : ExperimentManager
 
     private int numSellers;
 
-    private DaprWorkloadManager workflowManager;
+    private readonly DaprWorkloadManager workflowManager;
     private readonly DaprMetricManager metricManager;
 
     public DaprExperimentManager(IHttpClientFactory httpClientFactory, ExperimentConfig config) : base(config)
@@ -53,6 +53,14 @@ public class DaprExperimentManager : ExperimentManager
 
         this.channelsToTrim = new();
 
+        this.workflowManager = new DaprWorkloadManager(
+            sellerService, customerService, deliveryService,
+            config.transactionDistribution,
+            this.customerRange,
+            config.concurrencyLevel,
+            config.executionTime,
+            config.delayBetweenRequests);
+
         this.metricManager = new DaprMetricManager(sellerService, customerService, deliveryService);
     }
 
@@ -66,13 +74,6 @@ public class DaprExperimentManager : ExperimentManager
 
     protected override WorkloadManager SetUpManager(int runIdx)
     {
-        this.workflowManager ??= new DaprWorkloadManager(
-            sellerService, customerService, deliveryService,
-            config.transactionDistribution,
-            customerRange,
-            config.concurrencyLevel,
-            config.executionTime,
-            config.delayBetweenRequests);
         this.workflowManager.SetUp(config.runs[runIdx].sellerDistribution, new Interval(1, this.numSellers));
         return workflowManager;
     }
@@ -123,7 +124,7 @@ public class DaprExperimentManager : ExperimentManager
         // initialize all customer thread objects
         for (int i = this.customerRange.min; i <= this.customerRange.max; i++)
         {
-            this.customerThreads.Add(i, HttpCustomerThread.BuildCustomerThread(httpClientFactory, sellerService, config.numProdPerSeller, config.customerWorkerConfig, customers[i-1]));
+            this.customerThreads.Add(i, HttpCustomerThread.BuildCustomerThread(httpClientFactory, this.sellerService, config.numProdPerSeller, config.customerWorkerConfig, this.customers[i-1]));
         }
 
     }
@@ -152,7 +153,7 @@ public class DaprExperimentManager : ExperimentManager
         Interval sellerRange = new Interval(1, this.numSellers);
         for (int i = customerRange.min; i <= customerRange.max; i++)
         {
-            this.customerThreads[i].SetDistribution(this.config.runs[runIdx].sellerDistribution, sellerRange, this.config.runs[runIdx].keyDistribution);
+            this.customerThreads[i].SetUp(this.config.runs[runIdx].sellerDistribution, sellerRange, this.config.runs[runIdx].keyDistribution);
         }
 
     }
@@ -196,16 +197,6 @@ public class DaprExperimentManager : ExperimentManager
             await Task.WhenAll(responses);
             logger.LogInformation("Post run tasks finished");
         }
-
-        logger.LogInformation("Run #{0} finished at {1}", runIdx, DateTime.UtcNow);
-
-        logger.LogInformation("Memory used before collection:       {0:N0}",
-                GC.GetTotalMemory(false));
-
-        // Collect all generations of memory.
-        GC.Collect();
-        logger.LogInformation("Memory used after full collection:   {0:N0}",
-        GC.GetTotalMemory(true));
 
     }
 
