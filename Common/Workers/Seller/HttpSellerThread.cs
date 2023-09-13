@@ -40,7 +40,7 @@ public sealed class HttpSellerThread : AbstractSellerThread
         }
         else
         {
-            this.logger.LogError("Seller {0} failed to update product {1} price: {2}", this.sellerId, productToUpdate.product_id, resp.ReasonPhrase);
+            this.logger.LogDebug("Seller {0} failed to update product {1} price: {2}", this.sellerId, productToUpdate.product_id, resp.ReasonPhrase);
         }
     }
 
@@ -61,7 +61,7 @@ public sealed class HttpSellerThread : AbstractSellerThread
         }
         else
         {
-            this.logger.LogError("Seller {0} failed to update product {1} version: {2}", this.sellerId, product.product_id, resp.ReasonPhrase);
+            this.logger.LogDebug("Seller {0} failed to update product {1} version: {2}", this.sellerId, product.product_id, resp.ReasonPhrase);
         }
        
     }
@@ -84,7 +84,7 @@ public sealed class HttpSellerThread : AbstractSellerThread
         }
         catch (Exception e)
         {
-            this.logger.LogError("Seller {0}: Dashboard could not be retrieved: {1}", this.sellerId, e.Message);
+            this.logger.LogDebug("Seller {0}: Dashboard could not be retrieved: {1}", this.sellerId, e.Message);
         }
     }
 

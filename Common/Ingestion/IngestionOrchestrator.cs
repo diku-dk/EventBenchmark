@@ -1,10 +1,5 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Net.Http;
+﻿using System.Collections.Concurrent;
 using System.Reflection;
-using System.Threading;
-using System.Threading.Tasks;
 using Common.Ingestion.Config;
 using Common.Http;
 using Common.Infra;
@@ -19,20 +14,13 @@ namespace Common.Ingestion
 	public class IngestionOrchestrator
 	{
 
-		private readonly IngestionConfig config;
         private static readonly ILogger logger = LoggerProxy.GetInstance(nameof(IngestionOrchestrator));
 
-        public IngestionOrchestrator(IngestionConfig config)
+        public IngestionOrchestrator()
 		{
-			this.config = config;
-            if(this.config.concurrencyLevel <= 0)
-            {
-                this.config.concurrencyLevel = Environment.ProcessorCount;
-                logger.LogInformation("Set concurrency level of ingestion to processor count: {0}", this.config.concurrencyLevel);
-            }
         }
 
-		public async Task Run(DuckDBConnection connection)
+		public async Task Run(DuckDBConnection connection, IngestionConfig config)
 		{
             var startTime = DateTime.UtcNow;
             logger.LogInformation("Ingestion process starting at {0} with strategy {1}", startTime, config.strategy.ToString());
@@ -68,8 +56,8 @@ namespace Common.Ingestion
                 }
                 else if (config.strategy == IngestionStrategy.WORKER_PER_CPU)
                 {
-
-                    for (int i = 0; i < config.concurrencyLevel; i++) {
+                    var numThreads = config.concurrencyLevel <= 0 ? 1 : config.concurrencyLevel;
+                    for (int i = 0; i < numThreads; i++) {
                         TaskCompletionSource tcs = new TaskCompletionSource();
                         Task t = Task.Run(() => ConsumeShared(tuples, table.Value, rowCount, tcs));
                         tasksToWait.Add(tcs.Task);
@@ -157,8 +145,10 @@ namespace Common.Ingestion
         {
             string strObj = JsonConvert.SerializeObject(obj);
 
-            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, url);
-            message.Content = HttpUtils.BuildPayload(strObj);
+            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = HttpUtils.BuildPayload(strObj)
+            };
 
             try
             {

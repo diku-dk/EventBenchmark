@@ -77,12 +77,6 @@ public class ActorExperimentManager : ExperimentManager
         }
     }
 
-    protected override async void RunIngestion()
-    {
-        var ingestionOrchestrator = new IngestionOrchestrator(config.ingestionConfig);
-        await ingestionOrchestrator.Run(connection);
-    }
-
     protected override void PreWorkload(int runIdx)
     {
         this.numSellers = (int)DuckDbUtils.Count(connection, "sellers");
@@ -130,7 +124,7 @@ public class ActorExperimentManager : ExperimentManager
         foreach (var task in config.postExperimentTasks)
         {
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
-            logger.LogInformation("Pre experiment task to URL {0}", task.url);
+            logger.LogInformation("Post experiment task to URL {0}", task.url);
             resps_.Add(HttpUtils.client.SendAsync(message));
         }
         await Task.WhenAll(resps_);

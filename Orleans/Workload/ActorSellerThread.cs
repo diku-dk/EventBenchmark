@@ -73,10 +73,12 @@ public sealed class ActorSellerThread : AbstractSellerThread
         try
         {
             HttpRequestMessage message = new(HttpMethod.Get, config.sellerUrl + "/" + this.sellerId);
-            this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.QUERY_DASHBOARD, DateTime.UtcNow));
+           
+            var now = DateTime.UtcNow;
             var response = httpClient.Send(message);
             if (response.IsSuccessStatusCode)
             {
+                 this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.QUERY_DASHBOARD, now ));
                 this.finishedTransactions.Add(new TransactionOutput(tid, DateTime.UtcNow));
             }
             else
@@ -86,7 +88,7 @@ public sealed class ActorSellerThread : AbstractSellerThread
         }
         catch (Exception e)
         {
-            this.logger.LogError("Seller {0}: Dashboard could not be retrieved: {1}", this.sellerId, e.Message);
+            this.logger.LogDebug("Seller {0}: Dashboard could not be retrieved: {1}", this.sellerId, e.Message);
         }
     }
 

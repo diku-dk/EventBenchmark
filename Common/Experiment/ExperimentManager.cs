@@ -1,6 +1,7 @@
 ﻿using Common.DataGeneration;
 using Common.Entities;
 using Common.Infra;
+using Common.Ingestion;
 using Common.Workload;
 using DuckDB.NET.Data;
 using Microsoft.Extensions.Logging;
@@ -12,6 +13,7 @@ public abstract class ExperimentManager
 
     protected readonly ExperimentConfig config;
     protected readonly DuckDBConnection connection;
+    private readonly IngestionOrchestrator ingestionOrchestrator;
     protected List<Customer> customers;
     protected readonly Interval customerRange;
 
@@ -26,12 +28,10 @@ public abstract class ExperimentManager
         this.config = config;
         this.customerRange = new Interval(1, config.numCustomers);
         this.connection = new DuckDBConnection(config.connectionString);
-        connection.Open();
+        this.ingestionOrchestrator = new IngestionOrchestrator();
     }
 
     protected abstract void PreExperiment();
-
-    protected abstract void RunIngestion();
 
     protected abstract void PostExperiment();
 
@@ -47,7 +47,7 @@ public abstract class ExperimentManager
 
     public async Task Run()
     {
-        
+        this.connection.Open();
         SyntheticDataSourceConfig previousData = new SyntheticDataSourceConfig()
         {
             numCustomers = config.numCustomers,
@@ -61,7 +61,6 @@ public abstract class ExperimentManager
         dataGen.CreateSchema(connection);
         // dont need to generate customers on every run. only once
         dataGen.GenerateCustomers(connection);
-
         // customers are fixed accross runs
         this.customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
 
@@ -91,7 +90,7 @@ public abstract class ExperimentManager
 
                 syntheticDataGenerator.Generate(connection);
 
-                RunIngestion();
+                await ingestionOrchestrator.Run(connection, config.ingestionConfig);
 
                 if (runIdx == 0)
                 {
@@ -104,6 +103,8 @@ public abstract class ExperimentManager
             PreWorkload(runIdx);
 
             WorkloadManager workloadManager = SetUpManager(runIdx);
+
+            logger.LogInformation("Run #{0} started at {1}", runIdx, DateTime.UtcNow);
 
             var workloadTask = await workloadManager.Run();
 

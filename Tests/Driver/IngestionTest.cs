@@ -19,7 +19,7 @@ public class IngestionTest
         {
             numCustomers = 10,
             numProducts = 10,
-            numProdPerSeller = 1
+            numProdPerSeller = 2
         };
 
         var dataGen = new SyntheticDataGenerator(dataSourceConfig);
@@ -35,15 +35,15 @@ public class IngestionTest
             concurrencyLevel = 4,
             mapTableToUrl = new Dictionary<string, string>()
             {
-                { "sellers" , "http://localhost:8080/seller" },
-                { "customers" , "http://localhost:8080/customer" },
-                { "stock_items", "http://localhost:8080/stock" },
+                //{ "sellers" , "http://localhost:8080/seller" },
+                //{ "customers" , "http://localhost:8080/customer" },
+                //{ "stock_items", "http://localhost:8080/stock" },
                 { "products", "http://localhost:8080/product"}
             }
         };
 
-        var ingestionOrchestrator = new IngestionOrchestrator(ingestionConfig);
-        await ingestionOrchestrator.Run(connection);
+        var ingestionOrchestrator = new IngestionOrchestrator();
+        await ingestionOrchestrator.Run(connection, ingestionConfig);
 
         // retrieve some random and see if they match
 

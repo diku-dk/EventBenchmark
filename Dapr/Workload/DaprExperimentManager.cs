@@ -8,7 +8,6 @@ using Common.Workers;
 using System.Text;
 using Daprr.Streaming.Redis;
 using Common.Http;
-using Common.Ingestion;
 using Dapr.Workers;
 using Common.Workers.Seller;
 using Common.Workload;
@@ -161,12 +160,6 @@ public class DaprExperimentManager : ExperimentManager
     protected override async void TrimStreams()
     {
         await RedisUtils.TrimStreams(redisConnection, channelsToTrim);
-    }
-
-    protected override async void RunIngestion()
-    {
-        var ingestionOrchestrator = new IngestionOrchestrator(config.ingestionConfig);
-        await ingestionOrchestrator.Run(connection);
     }
 
     protected override async void PostRunTasks(int runIdx, int lastRunIdx)

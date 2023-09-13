@@ -48,7 +48,7 @@ public class DeliveryThread : IDeliveryWorker
             while (!ResultQueue.Writer.TryWrite((init, end))) { }
         } else
         {
-            this.logger.LogError("Delivery worker failed to update delivery for TID {0}: {1}", tid, resp.ReasonPhrase);
+            this.logger.LogDebug("Delivery worker failed to update delivery for TID {0}: {1}", tid, resp.ReasonPhrase);
         }
     }
 

@@ -34,11 +34,6 @@ public class StatefunExperimentManager : ExperimentManager
         throw new NotImplementedException();
     }
 
-    protected override void RunIngestion()
-    {
-        throw new NotImplementedException();
-    }
-
     protected override WorkloadManager SetUpManager(int runIdx)
     {
         throw new NotImplementedException();

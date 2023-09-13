@@ -2,7 +2,7 @@
   "connectionString": "DataSource=:memory:",
   "numCustomers": 1000,
   "numProdPerSeller": 10,
-  "executionTime": 60000,
+  "executionTime": 30000,
   "epoch": 10000,
   "delayBetweenRequests": 0,
   "delayBetweenRuns": 10000,

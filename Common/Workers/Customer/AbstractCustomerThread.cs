@@ -19,7 +19,7 @@ public abstract class AbstractCustomerThread : ICustomerWorker
     protected IDiscreteDistribution productIdGenerator;
 
     // the object respective to this worker
-    protected Entities.Customer customer;
+    protected readonly Entities.Customer customer;
 
     protected readonly List<TransactionIdentifier> submittedTransactions;
 

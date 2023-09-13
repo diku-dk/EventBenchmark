@@ -38,7 +38,7 @@ public class ActorCustomerThread : HttpCustomerThread
 
     protected override void SendCheckoutRequest(int tid)
     {
-        var payload = BuildCheckoutPayload(tid, this.customer);
+        var payload = BuildCheckoutPayload(tid);
         HttpRequestMessage message = new(HttpMethod.Post, this.config.cartUrl + "/" + this.customer.id + "/checkout")
         {
             Content = payload

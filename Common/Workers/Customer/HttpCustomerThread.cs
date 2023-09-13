@@ -49,7 +49,7 @@ public class HttpCustomerThread : AbstractCustomerThread
             }
             catch (Exception e)
             {
-                this.logger.LogWarning("Customer {0} Url {1} Seller {2} Key {3}: Exception Message: {5} ", customer.id, this.config.productUrl, product.seller_id, product.product_id, e.Message);
+                this.logger.LogDebug("Customer {0} Url {1} Seller {2} Key {3}: Exception Message: {5} ", customer.id, this.config.productUrl, product.seller_id, product.product_id, e.Message);
             }
         }
     }
@@ -63,9 +63,11 @@ public class HttpCustomerThread : AbstractCustomerThread
 
     protected override void SendCheckoutRequest(int tid)
     {
-        var payload = BuildCheckoutPayload(tid, this.customer);
-        HttpRequestMessage message = new(HttpMethod.Post, this.config.cartUrl + "/" + this.customer.id + "/checkout");
-        message.Content = payload;
+        var payload = BuildCheckoutPayload(tid);
+        HttpRequestMessage message = new(HttpMethod.Post, this.config.cartUrl + "/" + this.customer.id + "/checkout")
+        {
+            Content = payload
+        };
 
         var now = DateTime.UtcNow;
         HttpResponseMessage resp = httpClient.Send(message);
@@ -80,14 +82,14 @@ public class HttpCustomerThread : AbstractCustomerThread
         }
     }
 
-    protected StringContent BuildCheckoutPayload(int tid, Entities.Customer customer)
+    protected StringContent BuildCheckoutPayload(int tid)
     {
         // define payment type randomly
         var typeIdx = random.Next(1, 4);
         PaymentType type = typeIdx > 2 ? PaymentType.CREDIT_CARD : typeIdx > 1 ? PaymentType.DEBIT_CARD : PaymentType.BOLETO;
 
         // build
-        CustomerCheckout basketCheckout = new CustomerCheckout(
+        CustomerCheckout customerCheckout = new CustomerCheckout(
             customer.id,
             customer.first_name,
             customer.last_name,
@@ -106,7 +108,7 @@ public class HttpCustomerThread : AbstractCustomerThread
             tid
         );
 
-        var payload = JsonConvert.SerializeObject(basketCheckout);
+        var payload = JsonConvert.SerializeObject(customerCheckout);
         return HttpUtils.BuildPayload(payload);
     }
 
@@ -120,8 +122,8 @@ public class HttpCustomerThread : AbstractCustomerThread
             voucher = product.price * 0.10f;
         }
 
-        // build a basket item
-        CartItem basketItem = new CartItem(
+        // build a cart item
+        CartItem cartItem = new CartItem(
                 product.seller_id,
                 product.product_id,
                 product.name,
@@ -131,7 +133,7 @@ public class HttpCustomerThread : AbstractCustomerThread
                 voucher,
                 product.version
         );
-        var payload = JsonConvert.SerializeObject(basketItem);
+        var payload = JsonConvert.SerializeObject(cartItem);
         return HttpUtils.BuildPayload(payload);
     }
 
