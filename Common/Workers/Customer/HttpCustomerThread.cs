@@ -34,7 +34,7 @@ public class HttpCustomerThread : AbstractCustomerThread
     protected override void AddItem(ISet<(int,int)> set)
     {
         var sellerId = this.sellerIdGenerator.Sample();
-        var product = sellerService.GetProduct(sellerId, this.productIdGenerator.Sample());
+        var product = sellerService.GetProduct(sellerId, this.productIdGenerator.Sample() - 1);
         if (set.Add((sellerId, product.product_id)))
         {
             var qty = random.Next(this.config.minMaxQtyRange.min, this.config.minMaxQtyRange.max + 1);
