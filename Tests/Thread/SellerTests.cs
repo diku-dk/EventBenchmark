@@ -7,6 +7,10 @@ using Microsoft.Extensions.Logging;
 
 namespace Tests.Thread;
 
+// seller correctness criteria:
+// no total order across sellers
+// no total order across different products in a seller (e.g., updates from different products can be submitted concurrently)
+// total order of updates of the same products in a seller
 public class SellerTests
 {
 

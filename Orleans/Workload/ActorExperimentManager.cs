@@ -113,7 +113,7 @@ public class ActorExperimentManager : ExperimentManager
     {
         string ts = new DateTimeOffset(startTime).ToUnixTimeMilliseconds().ToString();
         this.metricManager.SetUp(numSellers, config.numCustomers);
-        this.metricManager.Collect(startTime, finishTime, config.epoch, string.Format("{0}#{1}_{2}_{3}_{4}_{5}", ts, runIdx, config.concurrencyLevel,
+        this.metricManager.Collect(startTime, finishTime, config.epoch, string.Format("{0}#{1}_{2}_{3}_{4}_{5}_{6}", ts, runIdx, config.numCustomers, config.concurrencyLevel,
                     config.runs[runIdx].numProducts, config.runs[runIdx].sellerDistribution, config.runs[runIdx].keyDistribution));
     }
 

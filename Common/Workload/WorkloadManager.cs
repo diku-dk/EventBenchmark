@@ -61,7 +61,7 @@ public abstract class WorkloadManager
         }
 
         this.customerIdleQueue.Clear();
-        for (int i = this.customerRange.min; i < this.customerRange.max; i++)
+        for (int i = this.customerRange.min; i <= this.customerRange.max; i++)
         {
             this.customerIdleQueue.Enqueue(i);
         }

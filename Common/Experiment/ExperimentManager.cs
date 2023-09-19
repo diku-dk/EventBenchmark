@@ -120,14 +120,15 @@ public abstract class ExperimentManager
             // trim first to avoid receiving events after the post run task
             TrimStreams();
 
-            PostRunTasks(runIdx, lastRunIdx);
-
             CollectGarbage();
 
             logger.LogInformation("Run #{0} finished at {1}", runIdx, DateTime.UtcNow);
 
             // increment run index
             runIdx++;
+
+            if(runIdx < (config.runs.Count - 1))
+                PostRunTasks(runIdx, lastRunIdx);
         }
 
         logger.LogInformation("Post experiment cleanup tasks started.");

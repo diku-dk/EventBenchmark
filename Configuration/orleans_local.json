@@ -1,11 +1,11 @@
 ﻿{
   "connectionString": "DataSource=:memory:",
-  "numCustomers": 1000,
+  "numCustomers": 100,
   "numProdPerSeller": 10,
   "executionTime": 30000,
   "epoch": 10000,
   "delayBetweenRequests": 0,
-  "delayBetweenRuns": 10000,
+  "delayBetweenRuns": 2000,
   "transactionDistribution": {
     "CUSTOMER_SESSION": 70,
     "QUERY_DASHBOARD": 75,
@@ -13,7 +13,7 @@
     "UPDATE_PRODUCT": 85,
     "UPDATE_DELIVERY": 100
   },
-  "concurrencyLevel": 1,
+  "concurrencyLevel": 32,
   "ingestionConfig": {
     "strategy": "WORKER_PER_CPU",
     "concurrencyLevel": 6,
@@ -57,10 +57,6 @@
     }
   ],
   "postExperimentTasks": [
-    {
-        "name": "default",
-        "url": "http://localhost:8080/cleanup"
-    }
   ],
   "customerWorkerConfig": {
     "maxNumberKeysToBrowse": 10,
