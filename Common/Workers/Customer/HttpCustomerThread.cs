@@ -14,10 +14,12 @@ namespace Common.Workers.Customer;
 public class HttpCustomerThread : AbstractCustomerThread
 {
     protected readonly HttpClient httpClient;
+    private readonly ISet<(int, int)> cartItems;
 
     protected HttpCustomerThread(ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Entities.Customer customer, HttpClient httpClient, ILogger logger) : base(sellerService, numberOfProducts, config, customer, logger)
     {
         this.httpClient = httpClient;
+        this.cartItems = new HashSet<(int, int)>(config.maxNumberKeysToAddToCart);
     }
 
     public static HttpCustomerThread BuildCustomerThread(IHttpClientFactory httpClientFactory, ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Entities.Customer customer)
@@ -31,14 +33,25 @@ public class HttpCustomerThread : AbstractCustomerThread
         throw new NotImplementedException();
     }
 
-    protected override void AddItem(ISet<(int,int)> set)
+    public override void AddItemsToCart()
+    {
+        int numberOfProducts = this.random.Next(1, this.config.maxNumberKeysToAddToCart + 1);
+        while (cartItems.Count < this.numberOfProducts)
+        {
+            AddItem();
+        }
+        // clean it so garbage collector can collect the items
+        this.cartItems.Clear();
+    }
+
+    private void AddItem()
     {
         var sellerId = this.sellerIdGenerator.Sample();
         var product = sellerService.GetProduct(sellerId, this.productIdGenerator.Sample() - 1);
-        if (set.Add((sellerId, product.product_id)))
+        if (this.cartItems.Add((sellerId, product.product_id)))
         {
-            var qty = random.Next(this.config.minMaxQtyRange.min, this.config.minMaxQtyRange.max + 1);
-            var payload = BuildCartItem(product, qty);
+            var qty = this.random.Next(this.config.minMaxQtyRange.min, this.config.minMaxQtyRange.max + 1);
+            var payload = this.BuildCartItem(product, qty);
             try
             {
                 HttpRequestMessage message = new(HttpMethod.Patch, this.config.cartUrl + "/" + customer.id + "/add")

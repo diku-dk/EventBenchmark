@@ -56,17 +56,7 @@ public abstract class AbstractCustomerThread : ICustomerWorker
         Checkout(tid);
     }
 
-    protected abstract void AddItem(ISet<(int,int)> addedSet);
-
-    public void AddItemsToCart()
-    {
-        int numberOfProducts = random.Next(1, this.config.maxNumberKeysToAddToCart + 1);
-        ISet<(int, int)> set = new HashSet<(int, int)>();
-        while (set.Count < numberOfProducts)
-        {
-            AddItem(set);
-        }
-    }
+    public abstract void AddItemsToCart();
 
     public void Checkout(int tid)
     {
