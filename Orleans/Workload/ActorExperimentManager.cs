@@ -59,18 +59,8 @@ public class ActorExperimentManager : ExperimentManager
         this.metricManager = new ActorMetricManager(sellerService, customerService, deliveryService);
     }
 
-    protected override async void PreExperiment()
+    protected override void PreExperiment()
     {
-        // reset microservice states
-        var resps_ = new List<Task<HttpResponseMessage>>();
-        foreach (var task in config.postRunTasks)
-        {
-            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
-            logger.LogInformation("Pre experiment task to URL {0}", task.url);
-            resps_.Add(HttpUtils.client.SendAsync(message));
-        }
-        await Task.WhenAll(resps_);
-
         for (int i = this.customerRange.min; i <= this.customerRange.max; i++)
         {
             this.customerThreads.Add(i, ActorCustomerThread.BuildCustomerThread(httpClientFactory, sellerService, config.numProdPerSeller, config.customerWorkerConfig, customers[i-1]));
@@ -117,7 +107,7 @@ public class ActorExperimentManager : ExperimentManager
                     config.runs[runIdx].numProducts, config.runs[runIdx].sellerDistribution, config.runs[runIdx].keyDistribution));
     }
 
-    protected override async void PostExperiment()
+    private async Task CleanUpActorStates()
     {
         // cleanup microservice states
         var resps_ = new List<Task<HttpResponseMessage>>();
@@ -128,6 +118,11 @@ public class ActorExperimentManager : ExperimentManager
             resps_.Add(HttpUtils.client.SendAsync(message));
         }
         await Task.WhenAll(resps_);
+    }
+
+    protected override async void PostExperiment()
+    {
+        await CleanUpActorStates();
     }
 
     protected override async void PostRunTasks(int runIdx, int lastRunIdx)

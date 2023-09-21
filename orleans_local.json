@@ -18,10 +18,10 @@
     "strategy": "WORKER_PER_CPU",
     "concurrencyLevel": 6,
     "mapTableToUrl": {
-        "sellers": "http://localhost:8081/seller",
-        "customers": "http://localhost:8081/customer",
-        "stock_items": "http://localhost:8081/stock",
-        "products": "http://localhost:8081/product"
+        "sellers": "http://localhost:8080/seller",
+        "customers": "http://localhost:8080/customer",
+        "stock_items": "http://localhost:8080/stock",
+        "products": "http://localhost:8080/product"
     }
   },
   "runs": [
@@ -53,14 +53,10 @@
   "postRunTasks": [
     {
         "name": "default",
-        "url": "http://localhost:8081/reset"
+        "url": "http://localhost:8080/reset"
     }
   ],
   "postExperimentTasks": [
-    {
-        "name": "default",
-        "url": "http://localhost:8081/reset"
-    }
   ],
   "customerWorkerConfig": {
     "maxNumberKeysToBrowse": 10,
@@ -75,8 +71,8 @@
     },
     "checkoutProbability": 100,
     "voucherProbability": 5,
-    "productUrl": "http://localhost:8081/product",
-    "cartUrl": "http://localhost:8081/cart",
+    "productUrl": "http://localhost:8080/product",
+    "cartUrl": "http://localhost:8080/cart",
     "interactive": false
   },
   "sellerWorkerConfig": {
@@ -89,10 +85,10 @@
       "min": 1,
       "max": 10
     },
-    "sellerUrl": "http://localhost:8081/seller",
-    "productUrl": "http://localhost:8081/product"
+    "sellerUrl": "http://localhost:8080/seller",
+    "productUrl": "http://localhost:8080/product"
   },
   "deliveryWorkerConfig": {
-    "shipmentUrl": "http://localhost:8081/shipment"
+    "shipmentUrl": "http://localhost:8080/shipment"
   }
 }

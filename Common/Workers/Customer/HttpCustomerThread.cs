@@ -35,8 +35,8 @@ public class HttpCustomerThread : AbstractCustomerThread
 
     public override void AddItemsToCart()
     {
-        int numberOfProducts = this.random.Next(1, this.config.maxNumberKeysToAddToCart + 1);
-        while (cartItems.Count < this.numberOfProducts)
+        int numberKeysToAddToCart = this.random.Next(1, this.config.maxNumberKeysToAddToCart + 1);
+        while (cartItems.Count < numberKeysToAddToCart)
         {
             AddItem();
         }
@@ -62,7 +62,7 @@ public class HttpCustomerThread : AbstractCustomerThread
             }
             catch (Exception e)
             {
-                this.logger.LogDebug("Customer {0} Url {1} Seller {2} Key {3}: Exception Message: {5} ", customer.id, this.config.productUrl, product.seller_id, product.product_id, e.Message);
+                this.logger.LogError("Customer {0} Url {1} Seller {2} Key {3}: Exception Message: {5} ", customer.id, this.config.productUrl, product.seller_id, product.product_id, e.Message);
             }
         }
     }
