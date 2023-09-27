@@ -15,7 +15,7 @@ public abstract class WorkloadManager
     private readonly Random random;
 
     //protected readonly ConcurrentDictionary<int, WorkerStatus> customerStatusCache;
-    protected readonly ConcurrentQueue<int> customerIdleQueue;
+    protected readonly BlockingCollection<int> customerIdleQueue;
 
     private readonly int executionTime;
     private readonly int concurrencyLevel;
@@ -43,7 +43,7 @@ public abstract class WorkloadManager
         this.executionTime = executionTime;
         this.delayBetweenRequests = delayBetweenRequests;
         this.histogram = new Dictionary<TransactionType, int>();
-        this.customerIdleQueue = new ConcurrentQueue<int>();
+        this.customerIdleQueue = new BlockingCollection<int>(new ConcurrentQueue<int>());
         this.logger = LoggerProxy.GetInstance("WorkloadEmitter");
     }
 
@@ -60,10 +60,10 @@ public abstract class WorkloadManager
             this.histogram[tx] = 0;
         }
 
-        this.customerIdleQueue.Clear();
+        while(this.customerIdleQueue.TryTake(out _)){ }
         for (int i = this.customerRange.min; i <= this.customerRange.max; i++)
         {
-            this.customerIdleQueue.Enqueue(i);
+            this.customerIdleQueue.Add(i);
         }
 
     }

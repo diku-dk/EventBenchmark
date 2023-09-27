@@ -32,10 +32,8 @@ public class DaprWorkloadManager : WorkloadManager
             {
                 case TransactionType.CUSTOMER_SESSION:
                     {
-                        int customerId;
-                        while (!this.customerIdleQueue.TryDequeue(out customerId)) { }
-
-                        Task.Run(() => customerService.Run(customerId, tid)).ContinueWith(x => this.customerIdleQueue.Enqueue(customerId));
+                        int customerId = this.customerIdleQueue.Take();
+                        Task.Run(() => customerService.Run(customerId, tid)).ContinueWith(x => this.customerIdleQueue.Add(customerId));
                         break;
                     }
                 // delivery worker

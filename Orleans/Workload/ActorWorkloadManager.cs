@@ -32,14 +32,11 @@ public class ActorWorkloadManager : WorkloadManager
             {
                 case TransactionType.CUSTOMER_SESSION:
                 {
-                    int customerId;
-                    while (!this.customerIdleQueue.TryDequeue(out customerId)) { }
-
+                    int customerId = this.customerIdleQueue.Take();
                     Task.Run(() => customerService.Run(customerId, tid)).ContinueWith(async x => {
                             var t = Shared.ResultQueue.Writer.WriteAsync(ITEM);
-                            this.customerIdleQueue.Enqueue(customerId);
+                            this.customerIdleQueue.Add(customerId);
                             await t;
-                            // while(!Shared.ResultQueue.Writer.TryWrite(ITEM)){ }
                         }).ConfigureAwait(true);
                     break;
                 }
