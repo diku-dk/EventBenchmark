@@ -26,7 +26,7 @@ public sealed class HttpSellerThread : AbstractSellerThread
         return new HttpSellerThread(sellerId, httpClientFactory.CreateClient(), workerConfig, logger);
     }
 
-    protected override void SendUpdatePriceRequest(int tid, Product productToUpdate, float newPrice)
+    protected override void SendUpdatePriceRequest(string tid, Product productToUpdate, float newPrice)
     {
         HttpRequestMessage request = new(HttpMethod.Patch, config.productUrl);
         string serializedObject = JsonConvert.SerializeObject(new PriceUpdate(this.sellerId, productToUpdate.product_id, newPrice, tid));
@@ -44,7 +44,7 @@ public sealed class HttpSellerThread : AbstractSellerThread
         }
     }
 
-    protected override void SendProductUpdateRequest(Product product, int tid)
+    protected override void SendProductUpdateRequest(Product product, string tid)
     {
         var obj = JsonConvert.SerializeObject(product);
         HttpRequestMessage message = new(HttpMethod.Put, config.productUrl)
@@ -66,7 +66,7 @@ public sealed class HttpSellerThread : AbstractSellerThread
        
     }
 
-    public override void BrowseDashboard(int tid)
+    public override void BrowseDashboard(string tid)
     {
         try
         {

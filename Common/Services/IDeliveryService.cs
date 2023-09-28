@@ -5,7 +5,7 @@ namespace Common.Services;
 public interface IDeliveryService
 {
 
-    void Run( int tid);
+    void Run(string tid);
 
     List<(TransactionIdentifier, TransactionOutput)> GetResults();
 

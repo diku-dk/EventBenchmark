@@ -24,7 +24,7 @@ public class DaprWorkloadManager : WorkloadManager
         this.deliveryService = deliveryService;
     }
 
-    protected override void SubmitTransaction(int tid, TransactionType type)
+    protected override void SubmitTransaction(string tid, TransactionType type)
     {
         try
         {

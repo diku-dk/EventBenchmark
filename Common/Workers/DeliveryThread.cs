@@ -35,7 +35,7 @@ public class DeliveryThread : IDeliveryWorker
         });
     }
 
-	public void Run(int tid)
+	public void Run(string tid)
 	{
         HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, config.shipmentUrl + "/" + tid);
         var initTime = DateTime.UtcNow;

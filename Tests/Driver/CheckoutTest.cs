@@ -53,20 +53,20 @@ public class CheckoutTest
             customerIdleQueue.Add(i);
         }
 
-        Dictionary<int,(int idInit,int idEnd)> dict = new Dictionary<int, (int idInit, int idEnd)>();
+        Dictionary<string,(int idInit,int idEnd)> dict = new Dictionary<string, (int idInit, int idEnd)>();
 
         List<Task> tasks = new(numThreads);
 
-        ConcurrentQueue<int> errorQueue = new();
+        ConcurrentQueue<string> errorQueue = new();
 
         for(int tid = 1; tid <= numThreads; tid++){
             int customerId = customerIdleQueue.Take();
-            int myTid = tid;
+            string myTid = tid.ToString();
             dict.Add(myTid,(customerId,0));
            
              _ =   Task.Run(() => DoNothing(myTid)).ContinueWith(async x =>
                 {
-                    int tid_ = await x;
+                    string tid_ = await x;
                     customerIdleQueue.Add(customerId);
                     if(dict[tid_].idInit != customerId)
                     {
@@ -81,7 +81,7 @@ public class CheckoutTest
 
 	}
 
-    public static int DoNothing(int tid)
+    public static string DoNothing(string tid)
     {
         return tid;
     }

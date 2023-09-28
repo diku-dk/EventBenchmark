@@ -50,7 +50,7 @@ public abstract class AbstractSellerThread : ISellerWorker
     /**
      * The method is only called if there are available products, so the while loop always finishes at some point
      */
-    public void UpdatePrice(int tid)
+    public void UpdatePrice(string tid)
     {
         int idx = this.productIdGenerator.Sample() - 1;
         object locked = products[idx];
@@ -75,10 +75,10 @@ public abstract class AbstractSellerThread : ISellerWorker
         }
     }
 
-    protected abstract void SendUpdatePriceRequest(int tid, Product productToUpdate, float newPrice);
+    protected abstract void SendUpdatePriceRequest(string tid, Product productToUpdate, float newPrice);
 
     // https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/lock
-    public void UpdateProduct(int tid)
+    public void UpdateProduct(string tid)
     {
         int idx = this.productIdGenerator.Sample() - 1;
         object locked = products[idx];
@@ -103,7 +103,7 @@ public abstract class AbstractSellerThread : ISellerWorker
         
     }
 
-    protected abstract void SendProductUpdateRequest(Product product, int tid);
+    protected abstract void SendProductUpdateRequest(Product product, string tid);
 
     // yes, we may retrieve a product that is being concurrently deleted
     // at first, I was thinking to always get available product..
@@ -113,7 +113,7 @@ public abstract class AbstractSellerThread : ISellerWorker
         return this.products[idx];
     }
 
-    public abstract void BrowseDashboard(int tid);
+    public abstract void BrowseDashboard(string tid);
 
     public List<TransactionOutput> GetFinishedTransactions()
     {

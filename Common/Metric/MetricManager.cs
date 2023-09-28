@@ -14,7 +14,7 @@ public abstract class MetricManager
 	{
 	}
 
-    protected List<Latency> BuildLatencyList(Dictionary<int, TransactionIdentifier> submitted, Dictionary<int, TransactionOutput> finished, DateTime finishTime, string workerType = "")
+    protected List<Latency> BuildLatencyList(Dictionary<object, TransactionIdentifier> submitted, Dictionary<object, TransactionOutput> finished, DateTime finishTime, string workerType = "")
     {
         var targetValues = finished.Values.Where(e => e.timestamp.CompareTo(finishTime) <= 0);
         var latencyList = new List<Latency>(targetValues.Count());
@@ -143,7 +143,10 @@ public abstract class MetricManager
                 int idx = (int)(span.TotalMilliseconds / epochPeriod);
                 if (idx < 0 || idx >= breakdown.Count)
                 {
-                    logger.LogWarning("Entry outside breakdown boundary. Finish time is {0} and the entry is {1}", finishTime, entry);
+                    if(entry.endTimestamp <= finishTime && idx == breakdown.Count){
+                        breakdown[idx-1][entry.type].Add(entry.totalMilliseconds);
+                        // logger.LogWarning("Entry should not stay outside breakdown boundary. Num blocks: {0} Index: {1} Finish time: {2} Entry: {3}", breakdown.Count, idx, finishTime, entry);
+                    }
                     continue;
                 }
                 breakdown[idx][entry.type].Add(entry.totalMilliseconds);

@@ -4,11 +4,11 @@ namespace Common.Services;
 
 public interface ICustomerService
 {
-    void Run(int customerId, int tid);
+    void Run(int customerId, string tid);
 
     List<TransactionIdentifier> GetSubmittedTransactions(int sellerId);
 
-    List<TransactionOutput> GetFinishedTransactions(int i);
+    List<TransactionOutput> GetFinishedTransactions(int customerId);
 }
 
 

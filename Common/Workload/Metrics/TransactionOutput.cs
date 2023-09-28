@@ -5,7 +5,7 @@
 	 */
     public record TransactionOutput
 	(
-		int tid,
+		string tid,
 		DateTime timestamp
 	);
 }

@@ -14,7 +14,7 @@ public sealed class CustomerService : ICustomerService
         this.customers = customers;
     }
 
-    public void Run(int customerId, int tid) => customers[customerId].Run(tid);
+    public void Run(int customerId, string tid) => customers[customerId].Run(tid);
 
     public List<TransactionIdentifier> GetSubmittedTransactions(int sellerId)
     {

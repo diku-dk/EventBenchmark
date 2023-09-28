@@ -6,7 +6,7 @@
 	 */
 	public record TransactionIdentifier
 	(
-		int tid,
+		string tid,
 		TransactionType type,
 		DateTime timestamp
 	);

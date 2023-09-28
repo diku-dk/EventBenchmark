@@ -6,7 +6,7 @@ namespace Common.Workers.Customer;
 
 public interface ICustomerWorker
 {
-    void Run(int tid);
+    void Run(string tid);
 
     List<TransactionIdentifier> GetSubmittedTransactions();
 

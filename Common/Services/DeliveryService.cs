@@ -12,7 +12,7 @@ public class DeliveryService : IDeliveryService
         this.deliveryThread = deliveryThread;
 	}
 
-    public void Run(int tid)
+    public void Run(string tid)
     {
         deliveryThread.Run(tid);
     }

@@ -14,17 +14,16 @@ public abstract class WorkloadManager
     private readonly IDictionary<TransactionType, int> transactionDistribution;
     private readonly Random random;
 
-    //protected readonly ConcurrentDictionary<int, WorkerStatus> customerStatusCache;
     protected readonly BlockingCollection<int> customerIdleQueue;
 
-    private readonly int executionTime;
-    private readonly int concurrencyLevel;
+    protected readonly int executionTime;
+    protected readonly int concurrencyLevel;
 
     private readonly int delayBetweenRequests;
 
     protected readonly ILogger logger;
 
-    private readonly IDictionary<TransactionType, int> histogram;
+    protected readonly IDictionary<TransactionType, int> histogram;
 
     protected IDiscreteDistribution sellerIdGenerator;
 
@@ -75,7 +74,7 @@ public abstract class WorkloadManager
     // b. complete on response received
     // for b it is easy, upon completion we know we can submit another transaction
     // for a is tricky, we never know when it completes
-    public async Task<(DateTime startTime, DateTime finishTime)> Run()
+    public virtual async Task<(DateTime startTime, DateTime finishTime)> Run()
 	{
         logger.LogInformation("[Workload emitter] Started sending batch of transactions with concurrency level {0}", this.concurrencyLevel);
 
@@ -89,11 +88,11 @@ public abstract class WorkloadManager
             TransactionType tx = PickTransactionFromDistribution();
             histogram[tx]++;
             var toPass = this.currentTid;
-            SubmitTransaction(toPass, tx);
+            SubmitTransaction(toPass.ToString(), tx);
             this.currentTid++;
         }
 
-        logger.LogInformation("[Workload emitter] Started waiting for results to send remaining transactions...");
+        logger.LogInformation("[Workload emitter] {0} transactions emitted. Waiting for results to send remaining transactions.", this.concurrencyLevel);
 
         while (s.Elapsed < execTime)
         {
@@ -101,7 +100,7 @@ public abstract class WorkloadManager
             histogram[tx]++;
             
             // spawning in a different thread may lead to duplicate tids in actors
-            SubmitTransaction(this.currentTid, tx);
+            SubmitTransaction(this.currentTid.ToString(), tx);
             this.currentTid++;
 
             while (!Shared.ResultQueue.Reader.TryRead(out _) && s.Elapsed < execTime) { }
@@ -127,7 +126,7 @@ public abstract class WorkloadManager
         return (startTime, finishTime);
     }
 
-    private TransactionType PickTransactionFromDistribution()
+    protected TransactionType PickTransactionFromDistribution()
     {
         int x = this.random.Next(0, 101);
         foreach (var entry in transactionDistribution)
@@ -140,6 +139,6 @@ public abstract class WorkloadManager
         return TransactionType.NONE;
     }
 
-    protected abstract void SubmitTransaction(int tid, TransactionType type);
+    protected abstract void SubmitTransaction(string tid, TransactionType type);
 
 }

@@ -21,11 +21,11 @@
 
         public string status { get; set; } = "approved";
 
-        public int version { get; set; }
+        public string version { get; set; }
 
         public Product() { }
 
-        public Product(Product product, int version)
+        public Product(Product product, string version)
         {
             this.seller_id = product.seller_id;
             this.product_id = product.product_id;

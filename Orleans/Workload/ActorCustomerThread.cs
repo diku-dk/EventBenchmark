@@ -36,26 +36,10 @@ public class ActorCustomerThread : HttpCustomerThread
         this.finishedTransactions.Clear();
     }
 
-    protected override void SendCheckoutRequest(int tid)
+    protected override void DoAfterSubmission(string tid)
     {
-        var payload = BuildCheckoutPayload(tid);
-        HttpRequestMessage message = new(HttpMethod.Post, this.config.cartUrl + "/" + this.customer.id + "/checkout")
-        {
-            Content = payload
-        };
-
-        var now = DateTime.UtcNow;
-        HttpResponseMessage resp = httpClient.Send(message);
-        if (resp.IsSuccessStatusCode)
-        {
-            TransactionIdentifier txId = new(tid, TransactionType.CUSTOMER_SESSION, now);
-            this.submittedTransactions.Add(txId);
-            this.finishedTransactions.Add(new TransactionOutput(tid, DateTime.UtcNow));
-        }
-        else
-        {
-            InformFailedCheckout();
-        }
+        this.finishedTransactions.Add(new TransactionOutput(tid, DateTime.UtcNow));      
     }
+
 }
 

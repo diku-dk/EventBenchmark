@@ -5,7 +5,7 @@
 	 */
 	public record TransactionInput
 	(
-		int tid,
+		string tid,
 		TransactionType type
 	);
 }

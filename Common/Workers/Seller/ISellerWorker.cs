@@ -7,7 +7,7 @@ namespace Common.Workers.Seller;
 
 public interface ISellerWorker
 {
-	void Run(int tid, TransactionType type)
+	void Run(string tid, TransactionType type)
     {
         switch (type)
         {
@@ -29,13 +29,17 @@ public interface ISellerWorker
         }
     }
 
-    void UpdatePrice(int tid);
-    void UpdateProduct(int tid);
-    void BrowseDashboard(int tid);
+    void UpdatePrice(string tid);
+    void UpdateProduct(string tid);
+    void BrowseDashboard(string tid);
 
     List<TransactionIdentifier> GetSubmittedTransactions();
+
     List<TransactionOutput> GetFinishedTransactions();
+
     Product GetProduct(int idx);
+
     void SetUp(List<Product> products, DistributionType keyDistribution);
+
 }
 

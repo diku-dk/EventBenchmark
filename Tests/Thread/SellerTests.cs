@@ -25,8 +25,8 @@ public class SellerTests
         var logger = LoggerProxy.GetInstance("SellerThread_"+ 1);
         var testSeller = new TestTwoProductsSeller(1, new SellerWorkerConfig(){ adjustRange = new Interval(1,10) }, logger);
 
-        testSeller.SetUp( new List<Product>(){ new Product(){ product_id = 1, price = 10, version = 0 },
-                                               new Product(){ product_id = 2, price = 10, version = 0 } },
+        testSeller.SetUp( new List<Product>(){ new Product(){ product_id = 1, price = 10, version = "0" },
+                                               new Product(){ product_id = 2, price = 10, version = "0" } },
                           Common.Distribution.DistributionType.UNIFORM );
 
         var tasks = new List<Task>(100);
@@ -35,10 +35,10 @@ public class SellerTests
         {
             var toPass = i;
             if(random.Next(0,3) == 0){
-                tasks.Add( Task.Run(()=>testSeller.UpdatePrice(toPass)) );
+                tasks.Add( Task.Run(()=>testSeller.UpdatePrice(toPass.ToString())) );
             } else
             {
-                tasks.Add( Task.Run(()=>testSeller.UpdateProduct(toPass)) );
+                tasks.Add( Task.Run(()=>testSeller.UpdateProduct(toPass.ToString())) );
             }
         }
 
@@ -48,7 +48,7 @@ public class SellerTests
             var list = queues[j].ToList();
             if(list[0].type == TransactionType.PRICE_UPDATE){
                 // start with price update
-                Assert.True(list[0].version == 0);
+                Assert.True(list[0].version.SequenceEqual("0"));
             }
 
             for(int i = 1; i < list.Count; i++)
@@ -73,17 +73,17 @@ public class SellerTests
         {
         }
 
-        public override void BrowseDashboard(int tid)
+        public override void BrowseDashboard(string tid)
         {
             throw new NotImplementedException();
         }
 
-        protected override void SendProductUpdateRequest(Product product, int tid)
+        protected override void SendProductUpdateRequest(Product product, string tid)
         {
             queues[product.product_id - 1].Enqueue(new Message(TransactionType.UPDATE_PRODUCT, tid, product.version));
         }
 
-        protected override void SendUpdatePriceRequest(int tid, Product productToUpdate, float newPrice)
+        protected override void SendUpdatePriceRequest(string tid, Product productToUpdate, float newPrice)
         {
             queues[productToUpdate.product_id - 1].Enqueue(new Message(TransactionType.PRICE_UPDATE, tid, productToUpdate.version));
         }
@@ -104,7 +104,7 @@ public class SellerTests
         var logger = LoggerProxy.GetInstance("SellerThread_"+ 1);
         var testSeller = new TestSingleProductSeller(1, new SellerWorkerConfig(){ adjustRange = new Interval(1,10) }, logger);
 
-        testSeller.SetUp( new List<Product>(){ new Product(){ product_id = 1, price = 10, version = 0 },
+        testSeller.SetUp( new List<Product>(){ new Product(){ product_id = 1, price = 10, version = "0" },
             //    new Product(){ product_id = 2, price = 10, version = 0 }, }
         }, Common.Distribution.DistributionType.UNIFORM );
 
@@ -114,10 +114,10 @@ public class SellerTests
         {
             var toPass = i;
             if(random.Next(0,3) == 0){
-                tasks.Add( Task.Run(()=>testSeller.UpdatePrice(toPass)) );
+                tasks.Add( Task.Run(()=>testSeller.UpdatePrice(toPass.ToString())) );
             } else
             {
-                tasks.Add( Task.Run(()=>testSeller.UpdateProduct(toPass)) );
+                tasks.Add( Task.Run(()=>testSeller.UpdateProduct(toPass.ToString())) );
             }
         }
 
@@ -128,7 +128,7 @@ public class SellerTests
         var list = messages.ToList();
         if(list[0].type == TransactionType.PRICE_UPDATE){
             // start with price update
-            Assert.True(list[0].version == 0);
+            Assert.True(list[0].version.SequenceEqual("0"));
         }
 
         for(int i = 1; i < numThreads; i++)
@@ -150,10 +150,10 @@ public class SellerTests
     {
         public TransactionType type;
         // public int productId;
-        public int tid;
-        public int version;
+        public string tid;
+        public string version;
 
-        public Message(TransactionType type, int tid, int version) : this()
+        public Message(TransactionType type, string tid, string version) : this()
         {
             this.type = type;
             this.tid = tid;
@@ -167,17 +167,17 @@ public class SellerTests
         {
         }
 
-        public override void BrowseDashboard(int tid)
+        public override void BrowseDashboard(string tid)
         {
             throw new NotImplementedException();
         }
 
-        protected override void SendProductUpdateRequest(Product product, int tid)
+        protected override void SendProductUpdateRequest(Product product, string tid)
         {
             messages.Enqueue(new Message(TransactionType.UPDATE_PRODUCT, tid, product.version));
         }
 
-        protected override void SendUpdatePriceRequest(int tid, Product productToUpdate, float newPrice)
+        protected override void SendUpdatePriceRequest(string tid, Product productToUpdate, float newPrice)
         {
             messages.Enqueue(new Message(TransactionType.PRICE_UPDATE, tid, productToUpdate.version));
         }

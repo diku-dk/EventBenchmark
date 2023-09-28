@@ -27,8 +27,8 @@ namespace Common.DataGeneration
         protected readonly Dictionary<string, string> mapTableToCreateStmt = new()
         {
             ["sellers"] = "CREATE OR REPLACE TABLE sellers (id INTEGER, name VARCHAR, company_name VARCHAR, email VARCHAR, phone VARCHAR, mobile_phone VARCHAR, cpf VARCHAR, cnpj VARCHAR, address VARCHAR, complement VARCHAR, city VARCHAR, state VARCHAR, zip_code VARCHAR, order_count INTEGER);",
-            ["products"] = "CREATE OR REPLACE TABLE products (seller_id INTEGER, product_id INTEGER, name VARCHAR, sku VARCHAR, category VARCHAR, description VARCHAR, price REAL, freight_value REAL,  version INTEGER, status VARCHAR);",
-            ["stock_items"] = "CREATE OR REPLACE TABLE stock_items (seller_id INTEGER, product_id INTEGER, qty_available INTEGER, qty_reserved INTEGER, order_count INTEGER, ytd INTEGER, data VARCHAR, version INTEGER);",
+            ["products"] = "CREATE OR REPLACE TABLE products (seller_id INTEGER, product_id INTEGER, name VARCHAR, sku VARCHAR, category VARCHAR, description VARCHAR, price REAL, freight_value REAL, version VARCHAR, status VARCHAR);",
+            ["stock_items"] = "CREATE OR REPLACE TABLE stock_items (seller_id INTEGER, product_id INTEGER, qty_available INTEGER, qty_reserved INTEGER, order_count INTEGER, ytd INTEGER, data VARCHAR, version VARCHAR);",
             ["customers"] = "CREATE OR REPLACE TABLE customers (id INTEGER, first_name VARCHAR, last_name VARCHAR, address VARCHAR, complement VARCHAR, birth_date VARCHAR, " +
                             "zip_code VARCHAR, city VARCHAR, state VARCHAR, " +
                             "card_number VARCHAR, card_security_number VARCHAR, card_expiration VARCHAR, card_holder_name VARCHAR, card_type VARCHAR, " +
@@ -58,7 +58,7 @@ namespace Common.DataGeneration
 
         protected void GenerateStockItem(DuckDbCommand command, int productId, int sellerId)
         {
-            int quantity = 10000;// Numeric(2, false);
+            int quantity = 100000;// Numeric(2, false);
             var ytd = Numeric(1, false);
             var data = faker.Lorem.Sentence();
 
@@ -70,7 +70,7 @@ namespace Common.DataGeneration
             sb.Append(0).Append(',');
             sb.Append(0).Append(',');
             sb.Append(ytd).Append(',');
-            sb.Append(1).Append(',');
+            sb.Append('0').Append(',');
             sb.Append('\'').Append(data).Append("');");
 
             logger.LogDebug(sb.ToString());
@@ -210,7 +210,7 @@ namespace Common.DataGeneration
             sb.Append('\'').Append(description).Append("',");
             sb.Append(price).Append(',');
             sb.Append(freight_value).Append(',');
-            sb.Append(1).Append(',');
+            sb.Append('0').Append(',');
             sb.Append('\'').Append("approved").Append("');");
 
             logger.LogDebug(sb.ToString());

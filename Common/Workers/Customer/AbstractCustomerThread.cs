@@ -50,15 +50,19 @@ public abstract class AbstractCustomerThread : ICustomerWorker
         this.submittedTransactions.Clear();
     }
 
-    public void Run(int tid)
+    public void Run(string tid)
     {
+        //var threadId =  Environment.CurrentManagedThreadId;
+        //logger.LogWarning("I am thread {0} with TID {1}", threadId, tid);
         AddItemsToCart();
+        //logger.LogWarning("I am thread {0} with TID {1} finished adding items to cart!", threadId, tid);
         Checkout(tid);
+        //logger.LogWarning("I am thread {0} with TID {1} finished checkout!", threadId, tid);
     }
 
     public abstract void AddItemsToCart();
 
-    public void Checkout(int tid)
+    public void Checkout(string tid)
     {
         // define whether client should send a checkout request
         if (random.Next(0, 100) > this.config.checkoutProbability)
@@ -69,7 +73,7 @@ public abstract class AbstractCustomerThread : ICustomerWorker
         SendCheckoutRequest(tid);
     }
 
-    protected abstract void SendCheckoutRequest(int tid);
+    protected abstract void SendCheckoutRequest(string tid);
 
     // i.e., seal the cart
     protected abstract void InformFailedCheckout();

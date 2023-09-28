@@ -37,8 +37,8 @@ public class ActorMetricManager : MetricManager
 
     protected override List<Latency> CollectFromCustomer(DateTime finishTime)
     {
-        Dictionary<int, TransactionIdentifier> customerSubmitted = new();
-        Dictionary<int, TransactionOutput> customerFinished = new();
+        Dictionary<object, TransactionIdentifier> customerSubmitted = new();
+        Dictionary<object, TransactionOutput> customerFinished = new();
 
         int dupSub = 0;
         int dupFin = 0;
@@ -82,8 +82,8 @@ public class ActorMetricManager : MetricManager
         int dupFin = 0;
 
         var res = deliveryService.GetResults();
-        Dictionary<int, TransactionIdentifier> deliverySubmitted = new();
-        Dictionary<int, TransactionOutput> deliveryFinished = new();
+        Dictionary<object, TransactionIdentifier> deliverySubmitted = new();
+        Dictionary<object, TransactionOutput> deliveryFinished = new();
         foreach (var pair in res)
         {
             if (!deliverySubmitted.TryAdd(pair.Item1.tid, pair.Item1))
@@ -106,8 +106,8 @@ public class ActorMetricManager : MetricManager
 
     protected override List<Latency> CollectFromSeller(DateTime finishTime)
     {
-        Dictionary<int, TransactionIdentifier> sellerSubmitted = new();
-        Dictionary<int, TransactionOutput> sellerFinished = new();
+        Dictionary<object, TransactionIdentifier> sellerSubmitted = new();
+        Dictionary<object, TransactionOutput> sellerFinished = new();
 
         int dupSub = 0;
         int dupFin = 0;

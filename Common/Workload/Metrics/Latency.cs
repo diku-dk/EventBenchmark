@@ -2,7 +2,7 @@
 {
 	public record Latency
 	(
-        int tid,
+        string tid,
 		TransactionType type,
 		double totalMilliseconds,
 		DateTime endTimestamp

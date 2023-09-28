@@ -43,6 +43,7 @@ namespace Common.DataGeneration
 
         public void GenerateCustomers(DuckDBConnection connection, DuckDbCommand command = null)
         {
+            logger.LogInformation("Customer generation started.");
             DuckDbCommand command_;
             if (command is null)
             {
@@ -58,6 +59,7 @@ namespace Common.DataGeneration
                 GenerateCustomer(command_, currCustomer);
                 currCustomer++;
             }
+            logger.LogInformation("Customer generation finished.");
         }
 
         public override void Generate(DuckDBConnection connection, bool genCustomer = false)
@@ -72,6 +74,8 @@ namespace Common.DataGeneration
             int numProductsForSeller;
 
             var command = connection.CreateCommand();
+
+            logger.LogInformation("Seller, Product, and Stock Item generation started.");
 
             while (remainingProducts > 0)
             {
@@ -90,6 +94,8 @@ namespace Common.DataGeneration
                 remainingProducts -= numProductsForSeller;
                 currSellerId++;
             }
+
+            logger.LogInformation("Seller, Product, and Stock Item generation finished.");
 
             // customers
             if (genCustomer)

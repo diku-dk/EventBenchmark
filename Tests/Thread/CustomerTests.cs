@@ -51,7 +51,7 @@ public class CustomerTests
             var logger = LoggerProxy.GetInstance("SellerThread_" + toPass);
             threads[toPass] = new CustomerThreadTest(testSellerService, 2, config, new Customer() { id = toPass }, logger);
             threads[toPass].SetUp(Common.Distribution.DistributionType.UNIFORM, new Interval(1, 2), Common.Distribution.DistributionType.UNIFORM);
-            tasks.Add(Task.Run(() => threads[toPass].Run(toPass)));
+            tasks.Add(Task.Run(() => threads[toPass].Run(toPass.ToString())));
         }
 
         await Task.WhenAll(tasks);
@@ -94,7 +94,7 @@ public class CustomerTests
             throw new NotImplementedException();
         }
 
-        protected override void SendCheckoutRequest(int tid)
+        protected override void SendCheckoutRequest(string tid)
         {
             checkoutSent = true;
         }
@@ -108,10 +108,10 @@ public class CustomerTests
         public TestSellerService() {
             products[0] = new Product[2];
             products[1] = new Product[2];
-            products[0][0] = new Product() { seller_id = 1, product_id = 1, price = 10, version = 0 };
-            products[0][1] = new Product() { seller_id = 1, product_id = 2, price = 10, version = 0 };
-            products[1][0] = new Product() { seller_id = 2, product_id = 1, price = 10, version = 0 };
-            products[1][1] = new Product() { seller_id = 2, product_id = 2, price = 10, version = 0 };
+            products[0][0] = new Product() { seller_id = 1, product_id = 1, price = 10, version = "0" };
+            products[0][1] = new Product() { seller_id = 1, product_id = 2, price = 10, version = "0" };
+            products[1][0] = new Product() { seller_id = 2, product_id = 1, price = 10, version = "0" };
+            products[1][1] = new Product() { seller_id = 2, product_id = 2, price = 10, version = "0" };
         }
 
         public List<TransactionOutput> GetFinishedTransactions(int sellerId)
@@ -129,7 +129,7 @@ public class CustomerTests
             throw new NotImplementedException();
         }
 
-        public void Run(int sellerId, int tid, TransactionType type)
+        public void Run(int sellerId, string tid, TransactionType type)
         {
             throw new NotImplementedException();
         }
