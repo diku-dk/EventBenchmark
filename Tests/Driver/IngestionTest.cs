@@ -42,8 +42,7 @@ public class IngestionTest
             }
         };
 
-        var ingestionOrchestrator = new IngestionOrchestrator();
-        await ingestionOrchestrator.Run(connection, ingestionConfig);
+        await IngestionOrchestrator.Run(connection, ingestionConfig);
 
         // retrieve some random and see if they match
 

@@ -13,7 +13,6 @@ public abstract class ExperimentManager
 
     protected readonly ExperimentConfig config;
     protected readonly DuckDBConnection connection;
-    private readonly IngestionOrchestrator ingestionOrchestrator;
     protected List<Customer> customers;
     protected readonly Interval customerRange;
 
@@ -23,12 +22,11 @@ public abstract class ExperimentManager
 
     protected static readonly List<TransactionType> eventualCompletionTransactions = new() { TransactionType.CUSTOMER_SESSION, TransactionType.PRICE_UPDATE, TransactionType.UPDATE_PRODUCT };
 
-    public ExperimentManager(ExperimentConfig config)
+    public ExperimentManager(ExperimentConfig config, DuckDBConnection duckDBConnection = null)
     {
         this.config = config;
         this.customerRange = new Interval(1, config.numCustomers);
-        this.connection = new DuckDBConnection(config.connectionString);
-        this.ingestionOrchestrator = new IngestionOrchestrator();
+        this.connection = duckDBConnection == null ? new DuckDBConnection(config.connectionString) : duckDBConnection;
     }
 
     protected abstract void PreExperiment();
@@ -77,7 +75,6 @@ public abstract class ExperimentManager
                 // update previous
                 previousData = new SyntheticDataSourceConfig()
                 {
-                    connectionString = config.connectionString,
                     numProdPerSeller = config.numProdPerSeller,
                     numCustomers = config.numCustomers,
                     numProducts = run.numProducts
@@ -90,7 +87,7 @@ public abstract class ExperimentManager
 
                 syntheticDataGenerator.Generate(connection);
 
-                await ingestionOrchestrator.Run(connection, config.ingestionConfig);
+                await IngestionOrchestrator.Run(connection, config.ingestionConfig);
 
                 if (runIdx == 0)
                 {
@@ -138,7 +135,7 @@ public abstract class ExperimentManager
         logger.LogInformation("Experiment finished");
     }
 
-    private void CollectGarbage()
+    protected void CollectGarbage()
     {
         logger.LogInformation("Memory used before collection:       {0:N0}",
         GC.GetTotalMemory(false));

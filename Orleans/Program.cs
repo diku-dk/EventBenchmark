@@ -1,6 +1,7 @@
-﻿using Common.Experiment;
-using Common.Infra;
-using Microsoft.Extensions.Logging;
+﻿using Common.DataGeneration;
+using Common.Experiment;
+using Common.Ingestion;
+using DuckDB.NET.Data;
 using Newtonsoft.Json;
 using Orleans.Infra;
 using Orleans.Workload;
@@ -9,36 +10,106 @@ namespace Orleans;
 
 public class Program
 {
-    private static readonly ILogger logger = LoggerProxy.GetInstance("Program");
 
     public static async Task Main(string[] args)
     {
-        logger.LogInformation("Initializing benchmark driver...");
-        var config = BuildExperimentConfig(args);
-        logger.LogInformation("Configuration parsed. Starting experiment...");
-        var expManager = new ActorExperimentManager(new CustomHttpClientFactory(), config);
-        await expManager.Run();
-        logger.LogInformation("Experiment finished.");
+        Console.WriteLine("Initializing benchmark driver...");
+        ExperimentConfig config = BuildExperimentConfig(args);
+        Console.WriteLine("Configuration parsed. Starting program...");
+        DuckDBConnection connection = null;
+
+        try{
+        while(true){
+
+        Console.WriteLine("\n Select an option: \n 1 - Generate Data \n 2 - Ingest Data \n 3 - Run Experiment \n 4 - Full Experiment (i.e., 1, 2, and 3) \n 5 - Parse New Configuration \n q - Exit");
+        string op = Console.ReadLine();
+
+        switch (op)
+        {
+            case "1":
+                {
+                    // "Data Source=file.db"; // "DataSource=:memory:"
+                    connection = new DuckDBConnection(config.connectionString);
+                    connection.Open();
+                    SyntheticDataSourceConfig previousData = new SyntheticDataSourceConfig()
+                    {
+                        numCustomers = config.numCustomers,
+                        numProducts = config.runs[0].numProducts,
+                        numProdPerSeller = config.numProdPerSeller
+                    };
+                    var dataGen = new SyntheticDataGenerator(previousData);
+                    dataGen.CreateSchema(connection);
+                    // dont need to generate customers on every run. only once
+                    dataGen.Generate(connection, true);
+                    break;
+                }
+            case "2":
+                {
+                    if(connection is null && config.connectionString.SequenceEqual("DataSource=:memory:"))
+                    {
+                        Console.WriteLine("Please generate some data first!");
+                        break;
+                    }
+                    connection = new DuckDBConnection(config.connectionString);
+                    connection.Open();
+                    await IngestionOrchestrator.Run(connection, config.ingestionConfig);
+                    break;
+                }
+            case "3":
+                {
+                    if(connection is null) Console.WriteLine("Warning: Connection has not been set! Starting anyway...");
+                    var expManager = new ActorExperimentManager(new CustomHttpClientFactory(), config, connection);
+                    await expManager.RunSimpleExperiment();
+                    break;
+                }
+            case "4":
+                {
+                      var expManager = new ActorExperimentManager(new CustomHttpClientFactory(), config);
+                      await expManager.Run();
+                      Console.WriteLine("Experiment finished.");
+                    break;
+                }
+            case "5":
+                {
+                    config = BuildExperimentConfig(args);
+                    Console.WriteLine("Configuration parsed.");
+                    break;
+                }
+            case "q":
+            {
+                return;
+            }
+            default:
+                {
+                    Console.WriteLine("Experiment finished.");
+                    break;
+                }
+        }
+        }
+        } catch(Exception e)
+        {
+            Console.WriteLine("Exception catched. Source: {0}; Message: {0}", e.Source, e.Message );
+        }
     }
 
     public static ExperimentConfig BuildExperimentConfig(string[] args)
     {
         if (args is not null && args.Length > 0 && File.Exists(args[0])) {
-            logger.LogInformation("Directory of configuration files passsed as parameter: {0}", args[0]);
+            Console.WriteLine("Directory of configuration files passsed as parameter: {0}", args[0]);
         } else
         {
             throw new Exception("No file passed as parameter!");
         }
 
-        logger.LogInformation("Init reading experiment configuration file...");
+        Console.WriteLine("Init reading experiment configuration file...");
         ExperimentConfig experimentConfig;
         using (StreamReader r = new StreamReader(args[0]))
         {
             string json = r.ReadToEnd();
-            logger.LogInformation("Configuration file contents:\n {0}", json);
+            Console.WriteLine("Configuration file contents:\n {0}", json);
             experimentConfig = JsonConvert.DeserializeObject<ExperimentConfig>(json);
         }
-        logger.LogInformation("Experiment configuration read succesfully");
+        Console.WriteLine("Experiment configuration read succesfully");
 
         return experimentConfig;
         

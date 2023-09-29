@@ -6,12 +6,12 @@ using Common.Services;
 using Common.Workers;
 using Common.Workers.Seller;
 using Dapr.Workload;
-using Common.Ingestion;
 using Microsoft.Extensions.Logging;
 using Orleans.Workers;
 using Common.Workers.Customer;
 using Common.Http;
 using Orleans.Metric;
+using DuckDB.NET.Data;
 
 namespace Orleans.Workload;
 
@@ -33,7 +33,7 @@ public class ActorExperimentManager : ExperimentManager
     private readonly ActorWorkloadManager workloadManager;
     private readonly ActorMetricManager metricManager;
 
-    public ActorExperimentManager(IHttpClientFactory httpClientFactory, ExperimentConfig config) : base(config)
+    public ActorExperimentManager(IHttpClientFactory httpClientFactory, ExperimentConfig config, DuckDBConnection connection = null) : base(config, connection)
     {
         this.httpClientFactory = httpClientFactory;
 
@@ -59,11 +59,25 @@ public class ActorExperimentManager : ExperimentManager
         this.metricManager = new ActorMetricManager(sellerService, customerService, deliveryService);
     }
 
+    public async Task RunSimpleExperiment()
+    {
+        this.customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
+        PreExperiment();
+        PreWorkload(0);
+        SetUpManager(0);
+        var workloadTask = await workloadManager.Run();
+        DateTime startTime = workloadTask.startTime;
+        DateTime finishTime = workloadTask.finishTime;
+        Collect(0, startTime, finishTime);
+        PostRunTasks(0,0);
+        CollectGarbage();
+    }
+
     protected override void PreExperiment()
     {
         for (int i = this.customerRange.min; i <= this.customerRange.max; i++)
         {
-            this.customerThreads.Add(i, ActorCustomerThread.BuildCustomerThread(httpClientFactory, sellerService, config.numProdPerSeller, config.customerWorkerConfig, customers[i-1]));
+            this.customerThreads.Add(i, ActorCustomerThread.BuildCustomerThread(httpClientFactory, sellerService, config.numProdPerSeller, config.customerWorkerConfig, this.customers[i-1]));
         }
     }
 

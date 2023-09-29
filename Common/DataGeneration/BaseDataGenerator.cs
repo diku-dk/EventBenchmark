@@ -22,8 +22,6 @@ namespace Common.DataGeneration
 
         protected readonly Faker faker = new Faker();
 
-        protected static readonly ILogger logger = LoggerProxy.GetInstance("DataGenerator");
-
         protected readonly Dictionary<string, string> mapTableToCreateStmt = new()
         {
             ["sellers"] = "CREATE OR REPLACE TABLE sellers (id INTEGER, name VARCHAR, company_name VARCHAR, email VARCHAR, phone VARCHAR, mobile_phone VARCHAR, cpf VARCHAR, cnpj VARCHAR, address VARCHAR, complement VARCHAR, city VARCHAR, state VARCHAR, zip_code VARCHAR, order_count INTEGER);",
@@ -72,8 +70,6 @@ namespace Common.DataGeneration
             sb.Append(ytd).Append(',');
             sb.Append('0').Append(',');
             sb.Append('\'').Append(data).Append("');");
-
-            logger.LogDebug(sb.ToString());
 
             command.CommandText = sb.ToString();
             command.ExecuteNonQuery();
@@ -138,8 +134,6 @@ namespace Common.DataGeneration
             sb.Append(0).Append(','); // abandoned carts
             sb.Append('\'').Append(C_DATA).Append("');");
 
-            logger.LogDebug(sb.ToString());
-
             command.CommandText = sb.ToString();
             command.ExecuteNonQuery();
 
@@ -180,8 +174,6 @@ namespace Common.DataGeneration
             sb.Append('\'').Append(geolocation.state).Append("',");
             sb.Append('\'').Append(geolocation.zipcode).Append("',");
             sb.Append(0).Append(");");
-            
-            logger.LogDebug(sb.ToString());
 
             command.CommandText = sb.ToString();
             command.ExecuteNonQuery();
@@ -212,8 +204,6 @@ namespace Common.DataGeneration
             sb.Append(freight_value).Append(',');
             sb.Append('0').Append(',');
             sb.Append('\'').Append("approved").Append("');");
-
-            logger.LogDebug(sb.ToString());
 
             command.CommandText = sb.ToString();
             command.ExecuteNonQuery();
