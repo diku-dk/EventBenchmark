@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using Common.Distribution;
 using Common.Entities;
+using Common.Streaming;
 using Common.Workload.Metrics;
 using Common.Workload.Seller;
 using MathNet.Numerics.Distributions;
@@ -26,6 +27,7 @@ public abstract class AbstractSellerThread : ISellerWorker
     // concurrent bag because of concurrent writes of different products
     protected readonly ConcurrentBag<TransactionIdentifier> submittedTransactions;
     protected readonly ConcurrentBag<TransactionOutput> finishedTransactions;
+    protected readonly ConcurrentBag<TransactionMark> abortedTransactions;
 
     protected AbstractSellerThread(int sellerId, SellerWorkerConfig workerConfig, ILogger logger)
 	{
@@ -33,6 +35,7 @@ public abstract class AbstractSellerThread : ISellerWorker
         this.logger = logger;
         this.submittedTransactions = new ConcurrentBag<TransactionIdentifier>();
         this.finishedTransactions = new ConcurrentBag<TransactionOutput>();
+        this.abortedTransactions = new();
         this.sellerId = sellerId;
         this.config = workerConfig;
     }
@@ -45,6 +48,7 @@ public abstract class AbstractSellerThread : ISellerWorker
                                  new Zipf(0.99, products.Count, Random.Shared);
         this.submittedTransactions.Clear();
         this.finishedTransactions.Clear();
+        this.abortedTransactions.Clear();
     }
 
     /**
@@ -117,13 +121,32 @@ public abstract class AbstractSellerThread : ISellerWorker
 
     public List<TransactionOutput> GetFinishedTransactions()
     {
-        return this.finishedTransactions.ToList();
+        var list = new List<TransactionOutput>();
+        while (this.finishedTransactions.TryTake(out var item))
+        {
+            list.Add(item);
+        }
+        return list;
     }
 
     public List<TransactionIdentifier> GetSubmittedTransactions()
     {
-        return this.submittedTransactions.ToList();
+        var list = new List<TransactionIdentifier>();
+        while (this.submittedTransactions.TryTake(out var item))
+        {
+            list.Add(item);
+        }
+        return list;
     }
 
+    public List<TransactionMark> GetAbortedTransactions()
+    {
+        var list = new List<TransactionMark>();
+        while (this.abortedTransactions.TryTake(out var item))
+        {
+            list.Add(item);
+        }
+        return list;
+    }
 }
 

@@ -27,68 +27,70 @@ public class Program
         switch (op)
         {
             case "1":
+            {
+                // "Data Source=file.db"; // "DataSource=:memory:"
+                connection = new DuckDBConnection(config.connectionString);
+                connection.Open();
+                SyntheticDataSourceConfig previousData = new SyntheticDataSourceConfig()
                 {
-                    // "Data Source=file.db"; // "DataSource=:memory:"
-                    connection = new DuckDBConnection(config.connectionString);
-                    connection.Open();
-                    SyntheticDataSourceConfig previousData = new SyntheticDataSourceConfig()
-                    {
-                        numCustomers = config.numCustomers,
-                        numProducts = config.runs[0].numProducts,
-                        numProdPerSeller = config.numProdPerSeller
-                    };
-                    var dataGen = new SyntheticDataGenerator(previousData);
-                    dataGen.CreateSchema(connection);
-                    // dont need to generate customers on every run. only once
-                    dataGen.Generate(connection, true);
-                    break;
-                }
+                    numCustomers = config.numCustomers,
+                    numProducts = config.runs[0].numProducts,
+                    numProdPerSeller = config.numProdPerSeller
+                };
+                var dataGen = new SyntheticDataGenerator(previousData);
+                dataGen.CreateSchema(connection);
+                // dont need to generate customers on every run. only once
+                dataGen.Generate(connection, true);
+                GC.Collect();
+                break;
+            }
             case "2":
+            {
+                if(connection is null && config.connectionString.SequenceEqual("DataSource=:memory:"))
                 {
-                    if(connection is null && config.connectionString.SequenceEqual("DataSource=:memory:"))
-                    {
-                        Console.WriteLine("Please generate some data first!");
-                        break;
-                    }
-                    connection = new DuckDBConnection(config.connectionString);
-                    connection.Open();
-                    await IngestionOrchestrator.Run(connection, config.ingestionConfig);
+                    Console.WriteLine("Please generate some data first!");
                     break;
                 }
+                connection = new DuckDBConnection(config.connectionString);
+                connection.Open();
+                await Infra.IngestionOrchestrator.Run(connection, config.ingestionConfig);
+                GC.Collect();
+                break;
+            }
             case "3":
-                {
-                    if(connection is null) Console.WriteLine("Warning: Connection has not been set! Starting anyway...");
-                    var expManager = new ActorExperimentManager(new CustomHttpClientFactory(), config, connection);
-                    await expManager.RunSimpleExperiment();
-                    break;
-                }
+            {
+                if(connection is null) Console.WriteLine("Warning: Connection has not been set! Starting anyway...");
+                var expManager = new ActorExperimentManager(new CustomHttpClientFactory(), config, connection);
+                expManager.RunSimpleExperiment(2);
+                break;
+            }
             case "4":
-                {
-                      var expManager = new ActorExperimentManager(new CustomHttpClientFactory(), config);
-                      await expManager.Run();
-                      Console.WriteLine("Experiment finished.");
-                    break;
-                }
+            {
+                    var expManager = new ActorExperimentManager(new CustomHttpClientFactory(), config);
+                    await expManager.Run();
+                    Console.WriteLine("Experiment finished.");
+                break;
+            }
             case "5":
-                {
-                    config = BuildExperimentConfig(args);
-                    Console.WriteLine("Configuration parsed.");
-                    break;
-                }
+            {
+                config = BuildExperimentConfig(args);
+                Console.WriteLine("Configuration parsed.");
+                break;
+            }
             case "q":
             {
                 return;
             }
             default:
-                {
-                    Console.WriteLine("Experiment finished.");
-                    break;
-                }
+            {
+                Console.WriteLine("Input invalid");
+                break;
+            }
         }
         }
         } catch(Exception e)
         {
-            Console.WriteLine("Exception catched. Source: {0}; Message: {0}", e.Source, e.Message );
+            Console.WriteLine("Exception catched. Source: {0}; Message: {0}", e.Source, e.StackTrace );
         }
     }
 

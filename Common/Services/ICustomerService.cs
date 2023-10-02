@@ -1,4 +1,5 @@
-﻿using Common.Workload.Metrics;
+﻿using Common.Streaming;
+using Common.Workload.Metrics;
 
 namespace Common.Services;
 
@@ -9,6 +10,7 @@ public interface ICustomerService
     List<TransactionIdentifier> GetSubmittedTransactions(int sellerId);
 
     List<TransactionOutput> GetFinishedTransactions(int customerId);
-}
 
+    List<TransactionMark> GetAbortedTransactions();
+}
 

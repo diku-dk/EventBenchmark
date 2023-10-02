@@ -28,11 +28,28 @@ public class ActorMetricManager : MetricManager
         this.numCustomers = numCustomers;
     }
 
-    private static readonly Dictionary<TransactionType, int> aborts = new();
-
     protected override Dictionary<TransactionType, int> CollectAborts(DateTime finishTime)
     {
-        return aborts;
+        Dictionary<TransactionType, int> abortCount = new()
+        {
+            { TransactionType.PRICE_UPDATE, 0 },
+             { TransactionType.UPDATE_PRODUCT, 0 },
+              { TransactionType.CUSTOMER_SESSION, 0 },
+                { TransactionType.QUERY_DASHBOARD, 0 },
+                  { TransactionType.UPDATE_DELIVERY, 0 },
+        };
+        var sellerAborts = sellerService.GetAbortedTransactions();
+        foreach(var abort in sellerAborts){
+            abortCount[abort.type]++;
+        }
+
+        var customerAborts = customerService.GetAbortedTransactions();
+        abortCount[TransactionType.CUSTOMER_SESSION] += customerAborts.Count;
+
+        var deliveryAborts = deliveryService.GetAbortedTransactions();
+        abortCount[TransactionType.UPDATE_DELIVERY] += deliveryAborts.Count;
+        
+        return abortCount;
     }
 
     protected override List<Latency> CollectFromCustomer(DateTime finishTime)

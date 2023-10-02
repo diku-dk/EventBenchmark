@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+﻿using System.Diagnostics;
 using Common.Services;
 using Common.Workload;
 using Microsoft.Extensions.Logging;
@@ -25,48 +25,121 @@ public class ActorWorkloadManager : WorkloadManager
         this.deliveryService = deliveryService;
     }
 
-    public override async Task<(DateTime startTime, DateTime finishTime)> Run()
+    public (DateTime startTime, DateTime finishTime) RunTasks()
     {
         int numCpus = this.concurrencyLevel;
         int i = 0;
         var tasks = new List<Task>();
-
-        
 
         countdown = new CountdownEvent(1);
         barrier = new Barrier(numCpus+1);
         while(i < numCpus)
         {
             //Console.WriteLine("Init thread {0}", i);
-            var thread = new Thread(WorkloadWorker);
-            thread.Start();
+            tasks.Add(Task.Run(TaskWorker));
             i++;
         }
+
         barrier.SignalAndWait();
         var startTime = DateTime.UtcNow;
         logger.LogInformation("Run started at {0}.", startTime);
-        // await Task.Delay(this.executionTime);
-        //Console.WriteLine("Sleeping Run()");
-        // Thread.Sleep(this.executionTime);
-        await Task.Delay(this.executionTime);
+        Thread.Sleep(this.executionTime);
         countdown.Signal();
         var finishTime = DateTime.UtcNow;
         barrier.Dispose();
-        // Console.WriteLine("Finished Run()");
-
         logger.LogInformation("Run finished at {0}.", finishTime);
-        logger.LogInformation("Histogram (#{0} entries):", histograms.Count);
-        while(histograms.TryTake(out var threadEntry))
+
+        return (startTime, finishTime);
+    }
+
+    public async Task<(DateTime startTime, DateTime finishTime)> RunTaskPerTx()
+	{
+        // logger.LogInformation("Started sending batch of transactions with concurrency level {0}", this.concurrencyLevel);
+
+        Stopwatch s = new Stopwatch();
+        var execTime = TimeSpan.FromMilliseconds(executionTime);
+        int currentTid = 0;
+        var startTime = DateTime.UtcNow;
+        logger.LogInformation("Run started at {0}.", startTime);
+        s.Start();
+
+        var tasks = new List<Task>(concurrencyLevel);
+
+        while (currentTid < concurrencyLevel)
         {
-            foreach(var entry in threadEntry)
-            {
-                histogram[entry.Key] =+ entry.Value;
-            }
+            TransactionType tx = PickTransactionFromDistribution();
+            //histogram[tx]++;
+            var toPass = currentTid;
+            tasks.Add( Task.Run(()=> SubmitTransaction(toPass.ToString(), tx)) );
+            currentTid++;
         }
-        foreach(var entry in histogram)
+
+        // logger.LogInformation("{0} transactions emitted. Waiting for results to send remaining transactions.", this.concurrencyLevel);
+
+        while (s.Elapsed < execTime)
         {
-            logger.LogInformation("{0}: {1}", entry.Key, entry.Value);
+            TransactionType tx = PickTransactionFromDistribution();
+            //histogram[tx]++;
+            var toPass = currentTid;
+            // spawning in a different thread may lead to duplicate tids in actors
+            tasks.Add( Task.Run(()=> SubmitTransaction(toPass.ToString(), tx)) );
+            currentTid++;
+            var t = await Task.WhenAny( tasks );
+            tasks.Remove(t);
         }
+
+        var finishTime = DateTime.UtcNow;
+        s.Stop();
+        logger.LogInformation("Run finished at {0}.", finishTime);
+
+        //logger.LogInformation("[Workload emitter] Finished at {0}. Last TID submitted was {1}", finishTime, currentTid);
+        //logger.LogInformation("[Workload emitter] Histogram:");
+        //foreach(var entry in histogram)
+        //{
+        //    logger.LogInformation("{0}: {1}", entry.Key, entry.Value);
+        //}
+
+        return (startTime, finishTime);
+    }
+
+    public (DateTime startTime, DateTime finishTime) RunThreads()
+    {
+        int numCpus = this.concurrencyLevel;
+        int i = 0;
+
+        countdown = new CountdownEvent(1);
+        barrier = new Barrier(numCpus+1);
+
+        while(i < numCpus)
+        {
+            var thread = new Thread(ThreadWorker);
+            thread.Start();
+            i++;
+        }
+
+        barrier.SignalAndWait();
+        var startTime = DateTime.UtcNow;
+        logger.LogInformation("Run started at {0}.", startTime);
+        Thread.Sleep(this.executionTime);
+        countdown.Signal();
+        var finishTime = DateTime.UtcNow;
+        barrier.Dispose();
+        logger.LogInformation("Run finished at {0}.", finishTime);
+
+        //Thread.Sleep(2000);
+
+        //logger.LogInformation("Histogram (#{0} entries):", histograms.Count);
+        //while(histograms.TryTake(out var threadEntry))
+        //{
+        //    foreach(var entry in threadEntry)
+        //    {
+        //        histogram[entry.Key] =+ entry.Value;
+        //    }
+        //}
+        //foreach(var entry in histogram)
+        //{
+        //    logger.LogInformation("{0}: {1}", entry.Key, entry.Value);
+        //}
 
         return (startTime, finishTime);
     }
@@ -75,17 +148,33 @@ public class ActorWorkloadManager : WorkloadManager
     private Barrier barrier;
     private CountdownEvent countdown;
 
-    private readonly BlockingCollection<Dictionary<TransactionType, int>> histograms = new BlockingCollection<Dictionary<TransactionType, int>>();
+    //private readonly BlockingCollection<Dictionary<TransactionType, int>> histograms = new BlockingCollection<Dictionary<TransactionType, int>>();
 
-    private void WorkloadWorker()
+    private void TaskWorker()
     {
         long threadId = Environment.CurrentManagedThreadId;
-        Console.WriteLine("I am thread {0}", threadId);
-        var histogram = new Dictionary<TransactionType, int>();
-        foreach (TransactionType tx in Enum.GetValues(typeof(TransactionType)))
+        Console.WriteLine("Thread {0} started", threadId);
+        int currentTid = 0;
+
+        barrier.SignalAndWait();
+
+        while (!countdown.IsSet)
         {
-            histogram.Add(tx, 0);
+            TransactionType tx = PickTransactionFromDistribution();
+            SubmitTransaction(threadId+"-"+currentTid++.ToString(), tx);
         }
+        Console.WriteLine("Thread {0} finished", threadId);
+    }
+
+    private void ThreadWorker()
+    {
+        long threadId = Environment.CurrentManagedThreadId;
+        Console.WriteLine("Thread {0} started", threadId);
+        //var histogram = new Dictionary<TransactionType, int>();
+        //foreach (TransactionType tx in Enum.GetValues(typeof(TransactionType)))
+        //{
+        //    histogram.Add(tx, 0);
+        //}
         
         int currentTid = 0;
 
@@ -94,11 +183,12 @@ public class ActorWorkloadManager : WorkloadManager
         while(!countdown.IsSet)
         {
             TransactionType tx = PickTransactionFromDistribution();
-            histogram[tx]++;
+            //histogram[tx]++;
             SubmitTransaction(threadId+"-"+currentTid++.ToString(), tx);
         }
 
-        histograms.Add(histogram);
+        //histograms.Add(histogram);
+        Console.WriteLine("Thread {0} finished", threadId);
     }
 
     protected override void SubmitTransaction(string tid, TransactionType type)

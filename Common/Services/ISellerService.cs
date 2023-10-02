@@ -1,4 +1,5 @@
 ﻿using Common.Entities;
+using Common.Streaming;
 using Common.Workload;
 using Common.Workload.Metrics;
 
@@ -11,5 +12,8 @@ public interface ISellerService
     void Run(int sellerId, string tid, TransactionType type);
 
     List<TransactionIdentifier> GetSubmittedTransactions(int sellerId);
+
     List<TransactionOutput> GetFinishedTransactions(int sellerId);
+
+    List<TransactionMark> GetAbortedTransactions();
 }

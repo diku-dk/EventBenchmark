@@ -8,7 +8,7 @@ namespace Common.Metric;
 public abstract class MetricManager
 {
 
-    protected static readonly ILogger logger = LoggerProxy.GetInstance("MetricGather");
+    protected static readonly ILogger logger = LoggerProxy.GetInstance("MetricManager");
 
     public MetricManager()
 	{
@@ -41,7 +41,7 @@ public abstract class MetricManager
     public void Collect(DateTime startTime, DateTime finishTime, int epochPeriod = 0, string runName = null)
     {
 
-        logger.LogInformation("[MetricGather] Starting collecting metrics for run between {0} and {1}", startTime, finishTime);
+        logger.LogInformation("Starting collecting metrics for run between {0} and {1}", startTime, finishTime);
 
         StreamWriter sw;
         if (runName is not null)
@@ -96,8 +96,8 @@ public abstract class MetricManager
             {
                 avg = entry.Value.Average();
             }
-            logger.LogInformation("Transaction: {0} - Average end-to-end latency: {1}", entry.Key, avg.ToString());
-            sw.WriteLine("Transaction: {0} - Average end-to-end latency: {1}", entry.Key, avg.ToString());
+            logger.LogInformation("Transaction: {0} - #{1} - Average end-to-end latency: {2}", entry.Key, entry.Value.Count, avg.ToString());
+            sw.WriteLine("Transaction: {0} - #{1} - Average end-to-end latency: {2}", entry.Key, entry.Value.Count, avg.ToString());
         }
 
         // transactions per second
@@ -145,7 +145,6 @@ public abstract class MetricManager
                 {
                     if(entry.endTimestamp <= finishTime && idx == breakdown.Count){
                         breakdown[idx-1][entry.type].Add(entry.totalMilliseconds);
-                        // logger.LogWarning("Entry should not stay outside breakdown boundary. Num blocks: {0} Index: {1} Finish time: {2} Entry: {3}", breakdown.Count, idx, finishTime, entry);
                     }
                     continue;
                 }
@@ -170,8 +169,8 @@ public abstract class MetricManager
                     avg = entry.Value.Average();
                 }
                 blockCountTid += entry.Value.Count;
-                logger.LogInformation("Transaction: {0} - Average end-to-end latency: {1}", entry.Key, avg.ToString());
-                sw.WriteLine("Transaction: {0} - Average end-to-end latency: {1}", entry.Key, avg.ToString());
+                logger.LogInformation("Transaction: {0} - #{1} - Average end-to-end latency: {2}", entry.Key, entry.Value.Count, avg.ToString());
+                sw.WriteLine("Transaction: {0} - #{1} - Average end-to-end latency: {2}", entry.Key, entry.Value.Count, avg.ToString());
             }
 
             double blockTxPerSecond = blockCountTid / (epochPeriod / 1000);
@@ -186,22 +185,25 @@ public abstract class MetricManager
 
         }
 
+        end_metric:
+
+        logger.LogInformation("================== Aborts ==================");
         sw.WriteLine("================== Aborts ==================");
         Dictionary<TransactionType, int> dictCount = CollectAborts(finishTime);
         foreach (var entry in dictCount)
         {
-              sw.WriteLine("Transaction: {0} - Average end-to-end latency: {1}", entry.Key, entry.Value);
+              logger.LogInformation("Transaction: {0}: {1}", entry.Key, entry.Value);
+              sw.WriteLine("Transaction: {0}: {1}", entry.Key, entry.Value);
         }
+        logger.LogInformation("===========================================");
         sw.WriteLine("===========================================");
 
-
-        end_metric:
-
+        logger.LogInformation("=================    THE END   ================");
         sw.WriteLine("=================    THE END   ================");
         sw.Flush();
         sw.Close();
 
-        logger.LogInformation("[MetricGather] Finished collecting metrics.");
+        logger.LogInformation("Finished collecting metrics.");
 
     }
 

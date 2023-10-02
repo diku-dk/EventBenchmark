@@ -1,5 +1,6 @@
 ﻿using Common.Distribution;
 using Common.Entities;
+using Common.Streaming;
 using Common.Workload;
 using Common.Workload.Metrics;
 
@@ -36,6 +37,8 @@ public interface ISellerWorker
     List<TransactionIdentifier> GetSubmittedTransactions();
 
     List<TransactionOutput> GetFinishedTransactions();
+
+    List<TransactionMark> GetAbortedTransactions();
 
     Product GetProduct(int idx);
 

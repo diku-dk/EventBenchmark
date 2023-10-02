@@ -1,6 +1,6 @@
 ﻿using Common.Workload.Metrics;
 using Common.Workers.Customer;
-using Common.Entities;
+using Common.Streaming;
 
 namespace Common.Services;
 
@@ -24,6 +24,16 @@ public sealed class CustomerService : ICustomerService
     public List<TransactionOutput> GetFinishedTransactions(int sellerId)
     {
         return customers[sellerId].GetFinishedTransactions();
+    }
+
+    public List<TransactionMark> GetAbortedTransactions()
+    {
+        List<TransactionMark> merged = new();
+        foreach(var customer in customers)
+        {
+            merged.AddRange(customer.Value.GetAbortedTransactions());
+        }
+        return merged;
     }
 }
 

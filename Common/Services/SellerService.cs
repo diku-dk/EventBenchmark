@@ -2,6 +2,7 @@
 using Common.Workload;
 using Common.Workload.Metrics;
 using Common.Workers.Seller;
+using Common.Streaming;
 
 namespace Common.Services;
 
@@ -15,19 +16,28 @@ public sealed class SellerService : ISellerService
         this.sellers = sellers;
     }
 
-    public Product GetProduct(int sellerId, int idx) => sellers[sellerId].GetProduct(idx);
+    public Product GetProduct(int sellerId, int idx) => this.sellers[sellerId].GetProduct(idx);
 
     public List<TransactionOutput> GetFinishedTransactions(int sellerId)
     {
-        return sellers[sellerId].GetFinishedTransactions();
+        return this.sellers[sellerId].GetFinishedTransactions();
     }
 
     public List<TransactionIdentifier> GetSubmittedTransactions(int sellerId)
     {
-        return sellers[sellerId].GetSubmittedTransactions();
+        return this.sellers[sellerId].GetSubmittedTransactions();
     }
 
     public void Run(int sellerId, string tid, TransactionType type) => sellers[sellerId].Run(tid, type);
 
+    public List<TransactionMark> GetAbortedTransactions()
+    {
+        List<TransactionMark> merged = new();
+        foreach(var seller in this.sellers)
+        {
+            merged.AddRange(seller.Value.GetAbortedTransactions());
+        }
+        return merged;
+    }
 }
 

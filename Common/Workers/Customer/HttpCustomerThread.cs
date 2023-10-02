@@ -3,6 +3,7 @@ using Common.Http;
 using Common.Infra;
 using Common.Requests;
 using Common.Services;
+using Common.Streaming;
 using Common.Workload;
 using Common.Workload.CustomerWorker;
 using Common.Workload.Metrics;
@@ -97,6 +98,7 @@ public class HttpCustomerThread : AbstractCustomerThread
             }
             else
             {
+                 this.abortedTransactions.Add(new TransactionMark(tid, TransactionType.CUSTOMER_SESSION, this.customer.id, MarkStatus.ABORT, "cart"));
                  InformFailedCheckout();
             }
         }

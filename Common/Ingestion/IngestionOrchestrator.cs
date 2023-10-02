@@ -4,7 +4,6 @@ using Common.Ingestion.Config;
 using Common.Http;
 using Common.Infra;
 using DuckDB.NET.Data;
-using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -25,6 +24,8 @@ public sealed class IngestionOrchestrator
         int idx = 0;
         int total =  config.mapTableToUrl.Count;
         ConsoleUtility.WriteProgressBar(idx);
+        Console.WriteLine();
+
         foreach (var table in config.mapTableToUrl)
         {
             Console.WriteLine("Ingesting table {0} at {1}", table, DateTime.UtcNow);

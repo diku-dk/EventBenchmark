@@ -13,10 +13,10 @@
     //"UPDATE_PRODUCT": 85,
     //"UPDATE_DELIVERY": 100
   },
-  "concurrencyLevel": 4,
+  "concurrencyLevel": 8,
   "ingestionConfig": {
     "strategy": "WORKER_PER_CPU",
-    "concurrencyLevel": 24,
+    "concurrencyLevel": 12,
     "mapTableToUrl": {
         "sellers": "http://localhost:8081/seller",
         "customers": "http://localhost:8081/customer",

@@ -76,7 +76,7 @@ public abstract class WorkloadManager
     // for a is tricky, we never know when it completes
     public virtual async Task<(DateTime startTime, DateTime finishTime)> Run()
 	{
-        logger.LogInformation("[Workload emitter] Started sending batch of transactions with concurrency level {0}", this.concurrencyLevel);
+        logger.LogInformation("Started sending batch of transactions with concurrency level {0}", this.concurrencyLevel);
 
         Stopwatch s = new Stopwatch();
         var execTime = TimeSpan.FromMilliseconds(executionTime);
@@ -92,7 +92,7 @@ public abstract class WorkloadManager
             this.currentTid++;
         }
 
-        logger.LogInformation("[Workload emitter] {0} transactions emitted. Waiting for results to send remaining transactions.", this.concurrencyLevel);
+        logger.LogInformation("{0} transactions emitted. Waiting for results to send remaining transactions.", this.concurrencyLevel);
 
         while (s.Elapsed < execTime)
         {
@@ -116,8 +116,8 @@ public abstract class WorkloadManager
         var finishTime = DateTime.UtcNow;
         s.Stop();
 
-        logger.LogInformation("[Workload emitter] Finished at {0}. Last TID submitted was {1}", finishTime, currentTid);
-        logger.LogInformation("[Workload emitter] Histogram:");
+        logger.LogInformation("Finished at {0}. Last TID submitted was {1}", finishTime, currentTid);
+        logger.LogInformation("Histogram:");
         foreach(var entry in histogram)
         {
             logger.LogInformation("{0}: {1}", entry.Key, entry.Value);

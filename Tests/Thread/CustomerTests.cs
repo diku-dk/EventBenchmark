@@ -1,6 +1,7 @@
 ﻿using Common.Entities;
 using Common.Infra;
 using Common.Services;
+using Common.Streaming;
 using Common.Workers.Customer;
 using Common.Workload;
 using Common.Workload.CustomerWorker;
@@ -112,6 +113,11 @@ public class CustomerTests
             products[0][1] = new Product() { seller_id = 1, product_id = 2, price = 10, version = "0" };
             products[1][0] = new Product() { seller_id = 2, product_id = 1, price = 10, version = "0" };
             products[1][1] = new Product() { seller_id = 2, product_id = 2, price = 10, version = "0" };
+        }
+
+        public List<TransactionMark> GetAbortedTransactions()
+        {
+            throw new NotImplementedException();
         }
 
         public List<TransactionOutput> GetFinishedTransactions(int sellerId)

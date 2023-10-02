@@ -5,6 +5,7 @@ using Common.Services;
 using MathNet.Numerics.Distributions;
 using Microsoft.Extensions.Logging;
 using Common.Workload.CustomerWorker;
+using Common.Streaming;
 
 namespace Common.Workers.Customer;
 
@@ -21,7 +22,10 @@ public abstract class AbstractCustomerThread : ICustomerWorker
     // the object respective to this worker
     protected readonly Entities.Customer customer;
 
+    // not concurrent because it is not necessary
     protected readonly List<TransactionIdentifier> submittedTransactions;
+
+    protected readonly List<TransactionMark> abortedTransactions;
 
     protected readonly ISellerService sellerService;
 
@@ -35,6 +39,7 @@ public abstract class AbstractCustomerThread : ICustomerWorker
         this.numberOfProducts = numberOfProducts;
         this.logger = logger;
         this.submittedTransactions = new();
+        this.abortedTransactions = new();
         this.random = new Random();
     }
 
@@ -81,6 +86,11 @@ public abstract class AbstractCustomerThread : ICustomerWorker
     public List<TransactionIdentifier> GetSubmittedTransactions()
     {
         return this.submittedTransactions;
+    }
+
+    public List<TransactionMark> GetAbortedTransactions()
+    {
+        return this.abortedTransactions;
     }
 
     public abstract List<TransactionOutput> GetFinishedTransactions();

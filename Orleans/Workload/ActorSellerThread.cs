@@ -2,6 +2,7 @@
 using Common.Http;
 using Common.Infra;
 using Common.Requests;
+using Common.Streaming;
 using Common.Workers.Seller;
 using Common.Workload;
 using Common.Workload.Metrics;
@@ -41,6 +42,7 @@ public sealed class ActorSellerThread : AbstractSellerThread
         }
         else
         {
+            this.abortedTransactions.Add( new TransactionMark(tid, TransactionType.PRICE_UPDATE, this.sellerId, MarkStatus.ABORT, "product") );
             this.logger.LogError("Seller {0} failed to update product {1} price: {2}", this.sellerId, productToUpdate.product_id, resp.ReasonPhrase);
         }
     }
@@ -63,6 +65,7 @@ public sealed class ActorSellerThread : AbstractSellerThread
         }
         else
         {
+            this.abortedTransactions.Add( new TransactionMark(tid, TransactionType.UPDATE_PRODUCT, this.sellerId, MarkStatus.ABORT, "product") );
             this.logger.LogError("Seller {0} failed to update product {1} version: {2}", this.sellerId, product.product_id, resp.ReasonPhrase);
         }
        
@@ -78,11 +81,12 @@ public sealed class ActorSellerThread : AbstractSellerThread
             var response = httpClient.Send(message);
             if (response.IsSuccessStatusCode)
             {
-                 this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.QUERY_DASHBOARD, now ));
+                this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.QUERY_DASHBOARD, now ));
                 this.finishedTransactions.Add(new TransactionOutput(tid, DateTime.UtcNow));
             }
             else
             {
+                this.abortedTransactions.Add( new TransactionMark(tid, TransactionType.QUERY_DASHBOARD, this.sellerId, MarkStatus.ABORT, "seller") );
                 this.logger.LogDebug("Seller {0}: Dashboard retrieval failed: {0}", this.sellerId, response.ReasonPhrase);
             }
         }

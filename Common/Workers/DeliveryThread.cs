@@ -1,5 +1,6 @@
-﻿using System.Threading.Channels;
+﻿using System.Collections.Concurrent;
 using Common.Infra;
+using Common.Streaming;
 using Common.Workload;
 using Common.Workload.Delivery;
 using Common.Workload.Metrics;
@@ -14,7 +15,8 @@ public class DeliveryThread : IDeliveryWorker
 
     private readonly ILogger logger;
 
-    private readonly Channel<(TransactionIdentifier, TransactionOutput)> ResultQueue;
+    private readonly BlockingCollection<(TransactionIdentifier, TransactionOutput)> resultQueue;
+    private readonly ConcurrentBag<TransactionMark> abortedTransactions;
 
     public static DeliveryThread BuildDeliveryThread(IHttpClientFactory httpClientFactory, DeliveryWorkerConfig config)
     {
@@ -27,12 +29,8 @@ public class DeliveryThread : IDeliveryWorker
         this.config = config;
         this.httpClient = httpClient;
         this.logger = logger;
-        this.ResultQueue = Channel.CreateUnbounded<(TransactionIdentifier, TransactionOutput)>(new UnboundedChannelOptions()
-        {
-            SingleWriter = false,
-            SingleReader = true,
-            AllowSynchronousContinuations = false,
-        });
+        this.resultQueue = new BlockingCollection<(TransactionIdentifier, TransactionOutput)>();
+        this.abortedTransactions = new();
     }
 
 	public void Run(string tid)
@@ -45,9 +43,10 @@ public class DeliveryThread : IDeliveryWorker
             var init = new TransactionIdentifier(tid, TransactionType.UPDATE_DELIVERY, initTime);
             var endTime = DateTime.UtcNow;
             var end = new TransactionOutput(tid, endTime);
-            while (!ResultQueue.Writer.TryWrite((init, end))) { }
+            this.resultQueue.Add((init, end));
         } else
         {
+            this.abortedTransactions.Add( new TransactionMark(tid, TransactionType.UPDATE_DELIVERY, 1, MarkStatus.ABORT, "shipment")  );
             this.logger.LogDebug("Delivery worker failed to update delivery for TID {0}: {1}", tid, resp.ReasonPhrase);
         }
     }
@@ -55,7 +54,17 @@ public class DeliveryThread : IDeliveryWorker
     public List<(TransactionIdentifier, TransactionOutput)> GetResults()
     {
         var list = new List<(TransactionIdentifier, TransactionOutput)>();
-        while (ResultQueue.Reader.TryRead(out (TransactionIdentifier, TransactionOutput) item))
+        while (this.resultQueue.TryTake(out (TransactionIdentifier, TransactionOutput) item))
+        {
+            list.Add(item);
+        }
+        return list;
+    }
+
+    public List<TransactionMark> GetAbortedTransactions()
+    {
+        var list = new List<TransactionMark>();
+        while (this.abortedTransactions.TryTake(out var item))
         {
             list.Add(item);
         }

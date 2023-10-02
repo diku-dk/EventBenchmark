@@ -59,15 +59,27 @@ public class ActorExperimentManager : ExperimentManager
         this.metricManager = new ActorMetricManager(sellerService, customerService, deliveryService);
     }
 
-    public async Task RunSimpleExperiment()
+    public async void RunSimpleExperiment(int type)
     {
         this.customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
         PreExperiment();
         PreWorkload(0);
         SetUpManager(0);
-        var workloadTask = await workloadManager.Run();
-        DateTime startTime = workloadTask.startTime;
-        DateTime finishTime = workloadTask.finishTime;
+        (DateTime startTime, DateTime finishTime) res;
+        if(type == 0){
+            Console.WriteLine("Thread mode selected.");
+            res = workloadManager.RunThreads();
+        }
+        else if(type == 1) {
+            Console.WriteLine("Task mode selected.");
+            res = workloadManager.RunTasks();
+        }
+        else {
+            Console.WriteLine("Task per Tx mode selected.");
+            res = await workloadManager.RunTaskPerTx();
+        }
+        DateTime startTime = res.startTime;
+        DateTime finishTime = res.finishTime;
         Collect(0, startTime, finishTime);
         PostRunTasks(0,0);
         CollectGarbage();
