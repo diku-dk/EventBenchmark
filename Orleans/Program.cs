@@ -61,7 +61,7 @@ public class Program
             {
                 if(connection is null) Console.WriteLine("Warning: Connection has not been set! Starting anyway...");
                 var expManager = new ActorExperimentManager(new CustomHttpClientFactory(), config, connection);
-                expManager.RunSimpleExperiment(2);
+                await expManager.RunSimpleExperiment(2);
                 break;
             }
             case "4":

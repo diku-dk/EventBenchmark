@@ -35,6 +35,10 @@
     "postRunTasks": [
     ],
     "postExperimentTasks": [
+        {
+            "name": "cleanup",
+            "url": "http://localhost:8081/cleanup"
+        }
     ],
     "customerWorkerConfig": {
         "maxNumberKeysToBrowse": 10,

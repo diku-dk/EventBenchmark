@@ -59,7 +59,7 @@ public class ActorExperimentManager : ExperimentManager
         this.metricManager = new ActorMetricManager(sellerService, customerService, deliveryService);
     }
 
-    public async void RunSimpleExperiment(int type)
+    public async Task RunSimpleExperiment(int type)
     {
         this.customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
         PreExperiment();
@@ -81,7 +81,7 @@ public class ActorExperimentManager : ExperimentManager
         DateTime startTime = res.startTime;
         DateTime finishTime = res.finishTime;
         Collect(0, startTime, finishTime);
-        PostRunTasks(0,0);
+        PostExperiment();
         CollectGarbage();
     }
 
