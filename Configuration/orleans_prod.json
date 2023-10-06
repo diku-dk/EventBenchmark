@@ -1,22 +1,22 @@
 ﻿{
     "connectionString": "DataSource=:memory:",
-    "numCustomers": 1000,
+    "numCustomers": 100000,
     "numProdPerSeller": 10,
-    "executionTime": 30000,
+    "executionTime": 60000,
     "epoch": 10000,
     "delayBetweenRequests": 0,
-    "delayBetweenRuns": 5000,
+    "delayBetweenRuns": 0,
     "transactionDistribution": {
-        "CUSTOMER_SESSION": 70,
-        "QUERY_DASHBOARD": 75,
-        "PRICE_UPDATE": 82,
-        "UPDATE_PRODUCT": 85,
+        "CUSTOMER_SESSION": 30,
+        "QUERY_DASHBOARD": 35,
+        "PRICE_UPDATE": 38,
+        "UPDATE_PRODUCT": 40,
         "UPDATE_DELIVERY": 100
     },
-    "concurrencyLevel": 20,
+    "concurrencyLevel": 48,
     "ingestionConfig": {
         "strategy": "WORKER_PER_CPU",
-        "concurrencyLevel": 6,
+        "concurrencyLevel": 32,
         "mapTableToUrl": {
             "sellers": "http://orleans:8081/seller",
             "customers": "http://orleans:8081/customer",
@@ -26,41 +26,15 @@
     },
     "runs": [
         {
-            "numProducts": 1000,
+            "numProducts": 100000,
             "customerDistribution": "UNIFORM",
             "sellerDistribution": "UNIFORM",
             "keyDistribution": "UNIFORM"
         }
-        //{
-        //  "numProducts": 1000,
-        //  "customerDistribution": "UNIFORM",
-        //  "sellerDistribution": "ZIPFIAN",
-        //  "keyDistribution": "ZIPFIAN"
-        //},
-        //{
-        //  "numProducts": 10000,
-        //  "customerDistribution": "UNIFORM",
-        //  "sellerDistribution": "UNIFORM",
-        //  "keyDistribution": "UNIFORM"
-        //},
-        //{
-        //  "numProducts": 10000,
-        //  "customerDistribution": "UNIFORM",
-        //  "sellerDistribution": "ZIPFIAN",
-        //  "keyDistribution": "ZIPFIAN"
-        //}
     ],
     "postRunTasks": [
-        {
-            "name": "default",
-            "url": "http://orleans:8081/reset"
-        }
     ],
     "postExperimentTasks": [
-        {
-            "name": "default",
-            "url": "http://orleans:8081/reset"
-        }
     ],
     "customerWorkerConfig": {
         "maxNumberKeysToBrowse": 10,

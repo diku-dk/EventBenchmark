@@ -7,11 +7,11 @@
   "delayBetweenRequests": 0,
   "delayBetweenRuns": 0,
   "transactionDistribution": {
-    "CUSTOMER_SESSION": 100,
-    //"QUERY_DASHBOARD": 75,
-    //"PRICE_UPDATE": 82,
-    //"UPDATE_PRODUCT": 85,
-    //"UPDATE_DELIVERY": 100
+    "CUSTOMER_SESSION": 70,
+    "QUERY_DASHBOARD": 75,
+    "PRICE_UPDATE": 82,
+    "UPDATE_PRODUCT": 85,
+    "UPDATE_DELIVERY": 100
   },
   "concurrencyLevel": 8,
   "ingestionConfig": {

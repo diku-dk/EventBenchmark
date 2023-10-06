@@ -57,12 +57,8 @@ public abstract class AbstractCustomerThread : ICustomerWorker
 
     public void Run(string tid)
     {
-        //var threadId =  Environment.CurrentManagedThreadId;
-        //logger.LogWarning("I am thread {0} with TID {1}", threadId, tid);
         AddItemsToCart();
-        //logger.LogWarning("I am thread {0} with TID {1} finished adding items to cart!", threadId, tid);
         Checkout(tid);
-        //logger.LogWarning("I am thread {0} with TID {1} finished checkout!", threadId, tid);
     }
 
     public abstract void AddItemsToCart();
