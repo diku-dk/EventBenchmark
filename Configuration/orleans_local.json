@@ -1,19 +1,19 @@
 ﻿{
   "connectionString": "Data Source=file.db",
-  "numCustomers": 100000,
+  "numCustomers": 1000,
   "numProdPerSeller": 10,
   "executionTime": 60000,
   "epoch": 10000,
   "delayBetweenRequests": 0,
   "delayBetweenRuns": 0,
   "transactionDistribution": {
-    "CUSTOMER_SESSION": 70,
-    "QUERY_DASHBOARD": 75,
-    "PRICE_UPDATE": 82,
-    "UPDATE_PRODUCT": 85,
+    "CUSTOMER_SESSION": 30,
+    "QUERY_DASHBOARD": 35,
+    "PRICE_UPDATE": 38,
+    "UPDATE_PRODUCT": 40,
     "UPDATE_DELIVERY": 100
   },
-  "concurrencyLevel": 8,
+  "concurrencyLevel": 1,
   "ingestionConfig": {
     "strategy": "WORKER_PER_CPU",
     "concurrencyLevel": 12,
@@ -26,26 +26,22 @@
   },
   "runs": [
     {
-      "numProducts": 100000,
-      "customerDistribution": "UNIFORM",
+      "numProducts": 1000,
       "sellerDistribution": "UNIFORM",
       "keyDistribution": "UNIFORM"
     },
     //{
     //  "numProducts": 1000,
-    //  "customerDistribution": "UNIFORM",
     //  "sellerDistribution": "ZIPFIAN",
     //  "keyDistribution": "ZIPFIAN"
     //},
     //{
     //  "numProducts": 10000,
-    //  "customerDistribution": "UNIFORM",
     //  "sellerDistribution": "UNIFORM",
     //  "keyDistribution": "UNIFORM"
     //},
     //{
     //  "numProducts": 10000,
-    //  "customerDistribution": "UNIFORM",
     //  "sellerDistribution": "ZIPFIAN",
     //  "keyDistribution": "ZIPFIAN"
     //}

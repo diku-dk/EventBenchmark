@@ -9,6 +9,10 @@ namespace Common.Workload
 
     public class WorkloadConfig
     {
+
+        public const double sellerZipfian = 1;
+        public const double productZipfian = 1;
+
         public string connectionString { get; set; } = "Data Source=file.db"; // "DataSource=:memory:"
 
         // maximum number of concurrent transactions submitted to the target system

@@ -27,7 +27,6 @@
     "runs": [
         {
             "numProducts": 100000,
-            "customerDistribution": "UNIFORM",
             "sellerDistribution": "UNIFORM",
             "keyDistribution": "UNIFORM"
         }

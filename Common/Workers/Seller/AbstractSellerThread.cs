@@ -2,6 +2,7 @@
 using Common.Distribution;
 using Common.Entities;
 using Common.Streaming;
+using Common.Workload;
 using Common.Workload.Metrics;
 using Common.Workload.Seller;
 using MathNet.Numerics.Distributions;
@@ -45,7 +46,7 @@ public abstract class AbstractSellerThread : ISellerWorker
         this.products = products.ToArray();
         this.productIdGenerator = keyDistribution == DistributionType.UNIFORM ?
                                  new DiscreteUniform(1, products.Count, Random.Shared) :
-                                 new Zipf(0.99, products.Count, Random.Shared);
+                                 new Zipf(WorkloadConfig.productZipfian, products.Count, Random.Shared);
         this.submittedTransactions.Clear();
         this.finishedTransactions.Clear();
         this.abortedTransactions.Clear();

@@ -47,10 +47,10 @@ public abstract class AbstractCustomerThread : ICustomerWorker
     {
         this.sellerIdGenerator = sellerDistribution == DistributionType.UNIFORM ?
                                   new DiscreteUniform(sellerRange.min, sellerRange.max, new Random()) :
-                                  new Zipf(0.80, sellerRange.max, new Random());
+                                  new Zipf(WorkloadConfig.sellerZipfian, sellerRange.max, new Random());
         this.productIdGenerator = keyDistribution == DistributionType.UNIFORM ?
                                 new DiscreteUniform(1, numberOfProducts, new Random()) :
-                                new Zipf(0.99, numberOfProducts, new Random());
+                                new Zipf(WorkloadConfig.productZipfian, numberOfProducts, new Random());
 
         this.submittedTransactions.Clear();
     }
