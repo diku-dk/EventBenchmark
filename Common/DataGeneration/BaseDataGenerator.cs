@@ -3,8 +3,6 @@ using System.Text;
 using Bogus;
 using Bogus.Extensions.Brazil;
 using Common.Entities;
-using Microsoft.Extensions.Logging;
-using Common.Infra;
 
 namespace Common.DataGeneration
 {
@@ -54,9 +52,9 @@ namespace Common.DataGeneration
 
         public abstract void Generate(DuckDBConnection conection, bool genCustomer = false);
 
-        protected void GenerateStockItem(DuckDbCommand command, int productId, int sellerId)
+        protected void GenerateStockItem(DuckDbCommand command, int productId, int sellerId, int qty = 100000)
         {
-            int quantity = 100000;// Numeric(2, false);
+            int quantity = qty;// Numeric(2, false);
             var ytd = Numeric(1, false);
             var data = faker.Lorem.Sentence();
 

@@ -67,7 +67,7 @@ namespace Common.DataGeneration
                 for(int i = 1; i <= numProductsForSeller; i++)
                 {
                     GenerateProduct(command, i, currSellerId);
-                    GenerateStockItem(command, i, currSellerId);
+                    GenerateStockItem(command, i, currSellerId, config.qtyPerProduct);
                     currProductId++;
                 }
 

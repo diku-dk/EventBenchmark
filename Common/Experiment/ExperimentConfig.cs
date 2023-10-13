@@ -15,6 +15,7 @@ namespace Common.Experiment
 
         public int numCustomers { get; set; }
         public int numProdPerSeller { get; set; }
+        public int qtyPerProduct { get; set; }
 
         public IngestionConfig ingestionConfig { get; set; }
 

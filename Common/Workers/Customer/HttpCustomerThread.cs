@@ -47,7 +47,6 @@ public class HttpCustomerThread : AbstractCustomerThread
 
     private void AddItem()
     {
-        //logger.LogWarning("Adding item");
         var sellerId = this.sellerIdGenerator.Sample();
         var product = sellerService.GetProduct(sellerId, this.productIdGenerator.Sample() - 1);
         if (this.cartItems.Add((sellerId, product.product_id)))
@@ -77,29 +76,41 @@ public class HttpCustomerThread : AbstractCustomerThread
         try{ this.httpClient.Send(message); } catch(Exception){ }
     }
 
+    private static int maxAttempts = 3;
+
     protected override void SendCheckoutRequest(string tid)
     {
         var payload = BuildCheckoutPayload(tid);
         string url = this.config.cartUrl + "/" + this.customer.id + "/checkout";
-        HttpRequestMessage message = new(HttpMethod.Post, url)
-        {
-            Content = payload
-        };
-
-        var sentTs = DateTime.UtcNow;
+        DateTime sentTs;
+        int attempt = 0;
         try
         {
-            HttpResponseMessage resp = httpClient.Send(message);
-            if (resp.IsSuccessStatusCode)
-            {
+            bool success = false;
+            HttpResponseMessage resp;
+            do {
+                sentTs = DateTime.UtcNow;
+                resp = httpClient.Send(new(HttpMethod.Post, url)
+                {
+                    Content = payload
+                });
+                
+                attempt++;
+
+                success = resp.IsSuccessStatusCode;
+
+                if(!success)
+                      this.abortedTransactions.Add(new TransactionMark(tid, TransactionType.CUSTOMER_SESSION, this.customer.id, MarkStatus.ABORT, "cart"));
+
+            } while(!success && attempt < maxAttempts);
+
+            if(resp.IsSuccessStatusCode){
                 TransactionIdentifier txId = new(tid, TransactionType.CUSTOMER_SESSION, sentTs);
                 this.submittedTransactions.Add(txId);
                 DoAfterSubmission(tid);
-            }
-            else
+            } else
             {
-                 this.abortedTransactions.Add(new TransactionMark(tid, TransactionType.CUSTOMER_SESSION, this.customer.id, MarkStatus.ABORT, "cart"));
-                 InformFailedCheckout();
+                this.abortedTransactions.Add(new TransactionMark(tid, TransactionType.CUSTOMER_SESSION, this.customer.id, MarkStatus.ABORT, "cart"));
             }
         }
         catch (Exception e)

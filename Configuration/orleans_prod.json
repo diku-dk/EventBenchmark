@@ -1,7 +1,8 @@
 ﻿{
-    "connectionString": "DataSource=:memory:",
+    "connectionString": "Data Source=file.db",
     "numCustomers": 100000,
     "numProdPerSeller": 10,
+    "qtyPerProduct": 10000,
     "executionTime": 60000,
     "epoch": 10000,
     "delayBetweenRequests": 0,

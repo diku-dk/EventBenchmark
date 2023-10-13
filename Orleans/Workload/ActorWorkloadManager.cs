@@ -84,8 +84,16 @@ public class ActorWorkloadManager : WorkloadManager
             // spawning in a different thread may lead to duplicate tids in actors
             tasks.Add( Task.Run(()=> SubmitTransaction(toPass.ToString(), tx)) );
             currentTid++;
-            var t = await Task.WhenAny( tasks );
-            tasks.Remove(t);
+            try
+            {
+                var t = await Task.WhenAny(tasks).WaitAsync(execTime - s.Elapsed);
+                tasks.Remove(t);
+            }
+            catch (TimeoutException) { }
+
+            //var t = await Task.WhenAny( tasks );
+            //tasks.Remove(t);
+
         }
 
         var finishTime = DateTime.UtcNow;

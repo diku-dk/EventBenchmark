@@ -1,7 +1,8 @@
 ﻿{
-  "connectionString": "Data Source=file.db",
-  "numCustomers": 1000,
+  "connectionString": "Data Source=file.db", // "DataSource=:memory:"
+  "numCustomers": 10000,
   "numProdPerSeller": 10,
+  "qtyPerProduct": 10000,
   "executionTime": 60000,
   "epoch": 10000,
   "delayBetweenRequests": 0,
@@ -13,7 +14,7 @@
     "UPDATE_PRODUCT": 40,
     "UPDATE_DELIVERY": 100
   },
-  "concurrencyLevel": 1,
+  "concurrencyLevel": 10,
   "ingestionConfig": {
     "strategy": "WORKER_PER_CPU",
     "concurrencyLevel": 12,
@@ -26,37 +27,16 @@
   },
   "runs": [
     {
-      "numProducts": 1000,
-      "sellerDistribution": "UNIFORM",
-      "keyDistribution": "UNIFORM"
-    },
-    //{
-    //  "numProducts": 1000,
-    //  "sellerDistribution": "ZIPFIAN",
-    //  "keyDistribution": "ZIPFIAN"
-    //},
-    //{
-    //  "numProducts": 10000,
-    //  "sellerDistribution": "UNIFORM",
-    //  "keyDistribution": "UNIFORM"
-    //},
-    //{
-    //  "numProducts": 10000,
-    //  "sellerDistribution": "ZIPFIAN",
-    //  "keyDistribution": "ZIPFIAN"
-    //}
+        "numProducts": 10000,
+        "sellerDistribution": "UNIFORM",
+        "keyDistribution": "UNIFORM"
+        //"sellerDistribution": "ZIPFIAN",
+        //"keyDistribution": "ZIPFIAN"
+    }
   ],
   "postRunTasks": [
-    //{
-    //    "name": "default",
-    //    "url": "http://localhost:8081/reset"
-    //}
   ],
   "postExperimentTasks": [
-    //{
-    //    "name": "default",
-    //    "url": "http://localhost:8081/reset"
-    //}
   ],
   "customerWorkerConfig": {
     "maxNumberKeysToBrowse": 10,
