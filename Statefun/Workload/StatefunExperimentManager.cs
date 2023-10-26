@@ -1,7 +1,7 @@
 ﻿using Common.Experiment;
 using Common.Workload;
 
-namespace Statefun;
+namespace Statefun.Workload;
 
 public class StatefunExperimentManager : ExperimentManager
 {

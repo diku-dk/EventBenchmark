@@ -10,13 +10,13 @@ namespace Common.Workers;
 
 public class DeliveryThread : IDeliveryWorker
 {
-    private readonly HttpClient httpClient;
-    private readonly DeliveryWorkerConfig config;
+    protected readonly HttpClient httpClient;
+    protected readonly DeliveryWorkerConfig config;
 
-    private readonly ILogger logger;
+    protected readonly ILogger logger;
 
-    private readonly BlockingCollection<(TransactionIdentifier, TransactionOutput)> resultQueue;
-    private readonly ConcurrentBag<TransactionMark> abortedTransactions;
+    protected readonly BlockingCollection<(TransactionIdentifier, TransactionOutput)> resultQueue;
+    protected readonly ConcurrentBag<TransactionMark> abortedTransactions;
 
     public static DeliveryThread BuildDeliveryThread(IHttpClientFactory httpClientFactory, DeliveryWorkerConfig config)
     {
@@ -24,7 +24,7 @@ public class DeliveryThread : IDeliveryWorker
         return new DeliveryThread(config, httpClientFactory.CreateClient(), logger);
     }
 
-    private DeliveryThread(DeliveryWorkerConfig config, HttpClient httpClient, ILogger logger)
+    protected DeliveryThread(DeliveryWorkerConfig config, HttpClient httpClient, ILogger logger)
     {
         this.config = config;
         this.httpClient = httpClient;

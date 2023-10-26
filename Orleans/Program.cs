@@ -1,6 +1,5 @@
 ﻿using Common.DataGeneration;
 using Common.Experiment;
-using Common.Ingestion;
 using DuckDB.NET.Data;
 using Newtonsoft.Json;
 using Orleans.Infra;
@@ -53,7 +52,7 @@ public class Program
                 }
                 connection = new DuckDBConnection(config.connectionString);
                 connection.Open();
-                await Infra.IngestionOrchestrator.Run(connection, config.ingestionConfig);
+                await CustomIngestionOrchestrator.Run(connection, config.ingestionConfig);
                 GC.Collect();
                 break;
             }
@@ -66,9 +65,9 @@ public class Program
             }
             case "4":
             {
-                    var expManager = new ActorExperimentManager(new CustomHttpClientFactory(), config);
-                    await expManager.Run();
-                    Console.WriteLine("Experiment finished.");
+                var expManager = new ActorExperimentManager(new CustomHttpClientFactory(), config);
+                await expManager.Run();
+                Console.WriteLine("Experiment finished.");
                 break;
             }
             case "5":

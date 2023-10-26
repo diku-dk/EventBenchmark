@@ -10,7 +10,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Tests.Thread;
 
-
 public class CustomerTests
 {
     // let A and B represent products of the same seller

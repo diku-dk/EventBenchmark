@@ -8,7 +8,7 @@ using Newtonsoft.Json.Linq;
 
 namespace Orleans.Infra;
 
-public sealed class IngestionOrchestrator
+public sealed class CustomIngestionOrchestrator
 {
 
 	public static async Task Run(DuckDBConnection connection, IngestionConfig config)

@@ -51,22 +51,27 @@ public class HttpCustomerThread : AbstractCustomerThread
         var product = sellerService.GetProduct(sellerId, this.productIdGenerator.Sample() - 1);
         if (this.cartItems.Add((sellerId, product.product_id)))
         {
-            //logger.LogWarning("Entered Adding item");
-            var qty = this.random.Next(this.config.minMaxQtyRange.min, this.config.minMaxQtyRange.max + 1);
+            var quantity = this.random.Next(this.config.minMaxQtyRange.min, this.config.minMaxQtyRange.max + 1);
             try
             {
-                var payload = this.BuildCartItem(product, qty);
-                HttpRequestMessage message = new(HttpMethod.Patch, this.config.cartUrl + "/" + customer.id + "/add")
-                {
-                    Content = payload
-                };
-                this.httpClient.Send(message, HttpCompletionOption.ResponseHeadersRead);
+                var objStr = this.BuildCartItem(product, quantity);
+                BuildAddCartPayloadAndSend(objStr);
             }
             catch (Exception e)
             {
                 this.logger.LogError("Customer {0} Url {1} Seller {2} Key {3}: Exception Message: {5} ", customer.id, this.config.productUrl, product.seller_id, product.product_id, e.Message);
             }
         }
+    }
+
+    protected virtual void BuildAddCartPayloadAndSend(string objStr)
+    {
+        var payload = HttpUtils.BuildPayload(objStr);
+        HttpRequestMessage message = new(HttpMethod.Patch, this.config.cartUrl + "/" + customer.id + "/add")
+        {
+            Content = payload
+        };
+        this.httpClient.Send(message, HttpCompletionOption.ResponseHeadersRead);
     }
 
     protected override void InformFailedCheckout()
@@ -80,7 +85,10 @@ public class HttpCustomerThread : AbstractCustomerThread
 
     protected override void SendCheckoutRequest(string tid)
     {
-        var payload = BuildCheckoutPayload(tid);
+        var objStr = BuildCheckoutPayload(tid);
+
+        var payload = HttpUtils.BuildPayload(objStr);
+
         string url = this.config.cartUrl + "/" + this.customer.id + "/checkout";
         DateTime sentTs;
         int attempt = 0;
@@ -124,12 +132,12 @@ public class HttpCustomerThread : AbstractCustomerThread
     {
     }
 
-    protected StringContent BuildCheckoutPayload(string tid)
+    protected string BuildCheckoutPayload(string tid)
     {
         // define payment type randomly
-        var typeIdx = random.Next(1, 4);
+        var typeIdx = this.random.Next(1, 4);
         PaymentType type = typeIdx > 2 ? PaymentType.CREDIT_CARD : typeIdx > 1 ? PaymentType.DEBIT_CARD : PaymentType.BOLETO;
-        int installments = type == PaymentType.CREDIT_CARD ? random.Next(1, 11) : 0;
+        int installments = type == PaymentType.CREDIT_CARD ? this.random.Next(1, 11) : 0;
 
         // build
         CustomerCheckout customerCheckout = new CustomerCheckout(
@@ -151,11 +159,10 @@ public class HttpCustomerThread : AbstractCustomerThread
             tid
         );
 
-        var payload = JsonConvert.SerializeObject(customerCheckout);
-        return HttpUtils.BuildPayload(payload);
+        return JsonConvert.SerializeObject(customerCheckout);
     }
 
-    private StringContent BuildCartItem(Product product, int quantity)
+    private string BuildCartItem(Product product, int quantity)
     {
         // define voucher from distribution
         float voucher = 0;
@@ -177,8 +184,8 @@ public class HttpCustomerThread : AbstractCustomerThread
                 product.version
         );
 
-        var payload = JsonConvert.SerializeObject(cartItem);
-        return HttpUtils.BuildPayload(payload);
+        return JsonConvert.SerializeObject(cartItem);
+        
     }
 
 }

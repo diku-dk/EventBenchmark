@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using MathNet.Numerics.LinearAlgebra;
+using System.Text;
 
 namespace Common.Http
 {
@@ -15,14 +16,19 @@ namespace Common.Http
             Proxy = null
         });
 
-        private static readonly string httpJsonContentType = "application/json";
+        private static readonly string JsonContentType = "application/json";
 
         private static readonly Encoding encoding = Encoding.UTF8;
 
         public static StringContent BuildPayload(string item)
         {
-            return new StringContent(item, encoding, httpJsonContentType);
+            return new StringContent(item, encoding, JsonContentType);
         }
-        
+
+        public static StringContent BuildPayload(string item, string contentType)
+        {
+            return new StringContent(item, encoding, contentType);
+        }
+
     }
 }
