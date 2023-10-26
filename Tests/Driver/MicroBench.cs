@@ -9,7 +9,7 @@ namespace Tests.Driver;
 public class MicroBench
 {
 
-    static int numberOfTasks = 5;
+    static int numberOfTasks = 8;
     static int numberOfThreads = 5;
     static int numberOfIterations = 100;
 
@@ -52,15 +52,20 @@ public class MicroBench
 
         var requestQueue = new ConcurrentQueue<HttpRequestMessage>();
 
+        FillQueue(requestQueue, numberOfIterations);
+
+
+
+    }
+
+    static void FillQueue(ConcurrentQueue<HttpRequestMessage> requestQueue, int numberOfIterations)
+    {
         // Enqueue your HTTP requests
-        for (int i = 0; i < 100; i++)
+        for (int i = 0; i < numberOfIterations; i++)
         {
             var request = new HttpRequestMessage(HttpMethod.Get, $"https://example.com/api/resource{i}");
             requestQueue.Enqueue(request);
         }
-
-
-
     }
 
     static async Task MeasureWithTaskPerRequestSync(int numberOfTasks, int numberOfIterations, HttpClient httpClient)
@@ -137,6 +142,28 @@ public class MicroBench
                 await httpClient.SendAsync(request);
             }
         }
+    }
+
+    static async Task MeasureWithFixedTasksSync(HttpClient httpClient, ConcurrentQueue<HttpRequestMessage> requestQueue)
+    {
+
+        CancellationTokenSource source = new CancellationTokenSource();
+
+        // Start worker tasks
+        var workerTasks = new List<Task>();
+
+        var stopwatch = new Stopwatch();
+        stopwatch.Start();
+
+        for (int i = 0; i < numberOfTasks; i++)
+        {
+            workerTasks.Add(Task.Run(() => WorkerSync(httpClient, requestQueue, source.Token)));
+        }
+        // Wait for all workers to complete
+        await Task.WhenAll(workerTasks);
+
+        stopwatch.Stop();
+        Console.WriteLine($"FixedTasksSync Execution Time: {stopwatch.ElapsedMilliseconds} ms");
     }
 
     static async Task WorkerSync(HttpClient httpClient, ConcurrentQueue<HttpRequestMessage> requestQueue, CancellationToken token)
