@@ -2,6 +2,7 @@
 using Common.Experiment;
 using DuckDB.NET.Data;
 using Newtonsoft.Json;
+using Statefun.Infra;
 
 namespace Statefun;
 
@@ -52,7 +53,7 @@ public class Program
                             }
                             connection = new DuckDBConnection(config.connectionString);
                             connection.Open();
-                            // await CustomIngestionOrchestrator.Run(connection, config.ingestionConfig);
+                            await CustomIngestionOrchestrator.Run(connection, config.ingestionConfig);
                             GC.Collect();
                             break;
                         }

@@ -22,13 +22,13 @@ namespace Common.DataGeneration
 
         protected readonly Dictionary<string, string> mapTableToCreateStmt = new()
         {
-            ["sellers"] = "CREATE OR REPLACE TABLE sellers (id INTEGER, name VARCHAR, company_name VARCHAR, email VARCHAR, phone VARCHAR, mobile_phone VARCHAR, cpf VARCHAR, cnpj VARCHAR, address VARCHAR, complement VARCHAR, city VARCHAR, state VARCHAR, zip_code VARCHAR, order_count INTEGER);",
+            ["sellers"] = "CREATE OR REPLACE TABLE sellers (id INTEGER, name VARCHAR, company_name VARCHAR, email VARCHAR, phone VARCHAR, mobile_phone VARCHAR, cpf VARCHAR, cnpj VARCHAR, address VARCHAR, complement VARCHAR, city VARCHAR, state VARCHAR, zip_code VARCHAR);",
             ["products"] = "CREATE OR REPLACE TABLE products (seller_id INTEGER, product_id INTEGER, name VARCHAR, sku VARCHAR, category VARCHAR, description VARCHAR, price REAL, freight_value REAL, version VARCHAR, status VARCHAR);",
             ["stock_items"] = "CREATE OR REPLACE TABLE stock_items (seller_id INTEGER, product_id INTEGER, qty_available INTEGER, qty_reserved INTEGER, order_count INTEGER, ytd INTEGER, data VARCHAR, version VARCHAR);",
             ["customers"] = "CREATE OR REPLACE TABLE customers (id INTEGER, first_name VARCHAR, last_name VARCHAR, address VARCHAR, complement VARCHAR, birth_date VARCHAR, " +
                             "zip_code VARCHAR, city VARCHAR, state VARCHAR, " +
                             "card_number VARCHAR, card_security_number VARCHAR, card_expiration VARCHAR, card_holder_name VARCHAR, card_type VARCHAR, " +
-                            "success_payment_count INTEGER, failed_payment_count INTEGER, delivery_count INTEGER, abandoned_cart_count INTEGER, data VARCHAR);"
+                            "success_payment_count INTEGER, failed_payment_count INTEGER, delivery_count INTEGER, data VARCHAR);"
         };
 
         protected readonly Dictionary<string, string> mapTableToTruncateStmt = new()
@@ -39,7 +39,7 @@ namespace Common.DataGeneration
             // ["customers"] = "DELETE FROM customers;"
         };
 
-        protected readonly string baseSellerQuery = "INSERT INTO sellers(id, name, company_name, email, phone, mobile_phone, cpf, cnpj, address, complement, city, state, zip_code, order_count) VALUES ";
+        protected readonly string baseSellerQuery = "INSERT INTO sellers(id, name, company_name, email, phone, mobile_phone, cpf, cnpj, address, complement, city, state, zip_code) VALUES ";
 
         protected readonly string baseProductQuery = "INSERT INTO products (seller_id, product_id, name, sku, category, description, price, freight_value, version, status) VALUES ";
 
@@ -48,7 +48,7 @@ namespace Common.DataGeneration
         protected readonly string baseCustomerQuery = "INSERT INTO customers (id, first_name, last_name, address, complement, birth_date, " +
                                                         "zip_code, city, state, " +
                                                         "card_number, card_security_number, card_expiration, card_holder_name, card_type, " +
-                                                        "success_payment_count, failed_payment_count, delivery_count, abandoned_cart_count, data) VALUES ";
+                                                        "success_payment_count, failed_payment_count, delivery_count, data) VALUES ";
 
         public abstract void Generate(DuckDBConnection conection, bool genCustomer = false);
 
@@ -129,7 +129,7 @@ namespace Common.DataGeneration
             sb.Append(0).Append(','); // success_payment_count
             sb.Append(0).Append(','); // failed_payment_count
             sb.Append(0).Append(','); // delivery_count
-            sb.Append(0).Append(','); // abandoned carts
+            // sb.Append(0).Append(','); // abandoned carts
             sb.Append('\'').Append(C_DATA).Append("');");
 
             command.CommandText = sb.ToString();
@@ -170,8 +170,8 @@ namespace Common.DataGeneration
             sb.Append('\'').Append(complement).Append("',");
             sb.Append('\'').Append(geolocation.city).Append("',");
             sb.Append('\'').Append(geolocation.state).Append("',");
-            sb.Append('\'').Append(geolocation.zipcode).Append("',");
-            sb.Append(0).Append(");");
+            sb.Append('\'').Append(geolocation.zipcode).Append("');");
+            // sb.Append(0).Append(");");
 
             command.CommandText = sb.ToString();
             command.ExecuteNonQuery();
