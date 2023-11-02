@@ -34,17 +34,18 @@ namespace Common.Http
         * For StateFun only
         *   used to send http request to StateFun application.
         */
-        public static async Task SendHttpToStatefun(string url, string contentType, string payLoad)
+        public static async Task<HttpResponseMessage> SendHttpToStatefun(string url, string contentType, string payLoad)
         {
             var content = HttpUtils.BuildPayload(payLoad);
             content.Headers.ContentType = null; // zero out default content type
             content.Headers.TryAddWithoutValidation("Content-Type", contentType);
             
             HttpResponseMessage response = await client.PostAsync(url, content);    
-            if (!response.IsSuccessStatusCode)
-            {
-                Console.WriteLine("Error while sending http request to StateFun, status code: " + (int)response.StatusCode);
-            }        
+            // if (!response.IsSuccessStatusCode)
+            // {
+            //     Console.WriteLine("Error while sending http request to StateFun, status code: " + (int)response.StatusCode);                
+            // }        
+            return response;
             // var response = await HttpUtils.client.PostAsync(url, content);
                     
             // Console.WriteLine("Status Code: " + (int)response.StatusCode);

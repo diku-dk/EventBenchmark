@@ -16,6 +16,8 @@ public sealed class StatefunSellerThread : AbstractSellerThread
 {
     private readonly HttpClient httpClient;
 
+    string baseContentType = "application/vnd.marketplace/";
+
     public StatefunSellerThread(int sellerId, HttpClient httpClient, SellerWorkerConfig workerConfig, ILogger logger) : base(sellerId, workerConfig, logger)
     {
         this.httpClient = httpClient;
@@ -29,17 +31,17 @@ public sealed class StatefunSellerThread : AbstractSellerThread
 
     protected override void SendUpdatePriceRequest(string tid, Product productToUpdate, float newPrice)
     {
-        string serializedObject = JsonConvert.SerializeObject(new PriceUpdate(this.sellerId, productToUpdate.product_id, newPrice, tid));
+        string payLoad = JsonConvert.SerializeObject(new PriceUpdate(this.sellerId, productToUpdate.product_id, newPrice, tid));
 
-        string productId = this.sellerId + "-" + productToUpdate.product_id;
+        string partitionID = this.sellerId + "-" + productToUpdate.product_id;
 
-        HttpRequestMessage request = new(HttpMethod.Put, config.productUrl + "/" + productId)
-        {
-            Content = HttpUtils.BuildPayload(serializedObject, "application/vnd.marketplace/UpdatePrice")
-        };
+
+        string apiUrl = string.Concat(this.config.productUrl, "/", partitionID);        
+        string eventType = "UpdatePrice";
+        string contentType = string.Concat(baseContentType, eventType);
+        HttpResponseMessage resp = HttpUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Result;    
 
         var initTime = DateTime.UtcNow;
-        var resp = httpClient.Send(request, HttpCompletionOption.ResponseHeadersRead);
         if (resp.IsSuccessStatusCode)
         {
             this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.PRICE_UPDATE, initTime));
@@ -53,17 +55,16 @@ public sealed class StatefunSellerThread : AbstractSellerThread
 
     protected override void SendProductUpdateRequest(Product product, string tid)
     {
-        var obj = JsonConvert.SerializeObject(product);
+        var payLoad = JsonConvert.SerializeObject(product);
 
-        string productId = this.sellerId + "-" + product.product_id;
+        string partitionID = this.sellerId + "-" + product.product_id;
 
-        HttpRequestMessage message = new(HttpMethod.Put, config.productUrl + "/" + productId)
-        {
-            Content = HttpUtils.BuildPayload(obj, "application/vnd.marketplace/UpsertProduct")
-        };
+        string apiUrl = string.Concat(this.config.productUrl, "/", partitionID);        
+        string eventType = "UpsertProduct";
+        string contentType = string.Concat(baseContentType, eventType);
+        HttpResponseMessage resp = HttpUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Result;   
 
         var now = DateTime.UtcNow;
-        var resp = httpClient.Send(message, HttpCompletionOption.ResponseHeadersRead);
 
         if (resp.IsSuccessStatusCode)
         {
@@ -81,21 +82,22 @@ public sealed class StatefunSellerThread : AbstractSellerThread
     {
         try
         {
-            HttpRequestMessage message = new(HttpMethod.Put, config.sellerUrl + "/" + this.sellerId)
-            {
-                Content = new StringContent("{ \"tid\" : " + tid + " }", System.Text.Encoding.UTF8, "application/vnd.marketplace/QueryDashboard")
-            };
+            string partitionID = this.sellerId.ToString();
+            string apiUrl = string.Concat(this.config.sellerUrl, "/", partitionID);        
+            string eventType = "QueryDashboard";
+            string contentType = string.Concat(baseContentType, eventType);
+            string payLoad = "{ \"tid\" : " + tid + " }";
+            HttpResponseMessage resp = HttpUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Result;   
 
             var now = DateTime.UtcNow;
-            var response = httpClient.Send(message);
-            if (response.IsSuccessStatusCode)
+            if (resp.IsSuccessStatusCode)
             {
                 this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.QUERY_DASHBOARD, now));
             }
             else
             {
                 this.abortedTransactions.Add(new TransactionMark(tid, TransactionType.QUERY_DASHBOARD, this.sellerId, MarkStatus.ABORT, "seller"));
-                this.logger.LogDebug("Seller {0}: Dashboard retrieval failed: {0}", this.sellerId, response.ReasonPhrase);
+                this.logger.LogDebug("Seller {0}: Dashboard retrieval failed: {0}", this.sellerId, resp.ReasonPhrase);
             }
         }
         catch (Exception e)
@@ -104,6 +106,9 @@ public sealed class StatefunSellerThread : AbstractSellerThread
         }
     }
 
+    public override void AddFinishedTransaction(TransactionOutput transactionOutput)
+    {
+        this.finishedTransactions.Add(transactionOutput);
+    }
+
 }
-
-

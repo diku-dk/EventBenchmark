@@ -34,7 +34,8 @@ public class Program
                 {
                     numCustomers = config.numCustomers,
                     numProducts = config.runs[0].numProducts,
-                    numProdPerSeller = config.numProdPerSeller
+                    numProdPerSeller = config.numProdPerSeller,
+                    qtyPerProduct = config.qtyPerProduct // fix bug, ohterwise it will be 0
                 };
                 var dataGen = new SyntheticDataGenerator(previousData);
                 dataGen.CreateSchema(connection);

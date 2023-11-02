@@ -34,6 +34,8 @@ public class HttpCustomerThread : AbstractCustomerThread
         throw new NotImplementedException();
     }
 
+    public override void AddFinishedTransaction(TransactionOutput transactionOutput) {}
+
     public override void AddItemsToCart()
     {
         int numberKeysToAddToCart = this.random.Next(1, this.config.maxNumberKeysToAddToCart + 1);

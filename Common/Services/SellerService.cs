@@ -39,5 +39,10 @@ public sealed class SellerService : ISellerService
         }
         return merged;
     }
+
+    public void AddFinishedTransaction(int sellerId, TransactionOutput transactionOutput)
+    {
+        this.sellers[sellerId].AddFinishedTransaction(transactionOutput);
+    }
 }
 

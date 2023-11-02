@@ -44,5 +44,6 @@ public interface ISellerWorker
 
     void SetUp(List<Product> products, DistributionType keyDistribution);
 
+    void AddFinishedTransaction(TransactionOutput transactionOutput);
 }
 

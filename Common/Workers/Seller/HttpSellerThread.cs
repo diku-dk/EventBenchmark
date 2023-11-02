@@ -88,5 +88,6 @@ public sealed class HttpSellerThread : AbstractSellerThread
         }
     }
 
+    public override void AddFinishedTransaction(TransactionOutput transactionOutput){}
 }
 

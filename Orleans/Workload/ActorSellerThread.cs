@@ -96,6 +96,9 @@ public sealed class ActorSellerThread : AbstractSellerThread
         }
     }
 
+    public override void AddFinishedTransaction(TransactionOutput transactionOutput){
+        // this.finishedTransactions.Add(transactionOutput);
+    }
 }
 
 

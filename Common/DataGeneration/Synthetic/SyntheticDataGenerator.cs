@@ -54,28 +54,26 @@ namespace Common.DataGeneration
 
             var command = connection.CreateCommand();
 
-            Console.WriteLine("Seller, Product, and Stock Item generation is progress...");
-            ConsoleUtility.WriteProgressBar(0);
+            Console.WriteLine("Seller, Product, and Stock Item generation is progress...");                        
+            ConsoleUtility.WriteProgressBar(0);            
             float perc;
             while (remainingProducts > 0)
             {
                 numProductsForSeller = Math.Min(this.config.numProdPerSeller, remainingProducts);
 
-                // create seller
-                GenerateSeller(command, currSellerId);
-
+                // create seller                
+                GenerateSeller(command, currSellerId);                
                 for(int i = 1; i <= numProductsForSeller; i++)
                 {
-                    GenerateProduct(command, i, currSellerId);
-                    GenerateStockItem(command, i, currSellerId, config.qtyPerProduct);
+                    GenerateProduct(command, i, currSellerId);                    
+                    GenerateStockItem(command, i, currSellerId, config.qtyPerProduct);                
                     currProductId++;
-                }
-
+                }                
                 remainingProducts -= numProductsForSeller;
                 currSellerId++;
 
                 perc = (float)currProductId / this.config.numProducts;
-                ConsoleUtility.WriteProgressBar((int)(perc * 100), true);
+                ConsoleUtility.WriteProgressBar((int)(perc * 100), true);                
             }
 
             Console.WriteLine();

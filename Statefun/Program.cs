@@ -3,6 +3,7 @@ using Common.Experiment;
 using DuckDB.NET.Data;
 using Newtonsoft.Json;
 using Statefun.Infra;
+using Statefun.Workload;
 
 namespace Statefun;
 
@@ -35,7 +36,8 @@ public class Program
                             {
                                 numCustomers = config.numCustomers,
                                 numProducts = config.runs[0].numProducts,
-                                numProdPerSeller = config.numProdPerSeller
+                                numProdPerSeller = config.numProdPerSeller,
+                                qtyPerProduct = config.qtyPerProduct                        
                             };
                             var dataGen = new SyntheticDataGenerator(previousData);
                             dataGen.CreateSchema(connection);
@@ -58,16 +60,17 @@ public class Program
                             break;
                         }
                     case "3":
-                        {
+                        {                            
                             if (connection is null) Console.WriteLine("Warning: Connection has not been set! Starting anyway...");
-                            // var expManager = new ActorExperimentManager(new CustomHttpClientFactory(), config, connection);
-                            // await expManager.RunSimpleExperiment(2);
+                            var expManager = new StatefunExperimentManager(new CustomHttpClientFactory(), config, connection);
+                            await expManager.RunSimpleExperiment(2);
+                            Console.WriteLine("Experiment finished.");
                             break;
                         }
                     case "4":
                         {
-                            // var expManager = new ActorExperimentManager(new CustomHttpClientFactory(), config);
-                            // await expManager.Run();
+                            var expManager = new StatefunExperimentManager(new CustomHttpClientFactory(), config);
+                            await expManager.Run();
                             Console.WriteLine("Experiment finished.");
                             break;
                         }

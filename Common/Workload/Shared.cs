@@ -55,5 +55,33 @@ namespace Common.Workload
             SingleReader = true,
             AllowSynchronousContinuations = false,
         });
+
+        public static readonly Channel<TransactionOutput> DashboardQueryOutputs = Channel.CreateUnbounded<TransactionOutput>(new UnboundedChannelOptions()
+        {
+            SingleWriter = false,
+            SingleReader = true,
+            AllowSynchronousContinuations = false,
+        });
+
+        public static readonly Channel<TransactionMark> PoisonDashboardQueryOutputs = Channel.CreateUnbounded<TransactionMark>(new UnboundedChannelOptions()
+        {
+            SingleWriter = false,
+            SingleReader = true,
+            AllowSynchronousContinuations = false,
+        });
+
+        public static readonly Channel<TransactionOutput> DeliveryUpdateOutputs = Channel.CreateUnbounded<TransactionOutput>(new UnboundedChannelOptions()
+        {
+            SingleWriter = false,
+            SingleReader = true,
+            AllowSynchronousContinuations = false,
+        });
+
+        public static readonly Channel<TransactionMark> PoisonDeliveryUpdateOutputs = Channel.CreateUnbounded<TransactionMark>(new UnboundedChannelOptions()
+        {
+            SingleWriter = false,
+            SingleReader = true,
+            AllowSynchronousContinuations = false,
+        });
     }
 }

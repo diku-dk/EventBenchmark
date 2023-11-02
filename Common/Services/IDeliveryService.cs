@@ -12,5 +12,11 @@ public interface IDeliveryService
 
     List<TransactionMark> GetAbortedTransactions();
 
+    void AddFinishedTransaction(TransactionOutput transactionOutput);
+
+    List<TransactionIdentifier> GetSubmittedTransactions();
+
+    List<TransactionOutput> GetFinishedTransactions();
+
 }
 

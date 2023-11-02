@@ -11,15 +11,19 @@ using Common.Workload.Metrics;
 using Microsoft.Extensions.Logging;
 using System.Text;
 
-namespace Orleans.Workload;
+namespace Statefun.Workers;
 
 public class StatefunCustomerThread : HttpCustomerThread
 {
+    string partitionID;
+    string baseContentType = "application/vnd.marketplace/";
+
     protected readonly List<TransactionOutput> finishedTransactions;
 
     private StatefunCustomerThread(ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer, HttpClient httpClient, ILogger logger) : base(sellerService, numberOfProducts, config, customer, httpClient, logger)
     {
         this.finishedTransactions = new List<TransactionOutput>();
+        this.partitionID = this.customer.id.ToString();
     }
 
     public static new StatefunCustomerThread BuildCustomerThread(IHttpClientFactory httpClientFactory, ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer)
@@ -39,32 +43,30 @@ public class StatefunCustomerThread : HttpCustomerThread
         this.finishedTransactions.Clear();
     }
 
-    protected override void BuildAddCartPayloadAndSend(string objStr)
-    {
-        var payload = HttpUtils.BuildPayload(objStr, "application/vnd.marketplace/AddCartItem");
-        HttpRequestMessage message = new(HttpMethod.Put, this.config.cartUrl + "/" + this.customer.id)
-        {
-            Content = payload
-        };
-        this.httpClient.Send(message, HttpCompletionOption.ResponseHeadersRead);
+    protected override void BuildAddCartPayloadAndSend(string payLoad)
+    {        
+        string apiUrl = string.Concat(this.config.cartUrl, "/", partitionID);        
+        string eventType = "AddCartItem";
+        string contentType = string.Concat(baseContentType, eventType);
+        HttpUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Wait();                    
     }
 
     protected override void SendCheckoutRequest(string tid)
     {
-        var objStr = BuildCheckoutPayload(tid);
+        var payload = BuildCheckoutPayload(tid);
 
-        var payload = HttpUtils.BuildPayload(objStr, "application/vnd.marketplace/CustomerCheckout");
+        // var payload = HttpUtils.BuildPayload(objStr, "application/vnd.marketplace/CustomerCheckout");
        
         try
         {
             DateTime sentTs = DateTime.UtcNow;
-            HttpRequestMessage message = new(HttpMethod.Put, this.config.cartUrl + "/" + this.customer.id)
-            {
-                Content = payload
-            };
 
-            HttpResponseMessage resp = httpClient.Send(message);
-
+            string apiUrl = string.Concat(this.config.cartUrl, "/", partitionID);        
+            string eventType = "CustomerCheckout";
+            string contentType = string.Concat(baseContentType, eventType);
+            
+            HttpResponseMessage resp = HttpUtils.SendHttpToStatefun(apiUrl, contentType, payload).Result;  
+                    
             if (resp.IsSuccessStatusCode)
             {
                 TransactionIdentifier txId = new(tid, TransactionType.CUSTOMER_SESSION, sentTs);
@@ -84,11 +86,14 @@ public class StatefunCustomerThread : HttpCustomerThread
 
     protected override void InformFailedCheckout()
     {
-        HttpRequestMessage message = new(HttpMethod.Put, this.config.cartUrl + "/" + this.customer.id)
-        {
-            Content = new StringContent("{}", Encoding.UTF8, "application/vnd.marketplace/Seal")
-        };
-        try { this.httpClient.Send(message); } catch (Exception) { }
+        string apiUrl = string.Concat(this.config.cartUrl, "/", partitionID);        
+        string eventType = "Seal";
+        string contentType = string.Concat(baseContentType, eventType);
+        string payLoad = "{}";
+        HttpUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Wait();  
     }
 
+    public override void AddFinishedTransaction(TransactionOutput transactionOutput){
+        this.finishedTransactions.Add(transactionOutput);
+    }
 }

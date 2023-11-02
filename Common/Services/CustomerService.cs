@@ -35,5 +35,10 @@ public sealed class CustomerService : ICustomerService
         }
         return merged;
     }
+
+    public void AddFinishedTransaction(int customerId, TransactionOutput transactionOutput)
+    {
+        customers[customerId].AddFinishedTransaction(transactionOutput);
+    }
 }
 

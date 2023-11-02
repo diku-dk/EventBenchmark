@@ -16,4 +16,7 @@ public interface ISellerService
     List<TransactionOutput> GetFinishedTransactions(int sellerId);
 
     List<TransactionMark> GetAbortedTransactions();
+
+    void AddFinishedTransaction(int sellerId, TransactionOutput transactionOutput);
+
 }

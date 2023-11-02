@@ -71,5 +71,22 @@ public class DeliveryThread : IDeliveryWorker
         return list;
     }
 
+    public void AddFinishedTransaction(TransactionOutput transactionOutput)
+    {
+        // this.finishedTransactions.Add(transactionOutput);
+    }
+
+    // never invoked in DeliveryThread
+    public List<TransactionIdentifier> GetSubmittedTransactions()
+    {
+        throw new NotImplementedException();
+    }
+
+    // never invoked in DeliveryThread
+    public List<TransactionOutput> GetFinishedTransactions()
+    {
+        throw new NotImplementedException();
+    }
+
 }
 

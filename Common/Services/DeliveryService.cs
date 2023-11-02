@@ -6,9 +6,9 @@ namespace Common.Services;
 
 public class DeliveryService : IDeliveryService
 {
-    private readonly DeliveryThread deliveryThread;
+    private readonly IDeliveryWorker deliveryThread;
 
-    public DeliveryService(DeliveryThread deliveryThread)
+    public DeliveryService(IDeliveryWorker deliveryThread)
 	{
         this.deliveryThread = deliveryThread;
 	}
@@ -28,6 +28,20 @@ public class DeliveryService : IDeliveryService
         return this.deliveryThread.GetAbortedTransactions();
     }
 
+    public void AddFinishedTransaction(TransactionOutput transactionOutput)
+    {
+        this.deliveryThread.AddFinishedTransaction(transactionOutput);
+    }
+
+    public List<TransactionIdentifier> GetSubmittedTransactions()
+    {
+        return this.deliveryThread.GetSubmittedTransactions();
+    }
+
+    public List<TransactionOutput> GetFinishedTransactions()
+    {
+        return this.deliveryThread.GetFinishedTransactions();
+    }
 }
 
 

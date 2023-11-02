@@ -140,6 +140,8 @@ public abstract class AbstractSellerThread : ISellerWorker
         return list;
     }
 
+    public abstract void AddFinishedTransaction(TransactionOutput transactionOutput);
+
     public List<TransactionMark> GetAbortedTransactions()
     {
         var list = new List<TransactionMark>();

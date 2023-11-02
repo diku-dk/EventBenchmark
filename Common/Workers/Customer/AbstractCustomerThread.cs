@@ -84,6 +84,8 @@ public abstract class AbstractCustomerThread : ICustomerWorker
         return this.submittedTransactions;
     }
 
+    public abstract void AddFinishedTransaction(TransactionOutput transactionOutput);
+
     public List<TransactionMark> GetAbortedTransactions()
     {
         return this.abortedTransactions;

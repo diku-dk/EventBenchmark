@@ -1,17 +1,24 @@
-﻿using System.Diagnostics;
-using Common.Services;
+using Common.Experiment;
 using Common.Workload;
+using Common.Infra;
+using Common.Services;
+using Common.Entities;
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 
-namespace Dapr.Workload;
+namespace Statefun.Workload;
 
-public class ActorWorkloadManager : WorkloadManager
+public class StatefunWorkloadManager : WorkloadManager
 {
     private readonly ISellerService sellerService;
     private readonly ICustomerService customerService;
     private readonly IDeliveryService deliveryService;
 
-    public ActorWorkloadManager(
+    // signal when all threads have started
+    private Barrier barrier;
+    private CountdownEvent countdown;
+
+    public StatefunWorkloadManager(
         ISellerService sellerService,
         ICustomerService customerService,
         IDeliveryService deliveryService,
@@ -48,64 +55,6 @@ public class ActorWorkloadManager : WorkloadManager
         var finishTime = DateTime.UtcNow;
         barrier.Dispose();
         logger.LogInformation("Run finished at {0}.", finishTime);
-
-        return (startTime, finishTime);
-    }
-
-    public async Task<(DateTime startTime, DateTime finishTime)> RunTaskPerTx()
-	{
-        // logger.LogInformation("Started sending batch of transactions with concurrency level {0}", this.concurrencyLevel);
-
-        Stopwatch s = new Stopwatch();
-        var execTime = TimeSpan.FromMilliseconds(executionTime);
-        int currentTid = 0;
-        var startTime = DateTime.UtcNow;
-        logger.LogInformation("Run started at {0}.", startTime);
-        s.Start();
-
-        var tasks = new List<Task>(concurrencyLevel);
-
-        while (currentTid < concurrencyLevel)
-        {
-            TransactionType tx = PickTransactionFromDistribution();
-            //histogram[tx]++;
-            var toPass = currentTid;
-            tasks.Add( Task.Run(()=> SubmitTransaction(toPass.ToString(), tx)) );
-            currentTid++;
-        }
-
-        // logger.LogInformation("{0} transactions emitted. Waiting for results to send remaining transactions.", this.concurrencyLevel);
-
-        while (s.Elapsed < execTime)
-        {
-            TransactionType tx = PickTransactionFromDistribution();
-            //histogram[tx]++;
-            var toPass = currentTid;
-            // spawning in a different thread may lead to duplicate tids in actors
-            tasks.Add( Task.Run(()=> SubmitTransaction(toPass.ToString(), tx)) );
-            currentTid++;
-            try
-            {
-                var t = await Task.WhenAny(tasks).WaitAsync(execTime - s.Elapsed);
-                tasks.Remove(t);
-            }
-            catch (TimeoutException) { }
-
-            //var t = await Task.WhenAny( tasks );
-            //tasks.Remove(t);
-
-        }
-
-        var finishTime = DateTime.UtcNow;
-        s.Stop();
-        logger.LogInformation("Run finished at {0}.", finishTime);
-
-        //logger.LogInformation("[Workload emitter] Finished at {0}. Last TID submitted was {1}", finishTime, currentTid);
-        //logger.LogInformation("[Workload emitter] Histogram:");
-        //foreach(var entry in histogram)
-        //{
-        //    logger.LogInformation("{0}: {1}", entry.Key, entry.Value);
-        //}
 
         return (startTime, finishTime);
     }
@@ -152,11 +101,65 @@ public class ActorWorkloadManager : WorkloadManager
         return (startTime, finishTime);
     }
 
-    // signal when all threads have started
-    private Barrier barrier;
-    private CountdownEvent countdown;
+    public async Task<(DateTime startTime, DateTime finishTime)> RunTaskPerTx()
+	{
+        // logger.LogInformation("Started sending batch of transactions with concurrency level {0}", this.concurrencyLevel);
 
-    //private readonly BlockingCollection<Dictionary<TransactionType, int>> histograms = new BlockingCollection<Dictionary<TransactionType, int>>();
+        Stopwatch s = new Stopwatch();
+        var execTime = TimeSpan.FromMilliseconds(executionTime);
+        int currentTid = 0;
+        var startTime = DateTime.UtcNow;
+        logger.LogInformation("Run started at {0}.", startTime);
+        s.Start();
+
+        var tasks = new List<Task>(concurrencyLevel);
+
+        while (currentTid < concurrencyLevel)
+        {
+            TransactionType tx = PickTransactionFromDistribution();
+            //histogram[tx]++;
+            var toPass = currentTid;
+            tasks.Add( Task.Run(()=> SubmitTransaction(toPass.ToString(), tx)) );
+            currentTid++;
+        }
+
+        // logger.LogInformation("{0} transactions emitted. Waiting for results to send remaining transactions.", this.concurrencyLevel);
+
+        while (s.Elapsed < execTime)
+        {
+            TransactionType tx = PickTransactionFromDistribution();
+            //histogram[tx]++;
+            var toPass = currentTid;
+            // spawning in a different thread may lead to duplicate tids in actors
+            tasks.Add( Task.Run(()=> SubmitTransaction(toPass.ToString(), tx)) );
+            currentTid++;
+            try
+            {
+                var t = await Task.WhenAny(tasks).WaitAsync(execTime - s.Elapsed);
+                tasks.Remove(t);
+            }
+            catch (TimeoutException) { }
+
+            while (!Shared.ResultQueue.Reader.TryRead(out _) && s.Elapsed < execTime) { }
+
+            //var t = await Task.WhenAny( tasks );
+            //tasks.Remove(t);
+
+        }
+
+        var finishTime = DateTime.UtcNow;
+        s.Stop();
+        logger.LogInformation("Run finished at {0}.", finishTime);
+
+        //logger.LogInformation("[Workload emitter] Finished at {0}. Last TID submitted was {1}", finishTime, currentTid);
+        //logger.LogInformation("[Workload emitter] Histogram:");
+        //foreach(var entry in histogram)
+        //{
+        //    logger.LogInformation("{0}: {1}", entry.Key, entry.Value);
+        //}
+
+        return (startTime, finishTime);
+    }
 
     private void TaskWorker()
     {
@@ -241,5 +244,5 @@ public class ActorWorkloadManager : WorkloadManager
             this.logger.LogError("Thread ID {0} Error caught in SubmitTransaction: {1}", threadId, e.Message);
         }
     }
-
 }
+ 

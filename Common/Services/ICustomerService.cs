@@ -12,5 +12,7 @@ public interface ICustomerService
     List<TransactionOutput> GetFinishedTransactions(int customerId);
 
     List<TransactionMark> GetAbortedTransactions();
+
+    void AddFinishedTransaction(int customerId, TransactionOutput transactionOutput);
 }
 
