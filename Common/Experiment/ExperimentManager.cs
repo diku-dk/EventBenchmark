@@ -43,7 +43,7 @@ public abstract class ExperimentManager
 
     protected abstract void Collect(int runIdx, DateTime startTime, DateTime finishTime);
 
-    public async Task Run()
+    public virtual async Task Run()
     {
         this.connection.Open();
         SyntheticDataSourceConfig previousData = new SyntheticDataSourceConfig()

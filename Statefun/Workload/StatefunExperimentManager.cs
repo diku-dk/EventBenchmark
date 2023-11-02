@@ -8,7 +8,10 @@ using Common.Workers.Seller;
 using Common.Workers.Customer;
 using Statefun.Metric; 
 using DuckDB.NET.Data;
+using Microsoft.Extensions.Logging;
 using Statefun.Workers;
+using Common.DataGeneration;
+using Statefun.Infra;
 
 namespace Statefun.Workload;
 
@@ -17,6 +20,8 @@ public class StatefunExperimentManager : ExperimentManager
     private string receiptUrl = "http://localhost:8091/receipts";
 
     private CancellationTokenSource cancellationTokenSource;
+
+    protected static readonly ILogger logger = LoggerProxy.GetInstance("StatefunExperimentManager");
     
     private readonly IHttpClientFactory httpClientFactory;
 
@@ -64,6 +69,99 @@ public class StatefunExperimentManager : ExperimentManager
 
         this.receiptPullingThread = new StatefunReceiptPullingThread(receiptUrl, customerService, sellerService, deliveryService);
         this.cancellationTokenSource = new CancellationTokenSource();
+    }
+
+    public override async Task Run()
+    {
+        this.connection.Open();
+        SyntheticDataSourceConfig previousData = new SyntheticDataSourceConfig()
+        {
+            numCustomers = config.numCustomers,
+            numProducts = 0 // to force product generation and ingestion in the upcoming loop
+        };
+
+        int runIdx = 0;
+        int lastRunIdx = config.runs.Count() - 1;
+
+        var dataGen = new SyntheticDataGenerator(previousData);
+        dataGen.CreateSchema(connection);
+        // dont need to generate customers on every run. only once
+        dataGen.GenerateCustomers(connection);
+        // customers are fixed accross runs
+        this.customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
+
+        PreExperiment();
+
+        foreach (var run in config.runs)
+        {
+            logger.LogInformation("Run #{0} started at {0}", runIdx, DateTime.UtcNow);
+
+            if (run.numProducts != previousData.numProducts)
+            {
+                logger.LogInformation("Run #{0} number of products changed from last run {0}", runIdx, runIdx - 1);
+
+                // update previous
+                previousData = new SyntheticDataSourceConfig()
+                {
+                    numProdPerSeller = config.numProdPerSeller,
+                    numCustomers = config.numCustomers,
+                    numProducts = run.numProducts,
+                    qtyPerProduct = config.qtyPerProduct
+                };
+                var syntheticDataGenerator = new SyntheticDataGenerator(previousData);
+
+                // must truncate if not first run
+                if (runIdx > 0)
+                    syntheticDataGenerator.TruncateTables(connection);
+
+                syntheticDataGenerator.Generate(connection);
+
+                await CustomIngestionOrchestrator.Run(connection, config.ingestionConfig);
+    
+                if (runIdx == 0)
+                {
+                    // remove customers from ingestion config from now on
+                    config.ingestionConfig.mapTableToUrl.Remove("customers");
+                }
+
+            }
+
+            PreWorkload(runIdx);
+
+            WorkloadManager workloadManager = SetUpManager(runIdx);
+
+            logger.LogInformation("Run #{0} started at {1}", runIdx, DateTime.UtcNow);
+
+            var workloadTask = await workloadManager.Run();
+
+            DateTime startTime = workloadTask.startTime;
+            DateTime finishTime = workloadTask.finishTime;
+
+            logger.LogInformation("Wait for microservices to converge (i.e., finish receiving events) for {0} seconds...", config.delayBetweenRuns / 1000);
+            await Task.Delay(config.delayBetweenRuns);
+
+            // set up data collection for metrics
+            Collect(runIdx, startTime, finishTime);
+
+            // trim first to avoid receiving events after the post run task
+            TrimStreams();
+
+            CollectGarbage();
+
+            logger.LogInformation("Run #{0} finished at {1}", runIdx, DateTime.UtcNow);
+
+            // increment run index
+            runIdx++;
+
+            if(runIdx < (config.runs.Count - 1))
+                PostRunTasks(runIdx, lastRunIdx);
+        }
+
+        logger.LogInformation("Post experiment cleanup tasks started.");
+
+        PostExperiment();
+
+        logger.LogInformation("Experiment finished");
     }
 
     public async Task RunSimpleExperiment(int type)
