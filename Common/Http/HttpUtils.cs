@@ -30,7 +30,7 @@ namespace Common.Http
             return new StringContent(item, encoding, contentType);
         }
 
-                /**
+        /**
         * For StateFun only
         *   used to send http request to StateFun application.
         */
@@ -41,16 +41,8 @@ namespace Common.Http
             content.Headers.TryAddWithoutValidation("Content-Type", contentType);
             
             HttpResponseMessage response = await client.PostAsync(url, content);    
-            // if (!response.IsSuccessStatusCode)
-            // {
-            //     Console.WriteLine("Error while sending http request to StateFun, status code: " + (int)response.StatusCode);                
-            // }        
+
             return response;
-            // var response = await HttpUtils.client.PostAsync(url, content);
-                    
-            // Console.WriteLine("Status Code: " + (int)response.StatusCode);
-            // string responseContent = await response.Content.ReadAsStringAsync();
-            // Console.WriteLine("Response: " + responseContent);
         }
     }
 }

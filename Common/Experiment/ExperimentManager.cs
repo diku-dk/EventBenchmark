@@ -77,7 +77,8 @@ public abstract class ExperimentManager
                 {
                     numProdPerSeller = config.numProdPerSeller,
                     numCustomers = config.numCustomers,
-                    numProducts = run.numProducts
+                    numProducts = run.numProducts,
+                    qtyPerProduct = config.qtyPerProduct
                 };
                 var syntheticDataGenerator = new SyntheticDataGenerator(previousData);
 
@@ -88,7 +89,7 @@ public abstract class ExperimentManager
                 syntheticDataGenerator.Generate(connection);
 
                 await IngestionOrchestrator.Run(connection, config.ingestionConfig);
-
+    
                 if (runIdx == 0)
                 {
                     // remove customers from ingestion config from now on

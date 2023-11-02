@@ -13,6 +13,8 @@ public class StatefunWorkloadManager : WorkloadManager
     private readonly ISellerService sellerService;
     private readonly ICustomerService customerService;
     private readonly IDeliveryService deliveryService;
+    private static int totalTransactionsSubmitted = 0;
+ 
 
     // signal when all threads have started
     private Barrier barrier;
@@ -36,6 +38,8 @@ public class StatefunWorkloadManager : WorkloadManager
     {
         int numCpus = this.concurrencyLevel;
         int i = 0;
+        totalTransactionsSubmitted = 0;
+
         var tasks = new List<Task>();
 
         countdown = new CountdownEvent(1);
@@ -63,6 +67,7 @@ public class StatefunWorkloadManager : WorkloadManager
     {
         int numCpus = this.concurrencyLevel;
         int i = 0;
+        totalTransactionsSubmitted = 0;
 
         countdown = new CountdownEvent(1);
         barrier = new Barrier(numCpus+1);
@@ -164,15 +169,27 @@ public class StatefunWorkloadManager : WorkloadManager
     private void TaskWorker()
     {
         long threadId = Environment.CurrentManagedThreadId;
-        Console.WriteLine("Thread {0} started", threadId);
-        int currentTid = 0;
+        Console.WriteLine("Thread {0} started", threadId);        
 
         barrier.SignalAndWait();
 
-        while (!countdown.IsSet)
+        int currentTid = Interlocked.Increment(ref totalTransactionsSubmitted);
+        while (currentTid < concurrencyLevel)
         {
             TransactionType tx = PickTransactionFromDistribution();
-            SubmitTransaction(threadId+"-"+currentTid++.ToString(), tx);
+            //histogram[tx]++;
+            var toPass = currentTid;
+            SubmitTransaction(toPass.ToString(), tx);     
+            currentTid = Interlocked.Increment(ref totalTransactionsSubmitted);       
+        }
+
+        while(!countdown.IsSet)
+        {        
+            TransactionType tx = PickTransactionFromDistribution();
+            //histogram[tx]++;
+            SubmitTransaction(currentTid.ToString(), tx);
+            while (!Shared.ResultQueue.Reader.TryRead(out _) && !countdown.IsSet) { }
+            currentTid = Interlocked.Increment(ref totalTransactionsSubmitted);
         }
         Console.WriteLine("Thread {0} finished", threadId);
     }
@@ -181,21 +198,26 @@ public class StatefunWorkloadManager : WorkloadManager
     {
         long threadId = Environment.CurrentManagedThreadId;
         Console.WriteLine("Thread {0} started", threadId);
-        //var histogram = new Dictionary<TransactionType, int>();
-        //foreach (TransactionType tx in Enum.GetValues(typeof(TransactionType)))
-        //{
-        //    histogram.Add(tx, 0);
-        //}
         
-        int currentTid = 0;
-
         barrier.SignalAndWait();
 
-        while(!countdown.IsSet)
+        int currentTid = Interlocked.Increment(ref totalTransactionsSubmitted);
+        while (currentTid < concurrencyLevel)
         {
             TransactionType tx = PickTransactionFromDistribution();
             //histogram[tx]++;
-            SubmitTransaction(threadId+"-"+currentTid++.ToString(), tx);
+            var toPass = currentTid;
+            SubmitTransaction(toPass.ToString(), tx);     
+            currentTid = Interlocked.Increment(ref totalTransactionsSubmitted);       
+        }
+
+        while(!countdown.IsSet)
+        {        
+            TransactionType tx = PickTransactionFromDistribution();
+            //histogram[tx]++;
+            SubmitTransaction(currentTid.ToString(), tx);
+            while (!Shared.ResultQueue.Reader.TryRead(out _) && !countdown.IsSet) { }
+            currentTid = Interlocked.Increment(ref totalTransactionsSubmitted);
         }
 
         //histograms.Add(histogram);
