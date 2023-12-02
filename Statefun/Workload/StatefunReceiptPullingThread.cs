@@ -40,30 +40,23 @@ public class StatefunReceiptPullingThread
         int i = 0;
         using (var httpClient = new HttpClient()) {            
             while (!cancellationToken.IsCancellationRequested) {
-               try {
-                    Thread.Sleep(50);
+               try {                    
                     i = i + 1;                    
                     HttpResponseMessage response = await httpClient.GetAsync(url);                    
                     if (response.IsSuccessStatusCode)
                     {                                                    
                         DateTime endTime = DateTime.UtcNow;       
                         string responseBody = await response.Content.ReadAsStringAsync();  
-                        if (string.IsNullOrEmpty(responseBody)) {
-                            Console.WriteLine(" [===] Empty .................. [" + i + "]");
+                        if (string.IsNullOrEmpty(responseBody)) {                            
                             continue;
                         }
-                        // many zero or many
-                        Console.WriteLine(" [===] Value .................. [" + i + "]");
-                        Console.WriteLine(responseBody);
                         JObject jsonObject = JObject.Parse(responseBody);
                         TransactionMark transactionMark = JsonConvert.DeserializeObject<TransactionMark>(jsonObject.ToString());
 
                         await Shared.ResultQueue.Writer.WriteAsync(WorkloadManager.ITEM);
 
                         TransactionOutput transactionOutput = new TransactionOutput(transactionMark.tid, endTime);
-                        int actorId = transactionMark.actorId;
-                        
-                        Console.WriteLine(" [===] GET RECEIPT " + transactionMark.type + " " + transactionMark.tid + " " + transactionMark.actorId);
+                        int actorId = transactionMark.actorId;                                                
                         
                         switch (transactionMark.type) {
                             case TransactionType.CUSTOMER_SESSION:
@@ -100,7 +93,7 @@ public class StatefunReceiptPullingThread
                                     await Shared.DeliveryUpdateOutputs.Writer.WriteAsync(transactionOutput);
                                 else
                                     await Shared.PoisonDeliveryUpdateOutputs.Writer.WriteAsync(transactionMark);
-                                break;
+                                break;                            
                             default:
                                 throw new Exception("Unknown transaction type: " + transactionMark.type);
                         }                                                            

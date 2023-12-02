@@ -43,7 +43,7 @@ public sealed class CustomIngestionOrchestrator
         // Statefun : get the current read record before starting ingestion        
 
         //TODO : put url in config
-        string baseUrl = "http://localhost:8081/";
+        string baseUrl = "http://statefunhost:8081/";
         long recordBeforeIngest = await getCurrentReadRecord(baseUrl);
         long recordNow = recordBeforeIngest;
         long totalTuples = tuples.Count;

@@ -8,6 +8,7 @@ using Common.Workers.Customer;
 using Common.Workload;
 using Common.Workload.CustomerWorker;
 using Common.Workload.Metrics;
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using System.Text;
 
@@ -17,12 +18,12 @@ public class StatefunCustomerThread : HttpCustomerThread
 {
     string partitionID;
     string baseContentType = "application/vnd.marketplace/";
-
-    protected readonly List<TransactionOutput> finishedTransactions;
+    
+    protected readonly ConcurrentBag<TransactionOutput> finishedTransactions;
 
     private StatefunCustomerThread(ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer, HttpClient httpClient, ILogger logger) : base(sellerService, numberOfProducts, config, customer, httpClient, logger)
     {
-        this.finishedTransactions = new List<TransactionOutput>();
+        this.finishedTransactions = new();
         this.partitionID = this.customer.id.ToString();
     }
 
@@ -34,7 +35,7 @@ public class StatefunCustomerThread : HttpCustomerThread
 
     public override List<TransactionOutput> GetFinishedTransactions()
     {
-        return this.finishedTransactions;
+        return this.finishedTransactions.ToList();
     }
 
     public override void SetUp(DistributionType sellerDistribution, Interval sellerRange, DistributionType keyDistribution)

@@ -17,7 +17,7 @@ namespace Statefun.Workload;
 
 public class StatefunExperimentManager : ExperimentManager
 {        
-    private string receiptUrl = "http://localhost:8091/receipts";
+    private string receiptUrl = "http://statefunhost:8091/receipts";
 
     private CancellationTokenSource cancellationTokenSource;
 
@@ -38,7 +38,12 @@ public class StatefunExperimentManager : ExperimentManager
     private readonly StatefunWorkloadManager workloadManager;
     private readonly StatefunMetricManager metricManager;
 
-    private readonly StatefunReceiptPullingThread receiptPullingThread;
+    // private readonly StatefunReceiptPullingThread receiptPullingThread;
+    // define a pulling thread list which contains 3 pulling threads
+    private readonly List<StatefunReceiptPullingThread> receiptPullingThreads;
+
+    private int numPullingThreads = 3;
+
 
     public StatefunExperimentManager(IHttpClientFactory httpClientFactory, ExperimentConfig config, DuckDBConnection connection = null) : base(config, connection)
     {
@@ -67,7 +72,12 @@ public class StatefunExperimentManager : ExperimentManager
 
         this.metricManager = new StatefunMetricManager(sellerService, customerService, deliveryService);
 
-        this.receiptPullingThread = new StatefunReceiptPullingThread(receiptUrl, customerService, sellerService, deliveryService);
+        // this.receiptPullingThread = new StatefunReceiptPullingThread(receiptUrl, customerService, sellerService, deliveryService);
+        this.receiptPullingThreads = new List<StatefunReceiptPullingThread>();
+        for (int i = 0; i < numPullingThreads; i++) {
+            this.receiptPullingThreads.Add(new StatefunReceiptPullingThread(receiptUrl, customerService, sellerService, deliveryService));
+        }
+
         this.cancellationTokenSource = new CancellationTokenSource();
     }
 
@@ -140,11 +150,10 @@ public class StatefunExperimentManager : ExperimentManager
             logger.LogInformation("Wait for microservices to converge (i.e., finish receiving events) for {0} seconds...", config.delayBetweenRuns / 1000);
             await Task.Delay(config.delayBetweenRuns);
 
-            // set up data collection for metrics
-            Collect(runIdx, startTime, finishTime);
+            cancellationTokenSource.Cancel();
 
-            // trim first to avoid receiving events after the post run task
-            TrimStreams();
+            // set up data collection for metrics
+            Collect(runIdx, startTime, finishTime);            
 
             CollectGarbage();
 
@@ -200,7 +209,7 @@ public class StatefunExperimentManager : ExperimentManager
 
     protected override void PostExperiment()
     {
-        cancellationTokenSource.Cancel();
+        // cancellationTokenSource.Cancel();
     }
 
     protected override void PostRunTasks(int runIdx, int lastRunIdx)
@@ -241,7 +250,10 @@ public class StatefunExperimentManager : ExperimentManager
         }
 
         // start pulling thread to collect receipts
-        Task.Factory.StartNew(() => receiptPullingThread.Run(cancellationTokenSource.Token), TaskCreationOptions.LongRunning);
+        // Task.Factory.StartNew(() => receiptPullingThread.Run(cancellationTokenSource.Token), TaskCreationOptions.LongRunning);
+        foreach (var thread in receiptPullingThreads) {
+            Task.Factory.StartNew(() => thread.Run(cancellationTokenSource.Token), TaskCreationOptions.LongRunning);
+        }
         // Thread thread = new Thread(() => receiptPullingThread.Run(cancellationTokenSource.Token));        
         Console.WriteLine("=== Starting receipt pulling thread ===");
     }

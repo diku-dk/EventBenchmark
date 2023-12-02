@@ -1,6 +1,6 @@
 {
     "connectionString": "Data Source=file.db", // "DataSource=:memory:"
-    "numCustomers": 10000,
+    "numCustomers": 100000,
     "numProdPerSeller": 10,
     "qtyPerProduct": 10000,
     "executionTime": 60000,
@@ -19,15 +19,15 @@
       "strategy": "WORKER_PER_CPU",
       "concurrencyLevel": 12,      
       "mapTableToUrl": {
-          "sellers": "http://localhost:8090/marketplace/seller",
-          "customers": "http://localhost:8090/marketplace/customer",
-          "stock_items": "http://localhost:8090/marketplace/stock",
-          "products": "http://localhost:8090/marketplace/product"
+          "sellers": "http://statefunhost:8090/marketplace/seller",
+          "customers": "http://statefunhost:8090/marketplace/customer",
+          "stock_items": "http://statefunhost:8090/marketplace/stock",
+          "products": "http://statefunhost:8090/marketplace/product"
       }
     },
     "runs": [
       {
-          "numProducts": 10000,
+          "numProducts": 100000,
           "sellerDistribution": "UNIFORM",
           "keyDistribution": "UNIFORM"
           //"sellerDistribution": "ZIPFIAN",
@@ -51,8 +51,8 @@
       },
       "checkoutProbability": 100,
       "voucherProbability": 5,
-      "productUrl": "http://localhost:8090/marketplace/product",
-      "cartUrl": "http://localhost:8090/marketplace/cart",
+      "productUrl": "http://statefunhost:8090/marketplace/product",
+      "cartUrl": "http://statefunhost:8090/marketplace/cart",
       "interactive": false
     },
     "sellerWorkerConfig": {
@@ -65,11 +65,11 @@
         "min": 1,
         "max": 10
       },
-      "sellerUrl": "http://localhost:8090/marketplace/seller",
-      "productUrl": "http://localhost:8090/marketplace/product"
+      "sellerUrl": "http://statefunhost:8090/marketplace/seller",
+      "productUrl": "http://statefunhost:8090/marketplace/product"
     },
     "deliveryWorkerConfig": {
-      "shipmentUrl": "http://localhost:8090/marketplace/shipmentProxy"
+      "shipmentUrl": "http://statefunhost:8090/marketplace/shipmentProxy"
     }
   }
   

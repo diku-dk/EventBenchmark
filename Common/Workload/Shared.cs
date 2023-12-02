@@ -52,7 +52,7 @@ namespace Common.Workload
         public static readonly Channel<byte> ResultQueue = Channel.CreateUnbounded<byte>(new UnboundedChannelOptions()
         {
             SingleWriter = false,
-            SingleReader = false,
+            SingleReader = true,
             AllowSynchronousContinuations = false,
         });
 

@@ -7,6 +7,7 @@ public enum TransactionType
     PRICE_UPDATE,
     UPDATE_PRODUCT,
     UPDATE_DELIVERY,
-    NONE
+    NONE,
+    ERROR_COLLECT
 }
 

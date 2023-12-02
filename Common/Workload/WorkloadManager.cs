@@ -52,7 +52,7 @@ public abstract class WorkloadManager
         this.sellerIdGenerator =
                     sellerDistribution == DistributionType.UNIFORM ?
                     new DiscreteUniform(sellerRange.min, sellerRange.max, new Random()) :
-                    new Zipf(0.80, sellerRange.max, new Random());
+                    new Zipf(WorkloadConfig.sellerZipfian, sellerRange.max, new Random());
 
         foreach (TransactionType tx in Enum.GetValues(typeof(TransactionType)))
         {
