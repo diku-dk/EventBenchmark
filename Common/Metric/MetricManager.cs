@@ -141,14 +141,16 @@ public abstract class MetricManager
                 // find the block the entry belongs to
                 var span = entry.endTimestamp.Subtract(startTime);
                 int idx = (int)(span.TotalMilliseconds / epochPeriod);
-                if (idx < 0 || idx >= breakdown.Count)
+
+                if (idx >= breakdown.Count)
                 {
-                    if(entry.endTimestamp <= finishTime && idx == breakdown.Count){
-                        breakdown[idx-1][entry.type].Add(entry.totalMilliseconds);
-                    }
-                    continue;
+                    idx = breakdown.Count - 1; 
                 }
-                breakdown[idx][entry.type].Add(entry.totalMilliseconds);
+        
+                if (idx >= 0 && entry.endTimestamp <= finishTime)
+                {
+                    breakdown[idx][entry.type].Add(entry.totalMilliseconds);
+                }
             }
         }
 
