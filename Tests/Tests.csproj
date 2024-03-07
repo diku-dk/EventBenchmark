@@ -28,10 +28,12 @@
     <None Remove="Driver\" />
     <None Remove="Http\" />
     <None Remove="Thread\" />
+    <None Remove="Anomaly\" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Driver\" />
     <Folder Include="Http\" />
     <Folder Include="Thread\" />
+    <Folder Include="Anomaly\" />
   </ItemGroup>
 </Project>

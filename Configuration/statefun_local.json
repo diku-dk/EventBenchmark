@@ -53,10 +53,9 @@
       "voucherProbability": 5,
       "productUrl": "http://statefunhost:8090/marketplace/product",
       "cartUrl": "http://statefunhost:8090/marketplace/cart",
-      "interactive": false
+      "trackReplication": false
     },
     "sellerWorkerConfig": {
-      "interactive": false,
       "delayBetweenRequestsRange": {
         "min": 1,
         "max": 1000

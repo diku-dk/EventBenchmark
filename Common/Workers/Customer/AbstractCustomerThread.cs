@@ -57,8 +57,8 @@ public abstract class AbstractCustomerThread : ICustomerWorker
 
     public void Run(string tid)
     {
-        AddItemsToCart();
-        Checkout(tid);
+        this.AddItemsToCart();
+        this.Checkout(tid);
     }
 
     public abstract void AddItemsToCart();
@@ -66,12 +66,12 @@ public abstract class AbstractCustomerThread : ICustomerWorker
     public void Checkout(string tid)
     {
         // define whether client should send a checkout request
-        if (random.Next(0, 100) > this.config.checkoutProbability)
+        if (this.random.Next(0, 101) > this.config.checkoutProbability)
         {
-            InformFailedCheckout();
+            this.InformFailedCheckout();
             return;
         }
-        SendCheckoutRequest(tid);
+        this.SendCheckoutRequest(tid);
     }
 
     protected abstract void SendCheckoutRequest(string tid);
@@ -84,7 +84,10 @@ public abstract class AbstractCustomerThread : ICustomerWorker
         return this.submittedTransactions;
     }
 
-    public abstract void AddFinishedTransaction(TransactionOutput transactionOutput);
+    public virtual void AddFinishedTransaction(TransactionOutput transactionOutput)
+    {
+        // do nothing
+    }
 
     public List<TransactionMark> GetAbortedTransactions()
     {

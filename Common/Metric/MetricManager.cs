@@ -200,6 +200,12 @@ public abstract class MetricManager
         logger.LogInformation("===========================================");
         sw.WriteLine("===========================================");
 
+        // TODO collect anomalies cause by replication
+        logger.LogInformation("================== Anomalies ==================");
+        sw.WriteLine("================== Anomalies ==================");
+
+
+
         logger.LogInformation("=================    THE END   ================");
         sw.WriteLine("=================    THE END   ================");
         sw.Flush();

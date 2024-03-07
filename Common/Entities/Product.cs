@@ -1,6 +1,6 @@
 ﻿namespace Common.Entities
 {
-    public class Product
+    public sealed class Product
     {
 
         public int seller_id { get; set; }
@@ -37,6 +37,20 @@
             this.freight_value = product.freight_value;
             this.status = product.status;
             this.version = version;
+        }
+  
+        public Product(Product product, float newPrice)
+        {
+            this.seller_id = product.seller_id;
+            this.product_id = product.product_id;
+            this.name = product.name;
+            this.sku = product.sku;
+            this.category = product.category;
+            this.description = product.description;
+            this.price = newPrice;
+            this.freight_value = product.freight_value;
+            this.status = product.status;
+            this.version = product.version;
         }
 
     }

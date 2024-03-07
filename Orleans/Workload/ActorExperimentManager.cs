@@ -17,7 +17,6 @@ namespace Orleans.Workload;
 
 public class ActorExperimentManager : ExperimentManager
 {
-
     private readonly IHttpClientFactory httpClientFactory;
 
     private readonly SellerService sellerService;
@@ -33,7 +32,7 @@ public class ActorExperimentManager : ExperimentManager
     private readonly ActorWorkloadManager workloadManager;
     private readonly ActorMetricManager metricManager;
 
-    public ActorExperimentManager(IHttpClientFactory httpClientFactory, ExperimentConfig config, DuckDBConnection connection = null) : base(config, connection)
+    public ActorExperimentManager(IHttpClientFactory httpClientFactory, ExperimentConfig config, DuckDBConnection connection) : base(config, connection)
     {
         this.httpClientFactory = httpClientFactory;
 
@@ -87,6 +86,7 @@ public class ActorExperimentManager : ExperimentManager
 
     protected override void PreExperiment()
     {
+        Console.WriteLine("Initializing customer threads...");
         for (int i = this.customerRange.min; i <= this.customerRange.max; i++)
         {
             this.customerThreads.Add(i, ActorCustomerThread.BuildCustomerThread(httpClientFactory, sellerService, config.numProdPerSeller, config.customerWorkerConfig, this.customers[i-1]));
@@ -95,8 +95,8 @@ public class ActorExperimentManager : ExperimentManager
 
     protected override void PreWorkload(int runIdx)
     {
+        Console.WriteLine("Initializing seller threads...");
         this.numSellers = (int)DuckDbUtils.Count(connection, "sellers");
-
         for (int i = 1; i <= numSellers; i++)
         {
             List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
@@ -111,12 +111,12 @@ public class ActorExperimentManager : ExperimentManager
             }
         }
 
+        Console.WriteLine("Setting up seller workload info in customer threads...");
         Interval sellerRange = new Interval(1, this.numSellers);
         for (int i = customerRange.min; i <= customerRange.max; i++)
         {
             this.customerThreads[i].SetUp(this.config.runs[runIdx].sellerDistribution, sellerRange, this.config.runs[runIdx].keyDistribution);
         }
-
     }
 
     protected override WorkloadManager SetUpManager(int runIdx)
@@ -133,11 +133,11 @@ public class ActorExperimentManager : ExperimentManager
                     config.runs[runIdx].numProducts, config.runs[runIdx].sellerDistribution, config.runs[runIdx].keyDistribution));
     }
 
-    private async Task CleanUpActorStates()
+    private async Task TriggerPostExperimentTasks()
     {
         // cleanup microservice states
         var resps_ = new List<Task<HttpResponseMessage>>();
-        foreach (var task in config.postExperimentTasks)
+        foreach (var task in this.config.postExperimentTasks)
         {
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
             logger.LogInformation("Post experiment task to URL {0}", task.url);
@@ -148,7 +148,13 @@ public class ActorExperimentManager : ExperimentManager
 
     protected override async void PostExperiment()
     {
-        await CleanUpActorStates();
+        //
+        if (this.config.customerWorkerConfig.trackReplication)
+        {
+
+        }
+
+        await this.TriggerPostExperimentTasks();
     }
 
     protected override async void PostRunTasks(int runIdx, int lastRunIdx)

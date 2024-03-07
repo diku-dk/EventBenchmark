@@ -3,7 +3,7 @@
     /**
      * The necessary data required by a customer worker to work properly
      */
-    public class CustomerWorkerConfig
+    public sealed class CustomerWorkerConfig
     {
         public int maxNumberKeysToBrowse { get; set; }
 
@@ -23,14 +23,13 @@
 
         public int voucherProbability { get; set; }
 
-        // flag that defines the behavior of the customer worker
-        // whether it will checkout directly or browse several items before
-        public bool interactive { get; set; }
+        // flag that defines whether causal anomalies are tracked
+        public bool trackReplication { get; set; }
 
         public CustomerWorkerConfig(){}
 
         public CustomerWorkerConfig(int maxNumberKeysToBrowse, int maxNumberKeysToAddToCart, int checkoutProbability, string productUrl, string cartUrl,
-            Interval minMaxQtyRange, Interval delayBetweenRequestsRange, int voucherProbability, bool interactive)
+            Interval minMaxQtyRange, Interval delayBetweenRequestsRange, int voucherProbability, bool trackReplication)
         {
             this.maxNumberKeysToBrowse = maxNumberKeysToBrowse;
             this.maxNumberKeysToAddToCart = maxNumberKeysToAddToCart;
@@ -40,7 +39,7 @@
             this.minMaxQtyRange = minMaxQtyRange;
             this.delayBetweenRequestsRange = delayBetweenRequestsRange;
             this.voucherProbability = voucherProbability;
-            this.interactive = interactive;
+            this.trackReplication = trackReplication;
         }
 
     }

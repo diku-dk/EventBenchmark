@@ -15,12 +15,12 @@ namespace Common.Workers.Customer;
 public class HttpCustomerThread : AbstractCustomerThread
 {
     protected readonly HttpClient httpClient;
-    private readonly ISet<(int, int)> cartItems;
+    protected readonly IDictionary<(int sellerId, int productId),Product> cartItems;
 
     protected HttpCustomerThread(ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Entities.Customer customer, HttpClient httpClient, ILogger logger) : base(sellerService, numberOfProducts, config, customer, logger)
     {
         this.httpClient = httpClient;
-        this.cartItems = new HashSet<(int, int)>(config.maxNumberKeysToAddToCart);
+        this.cartItems = new Dictionary<(int, int),Product>(config.maxNumberKeysToAddToCart);
     }
 
     public static HttpCustomerThread BuildCustomerThread(IHttpClientFactory httpClientFactory, ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Entities.Customer customer)
@@ -29,35 +29,35 @@ public class HttpCustomerThread : AbstractCustomerThread
         return new HttpCustomerThread(sellerService, numberOfProducts, config, customer, httpClientFactory.CreateClient(), logger);
     }
 
+    /**
+     * Only implemented if the target data platform has a synchronous API
+     * for submitting transaction requests. This is the case for Orleans, for example.
+     */
     public override List<TransactionOutput> GetFinishedTransactions()
     {
         throw new NotImplementedException();
     }
 
-    public override void AddFinishedTransaction(TransactionOutput transactionOutput) {}
-
     public override void AddItemsToCart()
     {
         int numberKeysToAddToCart = this.random.Next(1, this.config.maxNumberKeysToAddToCart + 1);
-        while (cartItems.Count < numberKeysToAddToCart)
+        while (this.cartItems.Count < numberKeysToAddToCart)
         {
-            AddItem();
+            this.AddItem();
         }
-        // clean it so garbage collector can collect the items
-        this.cartItems.Clear();
     }
 
     private void AddItem()
     {
         var sellerId = this.sellerIdGenerator.Sample();
         var product = sellerService.GetProduct(sellerId, this.productIdGenerator.Sample() - 1);
-        if (this.cartItems.Add((sellerId, product.product_id)))
+        if (this.cartItems.TryAdd((sellerId, product.product_id), product))
         {
             var quantity = this.random.Next(this.config.minMaxQtyRange.min, this.config.minMaxQtyRange.max + 1);
             try
             {
                 var objStr = this.BuildCartItem(product, quantity);
-                BuildAddCartPayloadAndSend(objStr);
+                this.BuildAddCartPayloadAndSend(objStr);
             }
             catch (Exception e)
             {
@@ -83,11 +83,13 @@ public class HttpCustomerThread : AbstractCustomerThread
         try{ this.httpClient.Send(message); } catch(Exception){ }
     }
 
-    private static int maxAttempts = 3;
+    // the idea is to reuse the cart state to resubmit an aborted customer checkout
+    // and thus avoid having to restart a customer session, i.e., having to add cart items again from scratch
+    private static readonly int maxAttempts = 3;
 
     protected override void SendCheckoutRequest(string tid)
     {
-        var objStr = BuildCheckoutPayload(tid);
+        var objStr = this.BuildCheckoutPayload(tid);
 
         var payload = HttpUtils.BuildPayload(objStr);
 
@@ -100,7 +102,7 @@ public class HttpCustomerThread : AbstractCustomerThread
             HttpResponseMessage resp;
             do {
                 sentTs = DateTime.UtcNow;
-                resp = httpClient.Send(new(HttpMethod.Post, url)
+                resp = this.httpClient.Send(new(HttpMethod.Post, url)
                 {
                     Content = payload
                 });
@@ -117,7 +119,7 @@ public class HttpCustomerThread : AbstractCustomerThread
             if(resp.IsSuccessStatusCode){
                 TransactionIdentifier txId = new(tid, TransactionType.CUSTOMER_SESSION, sentTs);
                 this.submittedTransactions.Add(txId);
-                DoAfterSubmission(tid);
+                this.DoAfterSubmission(tid);
             } else
             {
                 this.abortedTransactions.Add(new TransactionMark(tid, TransactionType.CUSTOMER_SESSION, this.customer.id, MarkStatus.ABORT, "cart"));
@@ -126,8 +128,10 @@ public class HttpCustomerThread : AbstractCustomerThread
         catch (Exception e)
         {
             this.logger.LogError("Customer {0} Url {1}: Exception Message: {5} ", customer.id, url, e.Message);
-            InformFailedCheckout();
+            this.InformFailedCheckout();
         }
+        // clean it for next customer session. besides, allow garbage collector to collect the items
+        this.cartItems.Clear();
     }
 
     protected virtual void DoAfterSubmission(string tid)

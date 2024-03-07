@@ -22,11 +22,11 @@ public abstract class ExperimentManager
 
     protected static readonly List<TransactionType> eventualCompletionTransactions = new() { TransactionType.CUSTOMER_SESSION, TransactionType.PRICE_UPDATE, TransactionType.UPDATE_PRODUCT };
 
-    public ExperimentManager(ExperimentConfig config, DuckDBConnection duckDBConnection = null)
+    public ExperimentManager(ExperimentConfig config, DuckDBConnection duckDBConnection)
     {
         this.config = config;
         this.customerRange = new Interval(1, config.numCustomers);
-        this.connection = duckDBConnection == null ? new DuckDBConnection(config.connectionString) : duckDBConnection;
+        this.connection = duckDBConnection;
     }
 
     protected abstract void PreExperiment();

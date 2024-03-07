@@ -114,6 +114,11 @@ public class CustomerTests
             products[1][1] = new Product() { seller_id = 2, product_id = 2, price = 10, version = "0" };
         }
 
+        public void AddFinishedTransaction(int sellerId, TransactionOutput transactionOutput)
+        {
+            throw new NotImplementedException();
+        }
+
         public List<TransactionMark> GetAbortedTransactions()
         {
             throw new NotImplementedException();

@@ -2,6 +2,7 @@
 using Common.Infra;
 using Common.Workers.Seller;
 using Common.Workload;
+using Common.Workload.Metrics;
 using Common.Workload.Seller;
 using Microsoft.Extensions.Logging;
 
@@ -73,6 +74,11 @@ public class SellerTests
         {
         }
 
+        public override void AddFinishedTransaction(TransactionOutput transactionOutput)
+        {
+            throw new NotImplementedException();
+        }
+
         public override void BrowseDashboard(string tid)
         {
             throw new NotImplementedException();
@@ -83,7 +89,7 @@ public class SellerTests
             queues[product.product_id - 1].Enqueue(new Message(TransactionType.UPDATE_PRODUCT, tid, product.version));
         }
 
-        protected override void SendUpdatePriceRequest(string tid, Product productToUpdate, float newPrice)
+        protected override void SendUpdatePriceRequest(Product productToUpdate, string tid)
         {
             queues[productToUpdate.product_id - 1].Enqueue(new Message(TransactionType.PRICE_UPDATE, tid, productToUpdate.version));
         }
@@ -167,6 +173,11 @@ public class SellerTests
         {
         }
 
+        public override void AddFinishedTransaction(TransactionOutput transactionOutput)
+        {
+            throw new NotImplementedException();
+        }
+
         public override void BrowseDashboard(string tid)
         {
             throw new NotImplementedException();
@@ -177,13 +188,11 @@ public class SellerTests
             messages.Enqueue(new Message(TransactionType.UPDATE_PRODUCT, tid, product.version));
         }
 
-        protected override void SendUpdatePriceRequest(string tid, Product productToUpdate, float newPrice)
+        protected override void SendUpdatePriceRequest(Product productToUpdate, string tid)
         {
             messages.Enqueue(new Message(TransactionType.PRICE_UPDATE, tid, productToUpdate.version));
         }
     }
-
-
 
 }
 

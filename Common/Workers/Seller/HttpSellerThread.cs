@@ -26,10 +26,10 @@ public sealed class HttpSellerThread : AbstractSellerThread
         return new HttpSellerThread(sellerId, httpClientFactory.CreateClient(), workerConfig, logger);
     }
 
-    protected override void SendUpdatePriceRequest(string tid, Product productToUpdate, float newPrice)
+    protected override void SendUpdatePriceRequest(Product product, string tid)
     {
         HttpRequestMessage request = new(HttpMethod.Patch, config.productUrl);
-        string serializedObject = JsonConvert.SerializeObject(new PriceUpdate(this.sellerId, productToUpdate.product_id, newPrice, tid));
+        string serializedObject = JsonConvert.SerializeObject(new PriceUpdate(this.sellerId, product.product_id, product.price, tid));
         request.Content = HttpUtils.BuildPayload(serializedObject);
 
         var initTime = DateTime.UtcNow;
@@ -40,7 +40,7 @@ public sealed class HttpSellerThread : AbstractSellerThread
         }
         else
         {
-            this.logger.LogDebug("Seller {0} failed to update product {1} price: {2}", this.sellerId, productToUpdate.product_id, resp.ReasonPhrase);
+            this.logger.LogDebug("Seller {0} failed to update product {1} price: {2}", this.sellerId, product.product_id, resp.ReasonPhrase);
         }
     }
 

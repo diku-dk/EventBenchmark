@@ -29,11 +29,11 @@ public sealed class StatefunSellerThread : AbstractSellerThread
         return new StatefunSellerThread(sellerId, httpClientFactory.CreateClient(), workerConfig, logger);
     }
 
-    protected override void SendUpdatePriceRequest(string tid, Product productToUpdate, float newPrice)
+    protected override void SendUpdatePriceRequest(Product product, string tid)
     {
-        string payLoad = JsonConvert.SerializeObject(new PriceUpdate(this.sellerId, productToUpdate.product_id, newPrice, tid));
+        string payLoad = JsonConvert.SerializeObject(new PriceUpdate(this.sellerId, product.product_id, product.price, tid));
 
-        string partitionID = this.sellerId + "-" + productToUpdate.product_id;
+        string partitionID = this.sellerId + "-" + product.product_id;
 
 
         string apiUrl = string.Concat(this.config.productUrl, "/", partitionID);        
@@ -49,7 +49,7 @@ public sealed class StatefunSellerThread : AbstractSellerThread
         else
         {
             this.abortedTransactions.Add(new TransactionMark(tid, TransactionType.PRICE_UPDATE, this.sellerId, MarkStatus.ABORT, "product"));
-            this.logger.LogError("Seller {0} failed to update product {1} price: {2}", this.sellerId, productToUpdate.product_id, resp.ReasonPhrase);
+            this.logger.LogError("Seller {0} failed to update product {1} price: {2}", this.sellerId, product.product_id, resp.ReasonPhrase);
         }
     }
 

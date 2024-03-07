@@ -27,14 +27,14 @@ public sealed class ActorSellerThread : AbstractSellerThread
         return new ActorSellerThread(sellerId, httpClientFactory.CreateClient(), workerConfig, logger);
     }
 
-    protected override void SendUpdatePriceRequest(string tid, Product productToUpdate, float newPrice)
+    protected override void SendUpdatePriceRequest(Product product, string tid)
     {
         HttpRequestMessage request = new(HttpMethod.Patch, config.productUrl);
-        string serializedObject = JsonConvert.SerializeObject(new PriceUpdate(this.sellerId, productToUpdate.product_id, newPrice, tid));
+        string serializedObject = JsonConvert.SerializeObject(new PriceUpdate(this.sellerId, product.product_id, product.price, tid));
         request.Content = HttpUtils.BuildPayload(serializedObject);
 
         var initTime = DateTime.UtcNow;
-        var resp = httpClient.Send(request, HttpCompletionOption.ResponseHeadersRead);
+        var resp = this.httpClient.Send(request, HttpCompletionOption.ResponseHeadersRead);
         if (resp.IsSuccessStatusCode)
         {
             this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.PRICE_UPDATE, initTime));
@@ -43,7 +43,7 @@ public sealed class ActorSellerThread : AbstractSellerThread
         else
         {
             this.abortedTransactions.Add( new TransactionMark(tid, TransactionType.PRICE_UPDATE, this.sellerId, MarkStatus.ABORT, "product") );
-            this.logger.LogError("Seller {0} failed to update product {1} price: {2}", this.sellerId, productToUpdate.product_id, resp.ReasonPhrase);
+            this.logger.LogError("Seller {0} failed to update product {1} price: {2}", this.sellerId, product.product_id, resp.ReasonPhrase);
         }
     }
 
@@ -56,7 +56,7 @@ public sealed class ActorSellerThread : AbstractSellerThread
         };
 
         var now = DateTime.UtcNow;
-        var resp = httpClient.Send(message, HttpCompletionOption.ResponseHeadersRead);
+        var resp = this.httpClient.Send(message, HttpCompletionOption.ResponseHeadersRead);
 
         if (resp.IsSuccessStatusCode)
         {
@@ -97,8 +97,8 @@ public sealed class ActorSellerThread : AbstractSellerThread
     }
 
     public override void AddFinishedTransaction(TransactionOutput transactionOutput){
-        // this.finishedTransactions.Add(transactionOutput);
+        throw new ApplicationException("There must be no 'AddFinishedTransaction' calls to actor seller thread");
     }
-}
 
+}
 

@@ -14,10 +14,10 @@
         "UPDATE_PRODUCT": 40,
         "UPDATE_DELIVERY": 100
     },
-    "concurrencyLevel": 48,
+    "concurrencyLevel": 1,
     "ingestionConfig": {
         "strategy": "WORKER_PER_CPU",
-        "concurrencyLevel": 32,
+        "concurrencyLevel": 16,
         "mapTableToUrl": {
             "sellers": "http://orleans:8081/seller",
             "customers": "http://orleans:8081/customer",
@@ -37,7 +37,7 @@
     "postExperimentTasks": [
         {
             "name": "cleanup",
-            "url": "http://localhost:8081/cleanup"
+            "url": "http://orleans:8081/cleanup"
         }
     ],
     "customerWorkerConfig": {
@@ -55,10 +55,10 @@
         "voucherProbability": 5,
         "productUrl": "http://orleans:8081/product",
         "cartUrl": "http://orleans:8081/cart",
-        "interactive": false
+        "trackReplication": false
     },
     "sellerWorkerConfig": {
-        "interactive": false,
+        "trackReplication": false,
         "delayBetweenRequestsRange": {
             "min": 1,
             "max": 1000

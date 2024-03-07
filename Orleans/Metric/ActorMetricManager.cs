@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Orleans.Metric;
 
-public class ActorMetricManager : MetricManager
+public sealed class ActorMetricManager : MetricManager
 {
 
     private readonly ISellerService sellerService;
@@ -89,8 +89,7 @@ public class ActorMetricManager : MetricManager
         if (dupFin > 0)
             logger.LogWarning("[Customer] Number of duplicated finished transactions found: {0}", dupFin);
 
-        return BuildLatencyList(customerSubmitted, customerFinished, finishTime, "customer");
-
+        return this.BuildLatencyList(customerSubmitted, customerFinished, finishTime, "customer");
     }
 
     protected override List<Latency> CollectFromDelivery(DateTime finishTime)
@@ -118,7 +117,7 @@ public class ActorMetricManager : MetricManager
         if (dupFin > 0)
             logger.LogWarning("[Delivery] Number of duplicated finished transactions found: {0}", dupFin);
 
-        return BuildLatencyList(deliverySubmitted, deliveryFinished, finishTime, "delivery");
+        return this.BuildLatencyList(deliverySubmitted, deliveryFinished, finishTime, "delivery");
     }
 
     protected override List<Latency> CollectFromSeller(DateTime finishTime)
@@ -158,6 +157,6 @@ public class ActorMetricManager : MetricManager
         if (dupFin > 0)
             logger.LogWarning("[Seller] Number of duplicated finished transactions found: {0}", dupFin);
 
-         return BuildLatencyList(sellerSubmitted, sellerFinished, finishTime, "seller");
+         return this.BuildLatencyList(sellerSubmitted, sellerFinished, finishTime, "seller");
     }
 }

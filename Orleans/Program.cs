@@ -20,54 +20,64 @@ public class Program
         try{
         while(true){
 
-        Console.WriteLine("\n Select an option: \n 1 - Generate Data \n 2 - Ingest Data \n 3 - Run Experiment \n 4 - Full Experiment (i.e., 1, 2, and 3) \n 5 - Parse New Configuration \n q - Exit");
+        Console.WriteLine("\n Select an option: \n 1 - Generate Data \n 2 - Ingest Data \n 3 - Run Experiment \n 4 - Ingest and Run (2 and 3) \n 5 - Parse New Configuration \n q - Exit");
         string op = Console.ReadLine();
 
         switch (op)
         {
             case "1":
             {
-                // "Data Source=file.db"; // "DataSource=:memory:"
-                connection = new DuckDBConnection(config.connectionString);
-                connection.Open();
-                SyntheticDataSourceConfig previousData = new SyntheticDataSourceConfig()
-                {
-                    numCustomers = config.numCustomers,
-                    numProducts = config.runs[0].numProducts,
-                    numProdPerSeller = config.numProdPerSeller,
-                    qtyPerProduct = config.qtyPerProduct // fix bug, ohterwise it will be 0
-                };
-                var dataGen = new SyntheticDataGenerator(previousData);
-                dataGen.CreateSchema(connection);
-                // dont need to generate customers on every run. only once
-                dataGen.Generate(connection, true);
-                GC.Collect();
+                connection = GenerateData(config);
                 break;
             }
             case "2":
             {
-                if(connection is null && config.connectionString.SequenceEqual("DataSource=:memory:"))
-                {
-                    Console.WriteLine("Please generate some data first!");
-                    break;
+                if(connection is null){
+                    if(config.connectionString.SequenceEqual("DataSource=:memory:"))
+                    {
+                        Console.WriteLine("Please generate some data first by selecting option 1.");
+                        break;
+                    }
+                    else
+                    {
+                        connection = new DuckDBConnection(config.connectionString);
+                        connection.Open();
+                    }
                 }
-                connection = new DuckDBConnection(config.connectionString);
-                connection.Open();
                 await CustomIngestionOrchestrator.Run(connection, config.ingestionConfig);
-                GC.Collect();
                 break;
             }
             case "3":
             {
-                if(connection is null) Console.WriteLine("Warning: Connection has not been set! Starting anyway...");
+                if(connection is null) {
+                    Console.WriteLine("Warning: Connection has not been set! Starting anyway...");
+                }
                 var expManager = new ActorExperimentManager(new CustomHttpClientFactory(), config, connection);
                 await expManager.RunSimpleExperiment(2);
                 break;
             }
             case "4":
             {
-                var expManager = new ActorExperimentManager(new CustomHttpClientFactory(), config);
-                await expManager.Run();
+                if(connection is null) {
+                      if(config.connectionString.SequenceEqual("DataSource=:memory:"))
+                    {
+                        Console.WriteLine("Please generate some data first by selecting option 1.");
+                        break;
+                    }
+                    else
+                    {
+                        connection = new DuckDBConnection(config.connectionString);
+                        connection.Open();
+                    }
+                }
+                // ingest data
+                await CustomIngestionOrchestrator.Run(connection, config.ingestionConfig);
+                var expManager = new ActorExperimentManager(new CustomHttpClientFactory(), config, connection);
+                // could be a config param: delay after ingest
+                Console.WriteLine("Delay after ingest...");
+                await Task.Delay(10000);
+                // run
+                await expManager.RunSimpleExperiment(2);
                 Console.WriteLine("Experiment finished.");
                 break;
             }
@@ -92,6 +102,26 @@ public class Program
         {
             Console.WriteLine("Exception catched. Source: {0}; Message: {0}", e.Source, e.StackTrace );
         }
+    }
+
+    private static DuckDBConnection GenerateData(ExperimentConfig config)
+    {
+        // "Data Source=file.db"; // "DataSource=:memory:"
+        var connection = new DuckDBConnection(config.connectionString);
+        connection.Open();
+        SyntheticDataSourceConfig previousData = new SyntheticDataSourceConfig()
+        {
+            numCustomers = config.numCustomers,
+            numProducts = config.runs[0].numProducts,
+            numProdPerSeller = config.numProdPerSeller,
+            qtyPerProduct = config.qtyPerProduct // fix bug, ohterwise it will be 0
+        };
+        var dataGen = new SyntheticDataGenerator(previousData);
+        dataGen.CreateSchema(connection);
+        // dont need to generate customers on every run. only once
+        dataGen.Generate(connection, true);
+        GC.Collect();
+        return connection;
     }
 
     public static ExperimentConfig BuildExperimentConfig(string[] args)

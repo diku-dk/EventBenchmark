@@ -59,6 +59,8 @@ public sealed class CustomIngestionOrchestrator
 
         TimeSpan span = DateTime.UtcNow - startTime;
         Console.WriteLine("Ingestion process has terminated in {0} seconds", span.TotalSeconds);
+        Console.WriteLine("Collecting garbage from ingestion process...");
+        GC.Collect();
     }
 
     private static void Produce(BlockingCollection<(JObject,string Url)> tuples, DuckDBDataReader queryResult, string Url)

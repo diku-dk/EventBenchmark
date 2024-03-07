@@ -10,7 +10,6 @@ using Common.Workload.CustomerWorker;
 using Common.Workload.Metrics;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
-using System.Text;
 
 namespace Statefun.Workers;
 
@@ -55,9 +54,6 @@ public class StatefunCustomerThread : HttpCustomerThread
     protected override void SendCheckoutRequest(string tid)
     {
         var payload = BuildCheckoutPayload(tid);
-
-        // var payload = HttpUtils.BuildPayload(objStr, "application/vnd.marketplace/CustomerCheckout");
-       
         try
         {
             DateTime sentTs = DateTime.UtcNow;

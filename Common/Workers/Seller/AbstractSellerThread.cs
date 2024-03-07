@@ -30,6 +30,9 @@ public abstract class AbstractSellerThread : ISellerWorker
     protected readonly ConcurrentBag<TransactionOutput> finishedTransactions;
     protected readonly ConcurrentBag<TransactionMark> abortedTransactions;
 
+    // track sequence of updates to items so it can be matched against the historical carts
+    private readonly List<Product> trackedUpdates;
+
     protected AbstractSellerThread(int sellerId, SellerWorkerConfig workerConfig, ILogger logger)
 	{
         this.random = Random.Shared;
@@ -39,6 +42,7 @@ public abstract class AbstractSellerThread : ISellerWorker
         this.abortedTransactions = new();
         this.sellerId = sellerId;
         this.config = workerConfig;
+        this.trackedUpdates = new List<Product>();
     }
 
     public void SetUp(List<Product> products, DistributionType keyDistribution)
@@ -50,6 +54,7 @@ public abstract class AbstractSellerThread : ISellerWorker
         this.submittedTransactions.Clear();
         this.finishedTransactions.Clear();
         this.abortedTransactions.Clear();
+        this.trackedUpdates.Clear();
     }
 
     /**
@@ -65,14 +70,16 @@ public abstract class AbstractSellerThread : ISellerWorker
             locked = products[idx];
         }
 
-        int percToAdjust = random.Next(config.adjustRange.min, config.adjustRange.max);
+        int percToAdjust = this.random.Next(config.adjustRange.min, config.adjustRange.max);
         var currPrice = products[idx].price;
         var newPrice = currPrice + ((currPrice * percToAdjust) / 100);
 
-        try{
-            SendUpdatePriceRequest(tid, products[idx], newPrice);
-            // update price after successful request
-            products[idx].price = newPrice;
+        try {
+            Product product = new Product(products[idx], newPrice);
+            this.SendUpdatePriceRequest(product, tid);
+            // update instance after successful request
+            this.products[idx] = product;
+            if(config.trackReplication) this.trackedUpdates.Add(product);
         }
         finally
         {
@@ -80,7 +87,7 @@ public abstract class AbstractSellerThread : ISellerWorker
         }
     }
 
-    protected abstract void SendUpdatePriceRequest(string tid, Product productToUpdate, float newPrice);
+    protected abstract void SendUpdatePriceRequest(Product productToUpdate, string tid);
 
     // https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/statements/lock
     public void UpdateProduct(string tid)
@@ -97,9 +104,11 @@ public abstract class AbstractSellerThread : ISellerWorker
         try
         {
             Product product = new Product(products[idx], tid);
-            SendProductUpdateRequest(product, tid);
-            // trick so customer do not need to synchronize to get a product (it may refer to an older version though)
+            this.SendProductUpdateRequest(product, tid);
+            // trick so customer do not need to synchronize to get a product
+            // (concurrent thread may refer to an older version though)
             this.products[idx] = product;
+            if(config.trackReplication) this.trackedUpdates.Add(product);
         }
         finally
         {
@@ -151,5 +160,11 @@ public abstract class AbstractSellerThread : ISellerWorker
         }
         return list;
     }
+
+    public List<Product> GetTrackedProductUpdates()
+    {
+        return this.trackedUpdates;
+    }
+
 }
 
