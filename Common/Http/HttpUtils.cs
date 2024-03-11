@@ -1,5 +1,4 @@
-﻿using MathNet.Numerics.LinearAlgebra;
-using System.Text;
+﻿using System.Text;
 
 namespace Common.Http
 {

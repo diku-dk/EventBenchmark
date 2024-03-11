@@ -12,6 +12,7 @@ using Dapr.Workers;
 using Common.Workers.Seller;
 using Common.Workload;
 using Common.Workers.Customer;
+using DuckDB.NET.Data;
 
 namespace Dapr.Workload;
 
@@ -35,7 +36,7 @@ public class DaprExperimentManager : ExperimentManager
     private readonly DaprWorkloadManager workflowManager;
     private readonly DaprMetricManager metricManager;
 
-    public DaprExperimentManager(IHttpClientFactory httpClientFactory, ExperimentConfig config) : base(config)
+    public DaprExperimentManager(IHttpClientFactory httpClientFactory, ExperimentConfig config, DuckDBConnection connection) : base(config, connection)
     {
         this.httpClientFactory = httpClientFactory;
         this.redisConnection = string.Format("{0}:{1}", config.streamingConfig.host, config.streamingConfig.port);

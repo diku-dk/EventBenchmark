@@ -4,26 +4,12 @@ using Common.Services;
 
 namespace Common.Metric;
 
-public class DaprMetricManager : MetricManager
+public sealed class DaprMetricManager : MetricManager
 {
-    private readonly ISellerService sellerService;
-    private readonly ICustomerService customerService;
-    private readonly IDeliveryService deliveryService;
-    private int numSellers;
-    private int numCustomers;
 
-    public DaprMetricManager(ISellerService sellerService, ICustomerService customerService, IDeliveryService deliveryService) : base()
+    public DaprMetricManager(ISellerService sellerService, ICustomerService customerService, IDeliveryService deliveryService) : base(sellerService, customerService, deliveryService)
 	{
-        this.sellerService = sellerService;
-        this.customerService = customerService;
-        this.deliveryService = deliveryService;
 	}
-
-    public void SetUp(int numSellers, int numCustomers)
-    {
-        this.numSellers = numSellers;
-        this.numCustomers = numCustomers;
-    }
 
     protected override Dictionary<TransactionType, int> CollectAborts(DateTime finishTime)
     {

@@ -17,10 +17,13 @@ public class HttpCustomerThread : AbstractCustomerThread
     protected readonly HttpClient httpClient;
     protected readonly IDictionary<(int sellerId, int productId),Product> cartItems;
 
+    protected readonly ISet<string> tids;
+
     protected HttpCustomerThread(ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Entities.Customer customer, HttpClient httpClient, ILogger logger) : base(sellerService, numberOfProducts, config, customer, logger)
     {
         this.httpClient = httpClient;
         this.cartItems = new Dictionary<(int, int),Product>(config.maxNumberKeysToAddToCart);
+        this.tids = new HashSet<string>();
     }
 
     public static HttpCustomerThread BuildCustomerThread(IHttpClientFactory httpClientFactory, ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Entities.Customer customer)
@@ -136,6 +139,27 @@ public class HttpCustomerThread : AbstractCustomerThread
 
     protected virtual void DoAfterSubmission(string tid)
     {
+        if (this.config.trackReplication)
+        {
+            // store
+            this.tids.Add(tid);
+        }
+    }
+
+    public override IDictionary<string, List<CartItem>> GetCartItemsPerTid(DateTime finishTime)
+    {
+        Dictionary<string,List<CartItem>> dict = new();
+        foreach(var tid in tids){
+            string url = this.config.cartUrl + "/" + this.customer.id + "/history/" + tid;
+            var resp = this.httpClient.Send(new(HttpMethod.Get, url));
+            if(resp.IsSuccessStatusCode){
+                // var str = resp.Content.ReadAsStringAsync();
+                using var reader = new StreamReader(resp.Content.ReadAsStream());
+                var str = reader.ReadToEnd();
+                dict.Add(tid, JsonConvert.DeserializeObject<List<CartItem>>(str));
+            }
+        }
+        return dict;
     }
 
     protected string BuildCheckoutPayload(string tid)

@@ -4,45 +4,42 @@ using Common.Workload;
 using Common.Workload.Delivery;
 using Common.Workload.Metrics;
 using Microsoft.Extensions.Logging;
-using System.Text;
 using Common.Workers;
 using Common.Http;
 using System.Collections.Concurrent;
 
 namespace Statefun.Workers;
 
-public class StatefunDeliveryThread : IDeliveryWorker
+public sealed class StatefunDeliveryThread : IDeliveryWorker
 {
-    string baseContentType = "application/vnd.marketplace/";
+    private static readonly string baseContentType = "application/vnd.marketplace/";
 
-    protected readonly HttpClient httpClient;
-    protected readonly DeliveryWorkerConfig config;
+    private readonly DeliveryWorkerConfig config;
 
-    protected readonly ILogger logger;
+    private readonly ILogger logger;
 
-    protected readonly ConcurrentBag<TransactionMark> abortedTransactions;
+    private readonly ConcurrentBag<TransactionMark> abortedTransactions;
 
-    protected readonly ConcurrentBag<TransactionIdentifier> submittedTransactions;
-    protected readonly ConcurrentBag<TransactionOutput> finishedTransactions;
+    private readonly ConcurrentBag<TransactionIdentifier> submittedTransactions;
 
+    private readonly ConcurrentBag<TransactionOutput> finishedTransactions;
 
-    public static StatefunDeliveryThread BuildDeliveryThread(IHttpClientFactory httpClientFactory, DeliveryWorkerConfig config)
+    public static StatefunDeliveryThread BuildDeliveryThread(DeliveryWorkerConfig config)
     {
         var logger = LoggerProxy.GetInstance("Delivery");
-        return new StatefunDeliveryThread(config, httpClientFactory.CreateClient(), logger);
+        return new StatefunDeliveryThread(config, logger);
     }
 
-    private StatefunDeliveryThread(DeliveryWorkerConfig config, HttpClient httpClient, ILogger logger) 
+    private StatefunDeliveryThread(DeliveryWorkerConfig config, ILogger logger) 
     {       
         this.config = config;
-        this.httpClient = httpClient;
         this.logger = logger;
         this.submittedTransactions = new();
         this.finishedTransactions = new();
         this.abortedTransactions = new(); 
     }    
 
-	new public void Run(string tid)
+	public void Run(string tid)
 	{
 
         string payLoad = "{ \"tid\" : " + tid + " }";
@@ -107,6 +104,5 @@ public class StatefunDeliveryThread : IDeliveryWorker
     public List<(TransactionIdentifier, TransactionOutput)> GetResults() {
         throw new NotImplementedException();
     }
-
 
 }

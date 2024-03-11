@@ -1,17 +1,5 @@
-using System;
-using Common.Experiment;
 using Common.Workload;
-using Common.Infra;
-using Common.Entities;
 using Common.Services;
-using Common.Workers;
-using Common.Workers.Seller;
-using Common.Workers.Customer;
-using Statefun.Metric; 
-using DuckDB.NET.Data;
-using Statefun.Workers;
-using System.Net.Http;
-using System.Text.Json;
 using Common.Streaming;
 using Common.Workload.Metrics;
 using Newtonsoft.Json;
@@ -27,9 +15,9 @@ public class StatefunReceiptPullingThread
 
     protected readonly IDeliveryService deliveryService;
 
-    private string url;
+    private readonly string url;
 
-    public StatefunReceiptPullingThread(String url, ICustomerService customerService, ISellerService sellerService, IDeliveryService deliveryService) {
+    public StatefunReceiptPullingThread(string url, ICustomerService customerService, ISellerService sellerService, IDeliveryService deliveryService) {
         this.url = url;
         this.customerService = customerService;
         this.sellerService = sellerService;

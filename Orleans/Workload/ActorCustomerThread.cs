@@ -14,8 +14,6 @@ public class ActorCustomerThread : HttpCustomerThread
 {
     protected readonly List<TransactionOutput> finishedTransactions;
 
-    private readonly ISet<string> tids;
-
     private ActorCustomerThread(ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer, HttpClient httpClient, ILogger logger) : base(sellerService, numberOfProducts, config, customer, httpClient, logger)
     {
         this.finishedTransactions = new List<TransactionOutput>();
@@ -36,7 +34,6 @@ public class ActorCustomerThread : HttpCustomerThread
     {
         base.SetUp(sellerDistribution, sellerRange, keyDistribution);
         this.finishedTransactions.Clear();
-        this.tids.Clear();
     }
 
     /**
@@ -44,19 +41,9 @@ public class ActorCustomerThread : HttpCustomerThread
      */
     protected override void DoAfterSubmission(string tid)
     {
+        base.DoAfterSubmission(tid);
         this.finishedTransactions.Add(new TransactionOutput(tid, DateTime.UtcNow));
-
-        if (this.config.trackReplication)
-        {
-            // store
-            // i dont need to current state. I need to get the cart items state right before submission to checkout
-            // var clonedCartItems = new Dictionary<(int, int),Product>(this.cartItems);
-            this.tids.Add(tid);
-        }
-
     }
-
-
 
 }
 

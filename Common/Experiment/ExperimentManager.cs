@@ -10,7 +10,6 @@ namespace Common.Experiment;
 
 public abstract class ExperimentManager
 {
-
     protected readonly ExperimentConfig config;
     protected readonly DuckDBConnection connection;
     protected List<Customer> customers;

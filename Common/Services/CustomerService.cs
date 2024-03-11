@@ -1,6 +1,7 @@
 ﻿using Common.Workload.Metrics;
 using Common.Workers.Customer;
 using Common.Streaming;
+using Common.Entities;
 
 namespace Common.Services;
 
@@ -14,22 +15,22 @@ public sealed class CustomerService : ICustomerService
         this.customers = customers;
     }
 
-    public void Run(int customerId, string tid) => customers[customerId].Run(tid);
+    public void Run(int customerId, string tid) => this.customers[customerId].Run(tid);
 
     public List<TransactionIdentifier> GetSubmittedTransactions(int sellerId)
     {
-        return customers[sellerId].GetSubmittedTransactions();
+        return this.customers[sellerId].GetSubmittedTransactions();
     }
 
-    public List<TransactionOutput> GetFinishedTransactions(int sellerId)
+    public List<TransactionOutput> GetFinishedTransactions(int customerId)
     {
-        return customers[sellerId].GetFinishedTransactions();
+        return this.customers[customerId].GetFinishedTransactions();
     }
 
     public List<TransactionMark> GetAbortedTransactions()
     {
         List<TransactionMark> merged = new();
-        foreach(var customer in customers)
+        foreach(var customer in this.customers)
         {
             merged.AddRange(customer.Value.GetAbortedTransactions());
         }
@@ -38,7 +39,17 @@ public sealed class CustomerService : ICustomerService
 
     public void AddFinishedTransaction(int customerId, TransactionOutput transactionOutput)
     {
-        customers[customerId].AddFinishedTransaction(transactionOutput);
+        this.customers[customerId].AddFinishedTransaction(transactionOutput);
+    }
+
+    public IDictionary<int,IDictionary<string,List<CartItem>>> GetCartHistoryPerCustomer(DateTime finishTime)
+    {
+        IDictionary<int, IDictionary<string, List<CartItem>>> dict = new Dictionary<int, IDictionary<string, List<CartItem>>>();
+        foreach(int customerId in this.customers.Keys)
+        {
+            dict.Add(customerId, this.customers[customerId].GetCartItemsPerTid(finishTime) );
+        }
+        return dict;
     }
 }
 

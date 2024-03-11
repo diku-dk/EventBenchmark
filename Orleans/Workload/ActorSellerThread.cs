@@ -86,7 +86,7 @@ public sealed class ActorSellerThread : AbstractSellerThread
             }
             else
             {
-                this.abortedTransactions.Add( new TransactionMark(tid, TransactionType.QUERY_DASHBOARD, this.sellerId, MarkStatus.ABORT, "seller") );
+                this.abortedTransactions.Add(new TransactionMark(tid, TransactionType.QUERY_DASHBOARD, this.sellerId, MarkStatus.ABORT, "seller"));
                 this.logger.LogDebug("Seller {0}: Dashboard retrieval failed: {0}", this.sellerId, response.ReasonPhrase);
             }
         }

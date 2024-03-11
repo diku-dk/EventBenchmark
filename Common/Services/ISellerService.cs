@@ -19,4 +19,6 @@ public interface ISellerService
 
     void AddFinishedTransaction(int sellerId, TransactionOutput transactionOutput);
 
+    IDictionary<int, List<Product>> GetTrackedProductUpdates();
+
 }

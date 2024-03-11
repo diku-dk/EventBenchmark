@@ -3,7 +3,6 @@ using Common.Workload;
 using Common.Infra;
 using Common.Entities;
 using Common.Services;
-using Common.Workers;
 using Common.Workers.Seller;
 using Common.Workers.Customer;
 using Statefun.Metric; 
@@ -20,8 +19,6 @@ public class StatefunExperimentManager : ExperimentManager
     private string receiptUrl = "http://statefunhost:8091/receipts";
 
     private CancellationTokenSource cancellationTokenSource;
-
-    protected static readonly ILogger logger = LoggerProxy.GetInstance("StatefunExperimentManager");
     
     private readonly IHttpClientFactory httpClientFactory;
 
@@ -42,15 +39,14 @@ public class StatefunExperimentManager : ExperimentManager
     // define a pulling thread list which contains 3 pulling threads
     private readonly List<StatefunReceiptPullingThread> receiptPullingThreads;
 
-    private int numPullingThreads = 3;
-
+    private static readonly int numPullingThreads = 3;
 
     public StatefunExperimentManager(IHttpClientFactory httpClientFactory, ExperimentConfig config, DuckDBConnection connection = null) : base(config, connection)
     {
         this.httpClientFactory = httpClientFactory;
 
         // this.deliveryThread = new StatefunDeliveryThread(httpClientFactory, config.deliveryWorkerConfig);
-        this.deliveryThread = StatefunDeliveryThread.BuildDeliveryThread(httpClientFactory, config.deliveryWorkerConfig);
+        this.deliveryThread = StatefunDeliveryThread.BuildDeliveryThread(config.deliveryWorkerConfig);
         // this.deliveryThread = DeliveryThread.BuildDeliveryThread(httpClientFactory, config.deliveryWorkerConfig);
         this.deliveryService = new DeliveryService(this.deliveryThread);
 

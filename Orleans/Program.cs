@@ -59,7 +59,7 @@ public class Program
             case "4":
             {
                 if(connection is null) {
-                      if(config.connectionString.SequenceEqual("DataSource=:memory:"))
+                    if(config.connectionString.SequenceEqual("DataSource=:memory:"))
                     {
                         Console.WriteLine("Please generate some data first by selecting option 1.");
                         break;

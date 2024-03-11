@@ -73,7 +73,7 @@ public class DeliveryThread : IDeliveryWorker
 
     public void AddFinishedTransaction(TransactionOutput transactionOutput)
     {
-        // this.finishedTransactions.Add(transactionOutput);
+        throw new NotImplementedException();
     }
 
     // never invoked in DeliveryThread

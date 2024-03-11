@@ -14,7 +14,8 @@ Online Marketplace is a benchmark modeling an event-driven microservice system i
     * [Data Generation](#data)
     * [Configuration](#config)
     * [Running an Experiment](#run)
-- [Etc](#etc)
+- [Supplemental Material](#supplemental)
+    * [Etc](#etc)
 
 ## <a name="marketplace"></a>Online Marketplace Driver
 
@@ -51,23 +52,26 @@ For the requests that modify microservices' state (POST/PATCH/PUT), refer to cla
 
 ### <a name="impl"></a>Implementations
 
-Right now there are two implementations of Online Marketplace available: [Orleans](https://github.com/diku-dk/MarketplaceOnOrleans) and [Statefun](https://github.com/diku-dk/MarketplaceOnStatefun). In case you want to reproduce experiments, their repositories contain instructions on how to configure and deploy Online Marketplace.
+There are two stable implementations of Online Marketplace available: [Orleans](https://github.com/diku-dk/MarketplaceOnOrleans) and [Statefun](https://github.com/diku-dk/MarketplaceOnStatefun). In case you want to reproduce experiments, their repositories contain instructions on how to configure and deploy Online Marketplace.
+
+The [Dapr](https://github.com/diku-dk/MarketplaceOnDapr) implementation is available, but outdated and possibly show bugs. Use with precaution. We intend to update the Online Marketplace on Dapr as soon as time allows.
 
 ## <a name="driver"></a>Benchmark Driver
 
 ### <a name="Description"></a>Description
 
-The driver is written in C# and takes advantage over the thread management facilities provided by .NET framework. It is strongly recommended to analyze the subprojects [Orleans](Orleans) and [Statefun](Statefun) to understand how to extend the driver to run experiments in other data platforms. Further instructions will be included soon.
+The driver is written in C# and takes advantage over the thread management facilities provided by the .NET framework. It is strongly recommended to analyze the subprojects [Orleans](Orleans) and [Statefun](Statefun) to understand how to extend the driver to run experiments in other data platforms. Further instructions will be included soon.
 
 ### <a name="data"></a>Data Generation
 
-The driver uses [DuckDB](https://duckdb.org/why_duckdb) to store and query generated data during the workload submission. The library [DuckDB.NET](https://github.com/Giorgi/DuckDB.NET) is used to bridge .NET with DuckDB. However, only Unix-based operating systems are supported. As the driver depends on the data stored in DuckDB, unfortunately it is not possible to run the benchmark in Windows-based operating systems.
+The driver uses [DuckDB](https://duckdb.org/why_duckdb) to store and query generated data during the workload submission. Besides storing data in DuckDB filesystem, it is worthy noting that users can also generate data in memory to use in experiments. More info about can be found in [Config](#config). The benefit of persisting data in DuckDB is that such data can be safely reused in other experiments, thus decreasing experiment runs' overall time.
 
-In addition, [Dapper](https://github.com/DapperLib/Dapper) is used to map rows to objects. [Bogus](https://github.com/bchavez/Bogus) is used to generate faithful synthetic data. It is worthy noting that users can also generate data in memory to use in experiments. More info about can be found in [Config](#config)
+The library [DuckDB.NET](https://github.com/Giorgi/DuckDB.NET) is used to bridge .NET with DuckDB. However, the library only supports Unix-based operating systems right now. As the driver depends on the data stored in DuckDB, unfortunately it is not possible to run the benchmark in Windows-based operating systems.
 
+Furthermore, we use additional libraries to support the data generation process. [Dapper](https://github.com/DapperLib/Dapper) is used to map rows to objects. [Bogus](https://github.com/bchavez/Bogus) is used to generate faithful synthetic data.
 ### <a name="config"></a>Configuration
 
-The driver requires a configuration file to be provided at startup. The configuration prescribes several important aspects of the experiment, including the transaction ratio, the API addresses, the data set parameters, the amount of concurrency, and more. An example configuration, with comments included when the parameter name is not auto-explanable, is shown below.
+The driver requires a configuration file to be passed as input at startup. The configuration prescribes several important aspects of the experiment, including the transaction ratio, the target microservice API addresses, the data set parameters, the degree of concurrency, and more. An example configuration, with comments included when the parameter name is not auto-explanable, is shown below.
 
 ```
 {
@@ -145,11 +149,11 @@ The driver requires a configuration file to be provided at startup. The configur
 
 ```
 
-Example configuration files are found in [Configuration](Configuration).
+Other example configuration files are found in [Configuration](Configuration).
 
 ### <a name="run"></a>Running an Experiment
 
-Once the configuration is set, and assuming the target data platform is up and running (ready to receive requests), we can initialize the benchmark driver. In this repository root folder, run the following commands for the respective data platforms:
+Once the configuration is set, and assuming the target data platform is up and running (i.e., ready to receive requests), we can initialize the benchmark driver. In the project root folder, run the following commands for the respective data platforms:
 
 - Orleans
 ```
@@ -175,11 +179,17 @@ In both cases, the following menu will be shown to the user:
  q - Exit
 ```
 
-Through the menu, the user can select the benchmark task, including data generation (1), data ingestion into the data platform (2), and (3) workload submission.
+Through the menu, the user can select specific benchmark tasks, including data generation (1), data ingestion into the data platform (2), and workload submission (3). In case the configuration file has been modified, one can also request the driver to read the new configuration (5) without the need to restart the driver.
 
-## <a name="etc"></a>Etc
+At the end of an experiment cycle, the results collected along the execution are shown in the screen and stored automatically in a text file. The text file indicates the execution time, as well as some of the parameters used for faster identification of a specific run.
 
-## Useful links
+## <a name="supplemental"></a>Supplemental Material
+
+### <a name="replication"></a>Tracking Replication Correctness
+
+### <a name="etc"></a>Etc
+
+#### Useful links
 - [How to copy files to output directory](https://stackoverflow.com/questions/44374074/copy-files-to-output-directory-using-csproj-dotnetcore)
 - [Who is listening to a given port?](https://stackoverflow.com/questions/4421633/who-is-listening-on-a-given-tcp-port-on-mac-os-x)
 - [Docker deployment](http://sergeybykov.github.io/orleans/1.5/Documentation/Deployment-and-Operations/Docker-Deployment.html)

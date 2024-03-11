@@ -44,5 +44,16 @@ public sealed class SellerService : ISellerService
     {
         this.sellers[sellerId].AddFinishedTransaction(transactionOutput);
     }
+
+    public IDictionary<int,List<Product>> GetTrackedProductUpdates()
+    {
+        Dictionary<int,List<Product>> dict = new(this.sellers.Count);
+        foreach(int sellerId in this.sellers.Keys)
+        {
+            dict.Add(sellerId, this.sellers[sellerId].GetTrackedProductUpdates());
+        }
+        return dict;
+    }
+
 }
 

@@ -1,21 +1,20 @@
-﻿using Common.Workers;
-using Common.Streaming;
+﻿using Common.Streaming;
 using Common.Workload.Metrics;
 
-namespace Common.Workers
+namespace Common.Workers;
+
+public interface IDeliveryWorker
 {
-	public interface IDeliveryWorker
-	{
-		void Run(string tid);
-		List<TransactionMark> GetAbortedTransactions();
+	void Run(string tid);
 
-		List<(TransactionIdentifier, TransactionOutput)> GetResults();
+	List<TransactionMark> GetAbortedTransactions();
 
-		void AddFinishedTransaction(TransactionOutput transactionOutput);
+	List<(TransactionIdentifier, TransactionOutput)> GetResults();
 
-		List<TransactionIdentifier> GetSubmittedTransactions();
+	void AddFinishedTransaction(TransactionOutput transactionOutput);
 
-		 List<TransactionOutput> GetFinishedTransactions();
-	}
+	List<TransactionIdentifier> GetSubmittedTransactions();
+
+	List<TransactionOutput> GetFinishedTransactions();
 }
 

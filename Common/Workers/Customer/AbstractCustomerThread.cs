@@ -6,6 +6,7 @@ using MathNet.Numerics.Distributions;
 using Microsoft.Extensions.Logging;
 using Common.Workload.CustomerWorker;
 using Common.Streaming;
+using Common.Entities;
 
 namespace Common.Workers.Customer;
 
@@ -86,7 +87,7 @@ public abstract class AbstractCustomerThread : ICustomerWorker
 
     public virtual void AddFinishedTransaction(TransactionOutput transactionOutput)
     {
-        // do nothing
+        throw new NotImplementedException();
     }
 
     public List<TransactionMark> GetAbortedTransactions()
@@ -95,4 +96,10 @@ public abstract class AbstractCustomerThread : ICustomerWorker
     }
 
     public abstract List<TransactionOutput> GetFinishedTransactions();
+
+    public virtual IDictionary<string, List<CartItem>> GetCartItemsPerTid(DateTime finishTime)
+    {
+        throw new NotImplementedException();
+    }
+
 }

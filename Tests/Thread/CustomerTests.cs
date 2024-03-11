@@ -79,7 +79,7 @@ public class CustomerTests
             while (cartItems.Count < numberOfProducts)
             {
                 var sellerId = this.sellerIdGenerator.Sample();
-                var product = sellerService.GetProduct(sellerId, this.productIdGenerator.Sample() - 1);
+                var product = this.sellerService.GetProduct(sellerId, this.productIdGenerator.Sample() - 1);
                 cartItems.Add((sellerId, product.product_id));
             }
         }
@@ -139,13 +139,16 @@ public class CustomerTests
             throw new NotImplementedException();
         }
 
+        public IDictionary<int, List<Product>> GetTrackedProductUpdates()
+        {
+            throw new NotImplementedException();
+        }
+
         public void Run(int sellerId, string tid, TransactionType type)
         {
             throw new NotImplementedException();
         }
     }
-
-
 
 }
 
