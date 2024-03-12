@@ -23,13 +23,13 @@
 
         public int voucherProbability { get; set; }
 
-        // flag that defines whether causal anomalies are tracked
-        public bool trackReplication { get; set; }
+        // flag that defines whether submitted TIDs are tracked
+        public bool trackTids { get; set; }
 
         public CustomerWorkerConfig(){}
 
         public CustomerWorkerConfig(int maxNumberKeysToBrowse, int maxNumberKeysToAddToCart, int checkoutProbability, string productUrl, string cartUrl,
-            Interval minMaxQtyRange, Interval delayBetweenRequestsRange, int voucherProbability, bool trackReplication)
+            Interval minMaxQtyRange, Interval delayBetweenRequestsRange, int voucherProbability, bool trackTids)
         {
             this.maxNumberKeysToBrowse = maxNumberKeysToBrowse;
             this.maxNumberKeysToAddToCart = maxNumberKeysToAddToCart;
@@ -39,7 +39,7 @@
             this.minMaxQtyRange = minMaxQtyRange;
             this.delayBetweenRequestsRange = delayBetweenRequestsRange;
             this.voucherProbability = voucherProbability;
-            this.trackReplication = trackReplication;
+            this.trackTids = trackTids;
         }
 
     }

@@ -139,7 +139,7 @@ public class HttpCustomerThread : AbstractCustomerThread
 
     protected virtual void DoAfterSubmission(string tid)
     {
-        if (this.config.trackReplication)
+        if (this.config.trackTids)
         {
             // store
             this.tids.Add(tid);

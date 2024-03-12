@@ -15,7 +15,7 @@
         public Interval delayBetweenRequestsRange { get; set; }
 
         // flag that defines whether causal anomalies are tracked
-        public bool trackReplication { get; set; }
+        public bool trackUpdates { get; set; }
 
     }
 }

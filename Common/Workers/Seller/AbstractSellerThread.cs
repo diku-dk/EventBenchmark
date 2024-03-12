@@ -79,7 +79,7 @@ public abstract class AbstractSellerThread : ISellerWorker
             this.SendUpdatePriceRequest(product, tid);
             // update instance after successful request
             this.products[idx] = product;
-            if(config.trackReplication) this.trackedUpdates.Add(product);
+            if(config.trackUpdates) this.trackedUpdates.Add(product);
         }
         finally
         {
@@ -108,7 +108,7 @@ public abstract class AbstractSellerThread : ISellerWorker
             // trick so customer do not need to synchronize to get a product
             // (concurrent thread may refer to an older version though)
             this.products[idx] = product;
-            if(config.trackReplication) this.trackedUpdates.Add(product);
+            if(config.trackUpdates) this.trackedUpdates.Add(product);
         }
         finally
         {

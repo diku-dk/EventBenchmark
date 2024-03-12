@@ -53,10 +53,10 @@
         "voucherProbability": 5,
         "productUrl": "http://localhost:8081/product",
         "cartUrl": "http://localhost:8081/cart",
-        "trackReplication": false
+        "trackTids": false
     },
     "sellerWorkerConfig": {
-        "trackReplication": false,
+        "trackUpdates": false,
         "delayBetweenRequestsRange": {
             "min": 1,
             "max": 1000

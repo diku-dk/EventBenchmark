@@ -29,22 +29,47 @@ public sealed class CustomIngestionOrchestrator
 
         ConsoleUtility.WriteProgressBar(0);
 
-        foreach (var table in config.mapTableToUrl)
+        // Console.WriteLine($"Setting up {config.mapTableToUrl.Count} utility workers to read tuples from internal database and parse them into JSON...");
+
+        foreach (var entry in config.mapTableToUrl)
         {
-            command.CommandText = "select * from "+table.Key+";";
+            command.CommandText = "select * from "+entry.Key+";";
             var queryResult = command.ExecuteReader();
-            tasksToWait.Add(Task.Run(() => Produce(tuples, queryResult, table.Value)));
+            string table = entry.Value;
+            if(!queryResult.HasRows) {
+                Console.WriteLine($"No rows found in table {entry.Key}!");
+                continue;
+            }
+            tasksToWait.Add(Task.Run(() => Produce(tuples, queryResult, table)));
         }
 
-        await Task.WhenAll(tasksToWait);
-        ConsoleUtility.WriteProgressBar(50, true);
-        tasksToWait.Clear();
+        int progress = 25;
+        ConsoleUtility.WriteProgressBar(progress, true);
+
+        // Console.WriteLine($"All {config.mapTableToUrl.Count} utility workers submitted.");
+
+        int prog = 25 / config.mapTableToUrl.Count;
+        foreach(var task in tasksToWait)
+        {
+            await task;
+            progress += prog;
+            ConsoleUtility.WriteProgressBar(progress, true);
+        }
+
+        // Console.WriteLine($"All {config.mapTableToUrl.Count} utility workers finished.");
+
+        // Console.WriteLine($"Setting up {numThreads} worker threads to send parsed records to target microservices...");
 
         for (int i = 0; i < numThreads; i++) {
              tasksToWait.Add( Task.Run(() => ConsumeShared(tuples, errors)) );
         }
-        
-        await Task.WhenAll(tasksToWait);
+
+        prog = 50 / numThreads;
+        foreach(var task in tasksToWait) {
+            await task;
+            progress += prog;
+            ConsoleUtility.WriteProgressBar(progress, true);
+        }
 
         ConsoleUtility.WriteProgressBar(100, true);
         Console.WriteLine();

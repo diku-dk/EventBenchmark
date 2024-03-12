@@ -148,12 +148,6 @@ public class ActorExperimentManager : ExperimentManager
 
     protected override async void PostExperiment()
     {
-        //
-        if (this.config.customerWorkerConfig.trackReplication)
-        {
-
-        }
-
         await this.TriggerPostExperimentTasks();
     }
 

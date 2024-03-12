@@ -54,7 +54,7 @@ namespace Common.DataGeneration
 
             var command = connection.CreateCommand();
 
-            Console.WriteLine("Seller, Product, and Stock Item generation is progress...");                        
+            Console.WriteLine("Seller, Product, and Stock Item generation in progress...");                        
             ConsoleUtility.WriteProgressBar(0);            
             float perc;
             while (remainingProducts > 0)
