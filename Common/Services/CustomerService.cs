@@ -47,7 +47,7 @@ public sealed class CustomerService : ICustomerService
         IDictionary<int, IDictionary<string, List<CartItem>>> dict = new Dictionary<int, IDictionary<string, List<CartItem>>>();
         foreach(int customerId in this.customers.Keys)
         {
-            dict.Add(customerId, this.customers[customerId].GetCartItemsPerTid(finishTime) );
+            dict.Add(customerId, this.customers[customerId].GetCartItemsPerTid(finishTime));
         }
         return dict;
     }

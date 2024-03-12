@@ -187,11 +187,17 @@ At the end of an experiment cycle, the results collected along the execution are
 
 ### <a name="replication"></a>Tracking Replication Correctness
 
+The Online Marketplace implementation targeting [Microsoft Orleans](https://github.com/diku-dk/MarketplaceOnOrleans) supports  tracking the cart history. By tracking the cart history, we can match the items in the carts with the history of product updates. That enables the identification of possible causal anomalies related to updates in multiple objects.
+
+```
+to be continued...
+```
+
 ### <a name="etc"></a>Etc
 
 #### Useful links
 - [How to copy files to output directory](https://stackoverflow.com/questions/44374074/copy-files-to-output-directory-using-csproj-dotnetcore)
-- [Who is listening to a given port?](https://stackoverflow.com/questions/4421633/who-is-listening-on-a-given-tcp-port-on-mac-os-x)
-- [Docker deployment](http://sergeybykov.github.io/orleans/1.5/Documentation/Deployment-and-Operations/Docker-Deployment.html)
+- [What process is listening to a given port?](https://stackoverflow.com/questions/4421633/who-is-listening-on-a-given-tcp-port-on-mac-os-x)
+- [Orleans Docker deployment](http://sergeybykov.github.io/orleans/1.5/Documentation/Deployment-and-Operations/Docker-Deployment.html)
 - [Interlocked](https://learn.microsoft.com/en-us/dotnet/api/system.threading.interlocked.increment?view=net-7.0&redirectedfrom=MSDN#System_Threading_Interlocked_Increment_System_Int32__)
 - [Locust](https://github.com/GoogleCloudPlatform/microservices-demo/blob/main/src/loadgenerator/locustfile.py)

@@ -222,6 +222,8 @@ public abstract class MetricManager
         if(anomalies > 0){
             logger.LogInformation("================== Anomalies ==================");
             sw.WriteLine("================== Anomalies ==================");
+            logger.LogInformation("Number of collected anomalies: {0}", anomalies);
+            sw.WriteLine("Number of collected anomalies: {0}", anomalies);
         }
 
         logger.LogInformation("=================    THE END   ================");
@@ -230,7 +232,6 @@ public abstract class MetricManager
         sw.Close();
 
         logger.LogInformation("Finished collecting metrics.");
-
     }
 
     protected virtual Dictionary<TransactionType, int> CollectAborts(DateTime finishTime)
@@ -370,13 +371,14 @@ public abstract class MetricManager
                 {
                     ISet<(int,int)> sellerTrack = new HashSet<(int,int)>();
 
-                    // no multi-object causality is broken for a single item
+                    // no causality is broken for a single item
                     if(sellerGroup.Value.Count == 1) continue;
 
                     // price that has not applied but another product shows a version that occurs after that price update
                     List<Product> sellerUpdates = productUpdatesPerSeller[sellerGroup.Key];
 
-                    // no causality is broken for the first item
+                    // we verify causality anomaly by fixing a pivot
+                    // up to this pivot, have the cart broken causality?
                     for(int i = 1; i < sellerGroup.Value.Count; i++)
                     {
                         // 1 - find entry in product updates per seller
