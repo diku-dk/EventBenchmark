@@ -74,12 +74,12 @@ public sealed class DaprMetricManager : MetricManager
         return BuildLatencyList(customerSubmitted, customerFinished, finishTime, "customer");
     }
 
-    protected override List<Latency> CollectFromDelivery(DateTime finishTime)
+    public override List<Latency> CollectFromDelivery(DateTime finishTime)
     {
         int dupSub = 0;
         int dupFin = 0;
 
-        var res = deliveryService.GetResults();
+        var res = this.deliveryService.GetResults();
         Dictionary<object, TransactionIdentifier> deliverySubmitted = new();
         Dictionary<object, TransactionOutput> deliveryFinished = new();
         foreach (var pair in res)
@@ -99,7 +99,7 @@ public sealed class DaprMetricManager : MetricManager
         if (dupFin > 0)
             logger.LogWarning("[Delivery] Number of duplicated finished transactions found: {0}", dupFin);
 
-        return BuildLatencyList(deliverySubmitted, deliveryFinished, finishTime, "delivery");
+        return this.BuildLatencyList(deliverySubmitted, deliveryFinished, finishTime, "delivery");
     }
 
     protected override List<Latency> CollectFromSeller(DateTime finishTime)

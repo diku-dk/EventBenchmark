@@ -15,7 +15,7 @@ using DuckDB.NET.Data;
 
 namespace Orleans.Workload;
 
-public class ActorExperimentManager : ExperimentManager
+public sealed class ActorExperimentManager : AbstractExperimentManager
 {
     private readonly IHttpClientFactory httpClientFactory;
 
@@ -58,30 +58,30 @@ public class ActorExperimentManager : ExperimentManager
         this.metricManager = new ActorMetricManager(sellerService, customerService, deliveryService);
     }
 
-    public async Task RunSimpleExperiment(int type)
+    public override async Task RunSimpleExperiment(int type)
     {
         this.customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
-        PreExperiment();
-        PreWorkload(0);
-        SetUpManager(0);
+        this.PreExperiment();
+        this.PreWorkload(0);
+        this.SetUpManager(0);
         (DateTime startTime, DateTime finishTime) res;
         if(type == 0){
             Console.WriteLine("Thread mode selected.");
-            res = workloadManager.RunThreads();
+            res = this.workloadManager.RunThreads();
         }
         else if(type == 1) {
             Console.WriteLine("Task mode selected.");
-            res = workloadManager.RunTasks();
+            res = this.workloadManager.RunTasks();
         }
         else {
             Console.WriteLine("Task per Tx mode selected.");
-            res = await workloadManager.RunTaskPerTx();
+            res = await this.workloadManager.RunTaskPerTx();
         }
         DateTime startTime = res.startTime;
         DateTime finishTime = res.finishTime;
-        Collect(0, startTime, finishTime);
-        PostExperiment();
-        CollectGarbage();
+        this.Collect(0, startTime, finishTime);
+        this.PostExperiment();
+        this.CollectGarbage();
     }
 
     protected override void PreExperiment()
@@ -89,31 +89,31 @@ public class ActorExperimentManager : ExperimentManager
         Console.WriteLine("Initializing customer threads...");
         for (int i = this.customerRange.min; i <= this.customerRange.max; i++)
         {
-            this.customerThreads.Add(i, ActorCustomerThread.BuildCustomerThread(httpClientFactory, sellerService, config.numProdPerSeller, config.customerWorkerConfig, this.customers[i-1]));
+            this.customerThreads.Add(i, ActorCustomerThread.BuildCustomerThread(this.httpClientFactory, this.sellerService, this.config.numProdPerSeller, this.config.customerWorkerConfig, this.customers[i-1]));
         }
     }
 
     protected override void PreWorkload(int runIdx)
     {
         Console.WriteLine("Initializing seller threads...");
-        this.numSellers = (int)DuckDbUtils.Count(connection, "sellers");
-        for (int i = 1; i <= numSellers; i++)
+        this.numSellers = (int)DuckDbUtils.Count(this.connection, "sellers");
+        for (int i = 1; i <= this.numSellers; i++)
         {
             List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
-            if (!sellerThreads.ContainsKey(i))
+            if (!this.sellerThreads.ContainsKey(i))
             {
-                sellerThreads[i] = ActorSellerThread.BuildSellerThread(i, httpClientFactory, config.sellerWorkerConfig);
-                sellerThreads[i].SetUp(products, config.runs[runIdx].keyDistribution);
+                this.sellerThreads[i] = ActorSellerThread.BuildSellerThread(i, this.httpClientFactory, this.config.sellerWorkerConfig);
+                this.sellerThreads[i].SetUp(products, this.config.runs[runIdx].keyDistribution);
             }
             else
             {
-                sellerThreads[i].SetUp(products, config.runs[runIdx].keyDistribution);
+                this.sellerThreads[i].SetUp(products, this.config.runs[runIdx].keyDistribution);
             }
         }
 
         Console.WriteLine("Setting up seller workload info in customer threads...");
         Interval sellerRange = new Interval(1, this.numSellers);
-        for (int i = customerRange.min; i <= customerRange.max; i++)
+        for (int i = this.customerRange.min; i <= this.customerRange.max; i++)
         {
             this.customerThreads[i].SetUp(this.config.runs[runIdx].sellerDistribution, sellerRange, this.config.runs[runIdx].keyDistribution);
         }
@@ -121,16 +121,15 @@ public class ActorExperimentManager : ExperimentManager
 
     protected override WorkloadManager SetUpManager(int runIdx)
     {
-        this.workloadManager.SetUp(config.runs[runIdx].sellerDistribution, new Interval(1, this.numSellers));
-        return workloadManager;
+        this.workloadManager.SetUp(this.config.runs[runIdx].sellerDistribution, new Interval(1, this.numSellers));
+        return this.workloadManager;
     }
 
     protected override void Collect(int runIdx, DateTime startTime, DateTime finishTime)
     {
         string ts = new DateTimeOffset(startTime).ToUnixTimeMilliseconds().ToString();
-        this.metricManager.SetUp(numSellers, config.numCustomers);
-        this.metricManager.Collect(startTime, finishTime, config.epoch, string.Format("{0}#{1}_{2}_{3}_{4}_{5}_{6}", ts, runIdx, config.numCustomers, config.concurrencyLevel,
-                    config.runs[runIdx].numProducts, config.runs[runIdx].sellerDistribution, config.runs[runIdx].keyDistribution));
+        this.metricManager.SetUp(this.numSellers, this.config.numCustomers);
+        this.metricManager.Collect(startTime, finishTime, config.epoch, string.Format("{0}#{1}_{2}_{3}_{4}_{5}_{6}", ts, runIdx, this.config.numCustomers, this.config.concurrencyLevel, this.config.runs[runIdx].numProducts, this.config.runs[runIdx].sellerDistribution, this.config.runs[runIdx].keyDistribution));
     }
 
     private async Task TriggerPostExperimentTasks()
@@ -155,7 +154,7 @@ public class ActorExperimentManager : ExperimentManager
     {
         // reset microservice states
         var resps_ = new List<Task<HttpResponseMessage>>();
-        foreach (var task in config.postRunTasks)
+        foreach (var task in this.config.postRunTasks)
         {
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
             logger.LogInformation("Post run task to URL {0}", task.url);

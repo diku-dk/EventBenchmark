@@ -32,7 +32,6 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Driver\" />
-    <Folder Include="Http\" />
     <Folder Include="Thread\" />
     <Folder Include="Anomaly\" />
   </ItemGroup>

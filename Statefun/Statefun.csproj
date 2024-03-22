@@ -7,8 +7,6 @@
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(RunConfiguration)' == 'http' " />
-  <ItemGroup>
-  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Common\Common.csproj">

@@ -8,7 +8,7 @@ using Common.Services;
 
 namespace Common.Workload;
 
-public abstract class WorkloadManager
+public class WorkloadManager
 {
     public static readonly byte ITEM = 0;
 
@@ -99,7 +99,7 @@ public abstract class WorkloadManager
             TransactionType tx = this.PickTransactionFromDistribution();
             this.histogram[tx]++;
             var toPass = currentTid;
-            _ = Task.Run(() => SubmitTransaction(toPass.ToString(), tx));
+            _ = Task.Run(() => this.SubmitTransaction(toPass.ToString(), tx));
             currentTid++;
         }
 

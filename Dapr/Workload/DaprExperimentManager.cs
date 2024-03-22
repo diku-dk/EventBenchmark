@@ -16,7 +16,7 @@ using DuckDB.NET.Data;
 
 namespace Dapr.Workload;
 
-public class DaprExperimentManager : ExperimentManager
+public class DaprExperimentManager : AbstractExperimentManager
 {
     private readonly IHttpClientFactory httpClientFactory;
 

@@ -1,7 +1,8 @@
 ﻿using Common.DataGeneration;
 using Common.Experiment;
+using Common.Http;
+using Common.Infra;
 using DuckDB.NET.Data;
-using Newtonsoft.Json;
 using Statefun.Infra;
 using Statefun.Workload;
 
@@ -13,7 +14,7 @@ public class Program
     public static async Task Main(string[] args)
     {
         Console.WriteLine("Initializing benchmark driver...");
-        ExperimentConfig config = BuildExperimentConfig(args);
+        ExperimentConfig config = ConsoleUtility.BuildExperimentConfig(args);
         Console.WriteLine("Configuration parsed. Starting program...");
         DuckDBConnection connection = null;
 
@@ -76,7 +77,7 @@ public class Program
                         }
                     case "5":
                         {
-                            config = BuildExperimentConfig(args);
+                            config = ConsoleUtility.BuildExperimentConfig(args);
                             Console.WriteLine("Configuration parsed.");
                             break;
                         }
@@ -96,31 +97,6 @@ public class Program
         {
             Console.WriteLine("Exception catched. Source: {0}; Message: {0}", e.Source, e.StackTrace);
         }
-    }
-
-    public static ExperimentConfig BuildExperimentConfig(string[] args)
-    {
-        if (args is not null && args.Length > 0 && File.Exists(args[0]))
-        {
-            Console.WriteLine("Directory of configuration files passsed as parameter: {0}", args[0]);
-        }
-        else
-        {
-            throw new Exception("No file passed as parameter!");
-        }
-
-        Console.WriteLine("Init reading experiment configuration file...");
-        ExperimentConfig experimentConfig;
-        using (StreamReader r = new StreamReader(args[0]))
-        {
-            string json = r.ReadToEnd();
-            Console.WriteLine("Configuration file contents:\n {0}", json);
-            experimentConfig = JsonConvert.DeserializeObject<ExperimentConfig>(json);
-        }
-        Console.WriteLine("Experiment configuration read succesfully");
-
-        return experimentConfig;
-
     }
 
 }

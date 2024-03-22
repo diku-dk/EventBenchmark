@@ -1,7 +1,14 @@
-﻿namespace Common.Infra;
+﻿using Common.Experiment;
+using Newtonsoft.Json;
 
-// Source: https://stackoverflow.com/a/70097843/7735153
-public class ConsoleUtility
+namespace Common.Infra;
+
+// 
+/**
+ * Bar progress source code: https://stackoverflow.com/a/70097843/7735153
+ * 
+ */
+public sealed class ConsoleUtility
 {
     const char _block = '■';
     const string _back = "\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b";
@@ -29,4 +36,30 @@ public class ConsoleUtility
             Console.Write("\b");
         Console.Write(_twirl[progress % _twirl.Length]);
     }
+
+    public static ExperimentConfig BuildExperimentConfig(string[] args)
+    {
+        if (args is not null && args.Length > 0 && File.Exists(args[0]))
+        {
+            Console.WriteLine("Directory of configuration files passsed as parameter: {0}", args[0]);
+        }
+        else
+        {
+            throw new Exception("No file passed as parameter!");
+        }
+
+        Console.WriteLine("Init reading experiment configuration file...");
+        ExperimentConfig experimentConfig;
+        using (StreamReader r = new StreamReader(args[0]))
+        {
+            string json = r.ReadToEnd();
+            Console.WriteLine("Configuration file contents:\n {0}", json);
+            experimentConfig = JsonConvert.DeserializeObject<ExperimentConfig>(json);
+        }
+        Console.WriteLine("Experiment configuration read succesfully");
+
+        return experimentConfig;
+
+    }
+
 }

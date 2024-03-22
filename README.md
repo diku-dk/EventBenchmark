@@ -1,4 +1,4 @@
-# Online Marketplace Benchmark Driver
+# Online Marketplace Microservice Benchmark Driver
 ======================================
 
 Online Marketplace is a benchmark modeling an event-driven microservice system in the marketplace application domain. It is design to reflect emerging data management requirements and challenges faced by microservice developers in practice. This project contains the benchmark driver for Online Marketplace. The driver is responsible to manage the lifecycle of an experiment, including data generation, data population, workload submission, and metrics collection.
@@ -8,16 +8,18 @@ Online Marketplace is a benchmark modeling an event-driven microservice system i
     * [Prerequisites](#prerequisites)
     * [Application Domain](#domain)
     * [Required APIs](#apis)
-    * [Implementations](#impl)
+    * [Implementations](#implementations)
 - [Benchmark Driver](#driver)
     * [Description](#description)
     * [Data Generation](#data)
     * [Configuration](#config)
     * [Running an Experiment](#run)
 - [Supplemental Material](#supplemental)
+    * [Tracking Replication Anomalies](#replication)
+    * [Scalability](#scalability)
     * [Etc](#etc)
 
-## <a name="marketplace"></a>Online Marketplace Driver
+## <a name="marketplace"></a>Online Marketplace Benchmark Driver
 
 ### <a name="prerequisites"></a>Prerequisites
 
@@ -28,7 +30,7 @@ Online Marketplace is a benchmark modeling an event-driven microservice system i
 
 ### <a name="domain"></a>Application Domain
 
-Online Marketplace models the workload of an [online marketplace platform](https://en.wikipedia.org/wiki/Online_marketplace). Experiencing a growing popularity, such platforms offer an e-commerce technology infrastructure so multiple retailers can offer their products or services to a big consumer base.
+Online Marketplace models the workload of an [online marketplace platform](https://en.wikipedia.org/wiki/Online_marketplace). Experiencing a growing popularity, such platforms offer an e-commerce technology infrastructure so multiple retailers can offer their products or services to a large consumer base.
 
 ### <a name="apis"></a>Required APIs
 
@@ -50,7 +52,7 @@ API                  | HTTP Request Type  | Miroservice    |  Description |
 
 For the requests that modify microservices' state (POST/PATCH/PUT), refer to classes present in [Common](Common/Entities) to understand the expected payload.
 
-### <a name="impl"></a>Implementations
+### <a name="implementations"></a>Implementations
 
 There are two stable implementations of Online Marketplace available: [Orleans](https://github.com/diku-dk/MarketplaceOnOrleans) and [Statefun](https://github.com/diku-dk/MarketplaceOnStatefun). In case you want to reproduce experiments, their repositories contain instructions on how to configure and deploy Online Marketplace.
 
@@ -193,7 +195,13 @@ At the end of an experiment cycle, the results collected along the execution are
 
 The Online Marketplace implementation targeting [Microsoft Orleans](https://github.com/diku-dk/MarketplaceOnOrleans) supports  tracking the cart history (make sure that the options ```StreamReplication``` and ```TrackCartHistory``` are set to true). By tracking the cart history, we can match the items in the carts with the history of product updates. That enables the identification of possible causal anomalies related to updates in multiple objects.
 
-To enable such anomaly detection, make sure both "trackTids" in ```customerWorkerConfig``` and "trackUpdates" in ```sellerWorkerConfig``` are set to true. By tracking the history of TIDs for each customer cart, we can request customer actors in Orleans about the content of their respective carts submitted for checkout. With the cart history, we match historic cart items with the history of product updates (tracked by driver's seller workers) to identify anomalies. We understand these settings are sensible and prone to error. We are looking forward to improve such settings in the near future.
+To enable such anomaly detection in the driver, make sure the options "trackTids" in ```customerWorkerConfig``` and "trackUpdates" in ```sellerWorkerConfig``` in the configuration file are set to true. By tracking the history of TIDs for each customer cart, we can request customer actors in Orleans about the content of their respective carts submitted for checkout. With the cart history, we match historic cart items with the history of product updates (tracked by driver's seller workers) to identify anomalies. 
+
+We understand these settings are sensible and prone to error. We are looking forward to improve such settings in the near future.
+
+### <a name="scalability"></a>Driver Scalability
+
+The project DriverBench runs simulated workload to test the driver scalability. That is, the driver's ability to submit more requests as more computational resources are added.
 
 ### <a name="etc"></a>Etc
 

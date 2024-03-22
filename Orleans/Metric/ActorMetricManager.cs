@@ -10,7 +10,7 @@ public sealed class ActorMetricManager : MetricManager
 
     public ActorMetricManager(ISellerService sellerService, ICustomerService customerService, IDeliveryService deliveryService) : base(sellerService, customerService, deliveryService) { }
 
-    protected override List<Latency> CollectFromDelivery(DateTime finishTime)
+    public override List<Latency> CollectFromDelivery(DateTime finishTime)
     {
         Dictionary<object, TransactionIdentifier> deliverySubmitted = new();
         Dictionary<object, TransactionOutput> deliveryFinished = new();

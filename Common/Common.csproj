@@ -27,7 +27,6 @@
   <ItemGroup>
     <Folder Include="Streaming\" />
     <Folder Include="Workload\Seller\" />
-    <Folder Include="Infra\" />
     <Folder Include="Entities\" />
     <Folder Include="Workload\Metrics\" />
     <Folder Include="Workload\Delivery\" />

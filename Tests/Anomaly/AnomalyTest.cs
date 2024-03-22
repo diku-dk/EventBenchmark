@@ -161,11 +161,6 @@ public class AnomalyTest
         public TestMetricManager(ISellerService sellerService, ICustomerService customerService, IDeliveryService deliveryService) : base(sellerService, customerService, deliveryService)
         {
         }
-
-        protected override List<Latency> CollectFromDelivery(DateTime finishTime)
-        {
-            throw new NotImplementedException();
-        }
     }
 
 }

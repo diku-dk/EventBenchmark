@@ -1,4 +1,4 @@
-namespace Statefun.Infra;
+﻿namespace Common.Http;
 
 public sealed class CustomHttpClientFactory : IHttpClientFactory
 {
@@ -21,3 +21,5 @@ public sealed class CustomHttpClientFactory : IHttpClientFactory
         return sharedClient;
     }
 }
+
+

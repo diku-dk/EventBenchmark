@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Common.Experiment;
 
-public abstract class ExperimentManager
+public abstract class AbstractExperimentManager
 {
     protected readonly ExperimentConfig config;
     protected readonly DuckDBConnection connection;
@@ -21,7 +21,7 @@ public abstract class ExperimentManager
 
     protected static readonly List<TransactionType> eventualCompletionTransactions = new() { TransactionType.CUSTOMER_SESSION, TransactionType.PRICE_UPDATE, TransactionType.UPDATE_PRODUCT };
 
-    public ExperimentManager(ExperimentConfig config, DuckDBConnection duckDBConnection)
+    public AbstractExperimentManager(ExperimentConfig config, DuckDBConnection duckDBConnection)
     {
         this.config = config;
         this.customerRange = new Interval(1, config.numCustomers);
@@ -47,23 +47,23 @@ public abstract class ExperimentManager
         this.connection.Open();
         SyntheticDataSourceConfig previousData = new SyntheticDataSourceConfig()
         {
-            numCustomers = config.numCustomers,
+            numCustomers = this.config.numCustomers,
             numProducts = 0 // to force product generation and ingestion in the upcoming loop
         };
 
         int runIdx = 0;
-        int lastRunIdx = config.runs.Count() - 1;
+        int lastRunIdx = this.config.runs.Count() - 1;
 
         var dataGen = new SyntheticDataGenerator(previousData);
-        dataGen.CreateSchema(connection);
+        dataGen.CreateSchema(this.connection);
         // dont need to generate customers on every run. only once
-        dataGen.GenerateCustomers(connection);
+        dataGen.GenerateCustomers(this.connection);
         // customers are fixed accross runs
-        this.customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
+        this.customers = DuckDbUtils.SelectAll<Customer>(this.connection, "customers");
 
-        PreExperiment();
+        this.PreExperiment();
 
-        foreach (var run in config.runs)
+        foreach (var run in this.config.runs)
         {
             logger.LogInformation("Run #{0} started at {0}", runIdx, DateTime.UtcNow);
 
@@ -74,10 +74,10 @@ public abstract class ExperimentManager
                 // update previous
                 previousData = new SyntheticDataSourceConfig()
                 {
-                    numProdPerSeller = config.numProdPerSeller,
-                    numCustomers = config.numCustomers,
+                    numProdPerSeller = this.config.numProdPerSeller,
+                    numCustomers = this.config.numCustomers,
                     numProducts = run.numProducts,
-                    qtyPerProduct = config.qtyPerProduct
+                    qtyPerProduct = this.config.qtyPerProduct
                 };
                 var syntheticDataGenerator = new SyntheticDataGenerator(previousData);
 
@@ -92,14 +92,14 @@ public abstract class ExperimentManager
                 if (runIdx == 0)
                 {
                     // remove customers from ingestion config from now on
-                    config.ingestionConfig.mapTableToUrl.Remove("customers");
+                    this.config.ingestionConfig.mapTableToUrl.Remove("customers");
                 }
 
             }
 
-            PreWorkload(runIdx);
+            this.PreWorkload(runIdx);
 
-            WorkloadManager workloadManager = SetUpManager(runIdx);
+            WorkloadManager workloadManager = this.SetUpManager(runIdx);
 
             logger.LogInformation("Run #{0} started at {1}", runIdx, DateTime.UtcNow);
 
@@ -108,16 +108,16 @@ public abstract class ExperimentManager
             DateTime startTime = workloadTask.startTime;
             DateTime finishTime = workloadTask.finishTime;
 
-            logger.LogInformation("Wait for microservices to converge (i.e., finish receiving events) for {0} seconds...", config.delayBetweenRuns / 1000);
-            await Task.Delay(config.delayBetweenRuns);
+            logger.LogInformation("Wait for microservices to converge (i.e., finish receiving events) for {0} seconds...", this.config.delayBetweenRuns / 1000);
+            await Task.Delay(this.config.delayBetweenRuns);
 
             // set up data collection for metrics
-            Collect(runIdx, startTime, finishTime);
+            this.Collect(runIdx, startTime, finishTime);
 
             // trim first to avoid receiving events after the post run task
-            TrimStreams();
+            this.TrimStreams();
 
-            CollectGarbage();
+            this.CollectGarbage();
 
             logger.LogInformation("Run #{0} finished at {1}", runIdx, DateTime.UtcNow);
 
@@ -125,14 +125,19 @@ public abstract class ExperimentManager
             runIdx++;
 
             if(runIdx < (config.runs.Count - 1))
-                PostRunTasks(runIdx, lastRunIdx);
+                this.PostRunTasks(runIdx, lastRunIdx);
         }
 
         logger.LogInformation("Post experiment cleanup tasks started.");
 
-        PostExperiment();
+        this.PostExperiment();
 
         logger.LogInformation("Experiment finished");
+    }
+
+    public virtual Task RunSimpleExperiment(int type) 
+    {
+        throw new NotImplementedException();
     }
 
     protected void CollectGarbage()
@@ -145,5 +150,7 @@ public abstract class ExperimentManager
         logger.LogInformation("Memory used after full collection:   {0:N0}",
         GC.GetTotalMemory(true));
     }
+
+
 
 }

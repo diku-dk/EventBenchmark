@@ -5,16 +5,16 @@ using Common.Entities;
 using Common.Services;
 using Common.Workers.Seller;
 using Common.Workers.Customer;
-using Statefun.Metric; 
 using DuckDB.NET.Data;
 using Microsoft.Extensions.Logging;
 using Statefun.Workers;
 using Common.DataGeneration;
 using Statefun.Infra;
+using Common.Metric;
 
 namespace Statefun.Workload;
 
-public sealed class StatefunExperimentManager : ExperimentManager
+public sealed class StatefunExperimentManager : AbstractExperimentManager
 {        
     private string receiptUrl = "http://statefunhost:8091/receipts";
 
@@ -33,7 +33,7 @@ public sealed class StatefunExperimentManager : ExperimentManager
     private int numSellers;
 
     private readonly StatefunWorkloadManager workloadManager;
-    private readonly StatefunMetricManager metricManager;
+    private readonly MetricManager metricManager;
 
     // private readonly StatefunReceiptPullingThread receiptPullingThread;
     // define a pulling thread list which contains 3 pulling threads
@@ -64,7 +64,7 @@ public sealed class StatefunExperimentManager : ExperimentManager
             config.executionTime,
             config.delayBetweenRequests);
 
-        this.metricManager = new StatefunMetricManager(sellerService, customerService, deliveryService);
+        this.metricManager = new MetricManager(sellerService, customerService, deliveryService);
 
         this.receiptPullingThreads = new List<StatefunReceiptPullingThread>();
         for (int i = 0; i < numPullingThreads; i++) {
@@ -166,7 +166,7 @@ public sealed class StatefunExperimentManager : ExperimentManager
         logger.LogInformation("Experiment finished");
     }
 
-    public async Task RunSimpleExperiment(int type)
+    public override async Task RunSimpleExperiment(int type)
     {
         this.customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
         this.PreExperiment();

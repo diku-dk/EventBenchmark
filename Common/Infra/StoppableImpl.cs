@@ -1,13 +1,11 @@
-﻿using System.Threading;
-
-namespace Common.Infra
+﻿namespace Common.Infra
 {
-    public class Stoppable : IStoppable, System.IDisposable
+    public class StoppableImpl : IStoppable, System.IDisposable
     {
 
         private readonly CountdownEvent cde;
 
-        public Stoppable()
+        public StoppableImpl()
         {
             this.cde = new CountdownEvent(1);
         }
