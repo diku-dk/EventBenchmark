@@ -29,19 +29,5 @@ namespace Common.Http
             return new StringContent(item, encoding, contentType);
         }
 
-        /**
-        * For StateFun only
-        *   used to send http request to StateFun application.
-        */
-        public static async Task<HttpResponseMessage> SendHttpToStatefun(string url, string contentType, string payLoad)
-        {
-            var content = HttpUtils.BuildPayload(payLoad);
-            content.Headers.ContentType = null; // zero out default content type
-            content.Headers.TryAddWithoutValidation("Content-Type", contentType);
-            
-            HttpResponseMessage response = await client.PostAsync(url, content);    
-
-            return response;
-        }
     }
 }

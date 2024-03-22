@@ -1,5 +1,4 @@
 using Common.Entities;
-using Common.Http;
 using Common.Infra;
 using Common.Requests;
 using Common.Streaming;
@@ -9,6 +8,7 @@ using Common.Workload.Metrics;
 using Common.Workload.Seller;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using Statefun.Infra;
 
 namespace Statefun.Workers;
 
@@ -39,7 +39,7 @@ public sealed class StatefunSellerThread : AbstractSellerThread
         string apiUrl = string.Concat(this.config.productUrl, "/", partitionID);        
         string eventType = "UpdatePrice";
         string contentType = string.Concat(baseContentType, eventType);
-        HttpResponseMessage resp = HttpUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Result;    
+        HttpResponseMessage resp = StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Result;    
 
         var initTime = DateTime.UtcNow;
         if (resp.IsSuccessStatusCode)
@@ -62,7 +62,7 @@ public sealed class StatefunSellerThread : AbstractSellerThread
         string apiUrl = string.Concat(this.config.productUrl, "/", partitionID);        
         string eventType = "UpsertProduct";
         string contentType = string.Concat(baseContentType, eventType);
-        HttpResponseMessage resp = HttpUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Result;   
+        HttpResponseMessage resp = StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Result;   
 
         var now = DateTime.UtcNow;
 
@@ -87,7 +87,7 @@ public sealed class StatefunSellerThread : AbstractSellerThread
             string eventType = "QueryDashboard";
             string contentType = string.Concat(baseContentType, eventType);
             string payLoad = "{ \"tid\" : " + tid + " }";
-            HttpResponseMessage resp = HttpUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Result;   
+            HttpResponseMessage resp = StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Result;   
 
             var now = DateTime.UtcNow;
             if (resp.IsSuccessStatusCode)

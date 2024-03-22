@@ -5,8 +5,8 @@ using Common.Workload.Delivery;
 using Common.Workload.Metrics;
 using Microsoft.Extensions.Logging;
 using Common.Workers;
-using Common.Http;
 using System.Collections.Concurrent;
+using Statefun.Infra;
 
 namespace Statefun.Workers;
 
@@ -52,7 +52,7 @@ public sealed class StatefunDeliveryThread : IDeliveryWorker
         string contentType = string.Concat(baseContentType, eventType);
 
         var initTime = DateTime.UtcNow; 
-        HttpResponseMessage resp = HttpUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Result;      
+        HttpResponseMessage resp = StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Result;      
 
         if (resp.IsSuccessStatusCode)
         {

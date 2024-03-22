@@ -5,14 +5,10 @@ using Microsoft.Extensions.Logging;
 
 namespace Statefun.Workload;
 
-public class StatefunWorkloadManager : WorkloadManager
+public sealed class StatefunWorkloadManager : WorkloadManager
 {
-    private readonly ISellerService sellerService;
-    private readonly ICustomerService customerService;
-    private readonly IDeliveryService deliveryService;
     private static int totalTransactionsSubmitted = 0;
  
-
     // signal when all threads have started
     private Barrier barrier;
     private CountdownEvent countdown;
@@ -24,11 +20,8 @@ public class StatefunWorkloadManager : WorkloadManager
         IDictionary<TransactionType, int> transactionDistribution,
         Interval customerRange,
         int concurrencyLevel, int executionTime, int delayBetweenRequests) :
-        base(transactionDistribution, customerRange, concurrencyLevel, executionTime, delayBetweenRequests)
+        base(sellerService, customerService, deliveryService, transactionDistribution, customerRange, concurrencyLevel, executionTime, delayBetweenRequests)
     {
-        this.sellerService = sellerService;
-        this.customerService = customerService;
-        this.deliveryService = deliveryService;
     }
 
     public (DateTime startTime, DateTime finishTime) RunTasks()
@@ -66,8 +59,8 @@ public class StatefunWorkloadManager : WorkloadManager
         int i = 0;
         totalTransactionsSubmitted = 0;
 
-        countdown = new CountdownEvent(1);
-        barrier = new Barrier(numCpus+1);
+        this.countdown = new CountdownEvent(1);
+        this.barrier = new Barrier(numCpus+1);
 
         while(i < numCpus)
         {
@@ -76,14 +69,14 @@ public class StatefunWorkloadManager : WorkloadManager
             i++;
         }
 
-        barrier.SignalAndWait();
+        this.barrier.SignalAndWait();
         var startTime = DateTime.UtcNow;
-        logger.LogInformation("Run started at {0}.", startTime);
+        this.logger.LogInformation("Run started at {0}.", startTime);
         Thread.Sleep(this.executionTime);
-        countdown.Signal();
+        this.countdown.Signal();
         var finishTime = DateTime.UtcNow;
-        barrier.Dispose();
-        logger.LogInformation("Run finished at {0}.", finishTime);
+        this.barrier.Dispose();
+        this.logger.LogInformation("Run finished at {0}.", finishTime);
 
         //Thread.Sleep(2000);
 
@@ -105,23 +98,21 @@ public class StatefunWorkloadManager : WorkloadManager
 
     public async Task<(DateTime startTime, DateTime finishTime)> RunTaskPerTx()
 	{
-        // logger.LogInformation("Started sending batch of transactions with concurrency level {0}", this.concurrencyLevel);
+        var startTime = DateTime.UtcNow;
+        this.logger.LogInformation("Started sending batch of transactions with concurrency level {0}  at {0}.", this.concurrencyLevel, startTime);
 
         Stopwatch s = new Stopwatch();
         var execTime = TimeSpan.FromMilliseconds(executionTime);
         int currentTid = 0;
-        var startTime = DateTime.UtcNow;
-        logger.LogInformation("Run started at {0}.", startTime);
+        var tasks = new List<Task>(this.concurrencyLevel);
+
         s.Start();
-
-        var tasks = new List<Task>(concurrencyLevel);
-
         while (currentTid < concurrencyLevel)
         {
-            TransactionType tx = PickTransactionFromDistribution();
+            TransactionType tx = this.PickTransactionFromDistribution();
             //histogram[tx]++;
             var toPass = currentTid;
-            tasks.Add( Task.Run(()=> SubmitTransaction(toPass.ToString(), tx)) );
+            tasks.Add( Task.Run(()=> this.SubmitTransaction(toPass.ToString(), tx)) );
             currentTid++;
         }
 
@@ -129,14 +120,16 @@ public class StatefunWorkloadManager : WorkloadManager
 
         while (s.Elapsed < execTime)
         {
-            TransactionType tx = PickTransactionFromDistribution();
+            TransactionType tx = this.PickTransactionFromDistribution();
             //histogram[tx]++;
             var toPass = currentTid;
             // spawning in a different thread may lead to duplicate tids in actors
-            tasks.Add( Task.Run(()=> SubmitTransaction(toPass.ToString(), tx)) );
+            tasks.Add( Task.Run(()=> this.SubmitTransaction(toPass.ToString(), tx)) );
             currentTid++;
             try
             {
+                // FIXME perhaps no need to wait for sending task completion?
+                // the reception of a transaction result already means a sending task has completed
                 var t = await Task.WhenAny(tasks).WaitAsync(execTime - s.Elapsed);
                 tasks.Remove(t);
             }
@@ -144,14 +137,11 @@ public class StatefunWorkloadManager : WorkloadManager
 
             while (!Shared.ResultQueue.Reader.TryRead(out _) && s.Elapsed < execTime) { }
 
-            //var t = await Task.WhenAny( tasks );
-            //tasks.Remove(t);
-
         }
 
         var finishTime = DateTime.UtcNow;
         s.Stop();
-        logger.LogInformation("Run finished at {0}.", finishTime);
+        this.logger.LogInformation("Run finished at {0}.", finishTime);
 
         //logger.LogInformation("[Workload emitter] Finished at {0}. Last TID submitted was {1}", finishTime, currentTid);
         //logger.LogInformation("[Workload emitter] Histogram:");
@@ -173,18 +163,18 @@ public class StatefunWorkloadManager : WorkloadManager
         int currentTid = Interlocked.Increment(ref totalTransactionsSubmitted);
         while (currentTid < concurrencyLevel)
         {
-            TransactionType tx = PickTransactionFromDistribution();
+            TransactionType tx = this.PickTransactionFromDistribution();
             //histogram[tx]++;
             var toPass = currentTid;
-            SubmitTransaction(toPass.ToString(), tx);     
+            this.SubmitTransaction(toPass.ToString(), tx);     
             currentTid = Interlocked.Increment(ref totalTransactionsSubmitted);       
         }
 
         while(!countdown.IsSet)
         {        
-            TransactionType tx = PickTransactionFromDistribution();
+            TransactionType tx = this.PickTransactionFromDistribution();
             //histogram[tx]++;
-            SubmitTransaction(currentTid.ToString(), tx);
+            this.SubmitTransaction(currentTid.ToString(), tx);
             while (!Shared.ResultQueue.Reader.TryRead(out _) && !countdown.IsSet) { }
             currentTid = Interlocked.Increment(ref totalTransactionsSubmitted);
         }
@@ -201,18 +191,18 @@ public class StatefunWorkloadManager : WorkloadManager
         int currentTid = Interlocked.Increment(ref totalTransactionsSubmitted);
         while (currentTid < concurrencyLevel)
         {
-            TransactionType tx = PickTransactionFromDistribution();
+            TransactionType tx = this.PickTransactionFromDistribution();
             //histogram[tx]++;
             var toPass = currentTid;
-            SubmitTransaction(toPass.ToString(), tx);     
+            this.SubmitTransaction(toPass.ToString(), tx);     
             currentTid = Interlocked.Increment(ref totalTransactionsSubmitted);       
         }
 
         while(!countdown.IsSet)
         {        
-            TransactionType tx = PickTransactionFromDistribution();
+            TransactionType tx = this.PickTransactionFromDistribution();
             //histogram[tx]++;
-            SubmitTransaction(currentTid.ToString(), tx);
+            this.SubmitTransaction(currentTid.ToString(), tx);
             while (!Shared.ResultQueue.Reader.TryRead(out _) && !countdown.IsSet) { }
             currentTid = Interlocked.Increment(ref totalTransactionsSubmitted);
         }
@@ -221,47 +211,5 @@ public class StatefunWorkloadManager : WorkloadManager
         Console.WriteLine("Thread {0} finished", threadId);
     }
 
-    protected override void SubmitTransaction(string tid, TransactionType type)
-    {
-        try
-        {
-            switch (type)
-            {
-                case TransactionType.CUSTOMER_SESSION:
-                {
-                    int customerId = this.customerIdleQueue.Take();
-                    this.customerService.Run(customerId, tid);
-                    this.customerIdleQueue.Add(customerId);
-                    break;
-                }
-                // delivery worker
-                case TransactionType.UPDATE_DELIVERY:
-                {
-                    this.deliveryService.Run(tid);
-                    break;
-                }
-                // seller worker
-                case TransactionType.PRICE_UPDATE:
-                case TransactionType.UPDATE_PRODUCT:
-                case TransactionType.QUERY_DASHBOARD:
-                {
-                    int sellerId = this.sellerIdGenerator.Sample();
-                    this.sellerService.Run(sellerId, tid, type);
-                    break;
-                }
-                default:
-                {
-                    long threadId = Environment.CurrentManagedThreadId;
-                    this.logger.LogError("Thread ID " + threadId + " Unknown transaction type defined!");
-                    break;
-                }
-            }
-        }
-        catch (Exception e)
-        {
-            long threadId = Environment.CurrentManagedThreadId;
-            this.logger.LogError("Thread ID {0} Error caught in SubmitTransaction: {1}", threadId, e.Message);
-        }
-    }
 }
  

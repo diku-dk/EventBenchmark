@@ -14,7 +14,7 @@ using Statefun.Infra;
 
 namespace Statefun.Workload;
 
-public class StatefunExperimentManager : ExperimentManager
+public sealed class StatefunExperimentManager : ExperimentManager
 {        
     private string receiptUrl = "http://statefunhost:8091/receipts";
 
@@ -45,9 +45,7 @@ public class StatefunExperimentManager : ExperimentManager
     {
         this.httpClientFactory = httpClientFactory;
 
-        // this.deliveryThread = new StatefunDeliveryThread(httpClientFactory, config.deliveryWorkerConfig);
         this.deliveryThread = StatefunDeliveryThread.BuildDeliveryThread(config.deliveryWorkerConfig);
-        // this.deliveryThread = DeliveryThread.BuildDeliveryThread(httpClientFactory, config.deliveryWorkerConfig);
         this.deliveryService = new DeliveryService(this.deliveryThread);
 
         this.sellerThreads = new Dictionary<int, ISellerWorker>();
@@ -68,7 +66,6 @@ public class StatefunExperimentManager : ExperimentManager
 
         this.metricManager = new StatefunMetricManager(sellerService, customerService, deliveryService);
 
-        // this.receiptPullingThread = new StatefunReceiptPullingThread(receiptUrl, customerService, sellerService, deliveryService);
         this.receiptPullingThreads = new List<StatefunReceiptPullingThread>();
         for (int i = 0; i < numPullingThreads; i++) {
             this.receiptPullingThreads.Add(new StatefunReceiptPullingThread(receiptUrl, customerService, sellerService, deliveryService));
@@ -172,27 +169,27 @@ public class StatefunExperimentManager : ExperimentManager
     public async Task RunSimpleExperiment(int type)
     {
         this.customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
-        PreExperiment();
-        PreWorkload(0);
-        SetUpManager(0);
+        this.PreExperiment();
+        this.PreWorkload(0);
+        this.SetUpManager(0);
         (DateTime startTime, DateTime finishTime) res;
         if(type == 0){
             Console.WriteLine("Thread mode selected.");
-            res = workloadManager.RunThreads();
+            res = this.workloadManager.RunThreads();
         }
         else if(type == 1) {
             Console.WriteLine("Task mode selected.");
-            res = workloadManager.RunTasks();
+            res = this.workloadManager.RunTasks();
         }
         else {
             Console.WriteLine("Task per Tx mode selected.");
-            res = await workloadManager.RunTaskPerTx();
+            res = await this.workloadManager.RunTaskPerTx();
         }
         DateTime startTime = res.startTime;
         DateTime finishTime = res.finishTime;
-        Collect(0, startTime, finishTime);
-        PostExperiment();
-        CollectGarbage();
+        this.Collect(0, startTime, finishTime);
+        this.PostExperiment();
+        this.CollectGarbage();
     }
 
     protected override void Collect(int runIdx, DateTime startTime, DateTime finishTime)

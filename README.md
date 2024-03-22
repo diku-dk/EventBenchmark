@@ -193,7 +193,7 @@ At the end of an experiment cycle, the results collected along the execution are
 
 The Online Marketplace implementation targeting [Microsoft Orleans](https://github.com/diku-dk/MarketplaceOnOrleans) supports  tracking the cart history (make sure that the options ```StreamReplication``` and ```TrackCartHistory``` are set to true). By tracking the cart history, we can match the items in the carts with the history of product updates. That enables the identification of possible causal anomalies related to updates in multiple objects.
 
-To enable such anomaly detection, make sure both "trackTids" in ```customerWorkerConfig``` and "trackUpdates" in ```sellerWorkerConfig``` are set to true. using the history of TIDs for each customer cart, we can request respective Orleans actors about the content of each cart. Then we use the history of product updates tracked by driver's seller workers to identify anomalies. We understand these settings are sensible and prone to error. We are looking forward to improve such settings in the near future.
+To enable such anomaly detection, make sure both "trackTids" in ```customerWorkerConfig``` and "trackUpdates" in ```sellerWorkerConfig``` are set to true. By tracking the history of TIDs for each customer cart, we can request customer actors in Orleans about the content of their respective carts submitted for checkout. With the cart history, we match historic cart items with the history of product updates (tracked by driver's seller workers) to identify anomalies. We understand these settings are sensible and prone to error. We are looking forward to improve such settings in the near future.
 
 ### <a name="etc"></a>Etc
 

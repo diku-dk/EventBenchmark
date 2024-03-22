@@ -7,13 +7,13 @@ using Newtonsoft.Json.Linq;
 
 namespace Statefun.Workload;
 
-public class StatefunReceiptPullingThread 
+public sealed class StatefunReceiptPullingThread 
 {
-    protected readonly ISellerService sellerService;
+    private readonly ISellerService sellerService;
 
-    protected readonly ICustomerService customerService;
+    private readonly ICustomerService customerService;
 
-    protected readonly IDeliveryService deliveryService;
+    private readonly IDeliveryService deliveryService;
 
     private readonly string url;
 

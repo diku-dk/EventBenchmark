@@ -5,12 +5,8 @@ using Microsoft.Extensions.Logging;
 
 namespace Dapr.Workload;
 
-public class ActorWorkloadManager : WorkloadManager
+public sealed class ActorWorkloadManager : WorkloadManager
 {
-    private readonly ISellerService sellerService;
-    private readonly ICustomerService customerService;
-    private readonly IDeliveryService deliveryService;
-
     public ActorWorkloadManager(
         ISellerService sellerService,
         ICustomerService customerService,
@@ -18,11 +14,8 @@ public class ActorWorkloadManager : WorkloadManager
         IDictionary<TransactionType, int> transactionDistribution,
         Interval customerRange,
         int concurrencyLevel, int executionTime, int delayBetweenRequests) :
-        base(transactionDistribution, customerRange, concurrencyLevel, executionTime, delayBetweenRequests)
+        base(sellerService, customerService, deliveryService, transactionDistribution, customerRange, concurrencyLevel, executionTime, delayBetweenRequests)
     {
-        this.sellerService = sellerService;
-        this.customerService = customerService;
-        this.deliveryService = deliveryService;
     }
 
     public (DateTime startTime, DateTime finishTime) RunTasks()
@@ -31,8 +24,8 @@ public class ActorWorkloadManager : WorkloadManager
         int i = 0;
         var tasks = new List<Task>();
 
-        countdown = new CountdownEvent(1);
-        barrier = new Barrier(numCpus+1);
+        this.countdown = new CountdownEvent(1);
+        this.barrier = new Barrier(numCpus+1);
         while(i < numCpus)
         {
             //Console.WriteLine("Init thread {0}", i);
@@ -40,14 +33,14 @@ public class ActorWorkloadManager : WorkloadManager
             i++;
         }
 
-        barrier.SignalAndWait();
+        this.barrier.SignalAndWait();
         var startTime = DateTime.UtcNow;
-        logger.LogInformation("Run started at {0}.", startTime);
+        this.logger.LogInformation("Run started at {0}.", startTime);
         Thread.Sleep(this.executionTime);
-        countdown.Signal();
+        this.countdown.Signal();
         var finishTime = DateTime.UtcNow;
-        barrier.Dispose();
-        logger.LogInformation("Run finished at {0}.", finishTime);
+        this.barrier.Dispose();
+        this.logger.LogInformation("Run finished at {0}.", finishTime);
 
         return (startTime, finishTime);
     }
@@ -57,17 +50,17 @@ public class ActorWorkloadManager : WorkloadManager
         // logger.LogInformation("Started sending batch of transactions with concurrency level {0}", this.concurrencyLevel);
 
         Stopwatch s = new Stopwatch();
-        var execTime = TimeSpan.FromMilliseconds(executionTime);
+        var execTime = TimeSpan.FromMilliseconds(this.executionTime);
         int currentTid = 0;
         var startTime = DateTime.UtcNow;
-        logger.LogInformation("Run started at {0}.", startTime);
+        this.logger.LogInformation("Run started at {0}.", startTime);
         s.Start();
 
-        var tasks = new List<Task>(concurrencyLevel);
+        var tasks = new List<Task>(this.concurrencyLevel);
 
-        while (currentTid < concurrencyLevel)
+        while (currentTid < this.concurrencyLevel)
         {
-            TransactionType tx = PickTransactionFromDistribution();
+            TransactionType tx = this.PickTransactionFromDistribution();
             //histogram[tx]++;
             var toPass = currentTid;
             tasks.Add( Task.Run(()=> SubmitTransaction(toPass.ToString(), tx)) );
@@ -78,7 +71,7 @@ public class ActorWorkloadManager : WorkloadManager
 
         while (s.Elapsed < execTime)
         {
-            TransactionType tx = PickTransactionFromDistribution();
+            TransactionType tx = this.PickTransactionFromDistribution();
             //histogram[tx]++;
             var toPass = currentTid;
             // spawning in a different thread may lead to duplicate tids in actors
@@ -98,7 +91,7 @@ public class ActorWorkloadManager : WorkloadManager
 
         var finishTime = DateTime.UtcNow;
         s.Stop();
-        logger.LogInformation("Run finished at {0}.", finishTime);
+        this.logger.LogInformation("Run finished at {0}.", finishTime);
 
         //logger.LogInformation("[Workload emitter] Finished at {0}. Last TID submitted was {1}", finishTime, currentTid);
         //logger.LogInformation("[Workload emitter] Histogram:");
@@ -115,8 +108,8 @@ public class ActorWorkloadManager : WorkloadManager
         int numCpus = this.concurrencyLevel;
         int i = 0;
 
-        countdown = new CountdownEvent(1);
-        barrier = new Barrier(numCpus+1);
+        this.countdown = new CountdownEvent(1);
+        this.barrier = new Barrier(numCpus+1);
 
         while(i < numCpus)
         {
@@ -125,14 +118,14 @@ public class ActorWorkloadManager : WorkloadManager
             i++;
         }
 
-        barrier.SignalAndWait();
+        this.barrier.SignalAndWait();
         var startTime = DateTime.UtcNow;
-        logger.LogInformation("Run started at {0}.", startTime);
+        this.logger.LogInformation("Run started at {0}.", startTime);
         Thread.Sleep(this.executionTime);
-        countdown.Signal();
+        this.countdown.Signal();
         var finishTime = DateTime.UtcNow;
-        barrier.Dispose();
-        logger.LogInformation("Run finished at {0}.", finishTime);
+        this.barrier.Dispose();
+        this.logger.LogInformation("Run finished at {0}.", finishTime);
 
         //Thread.Sleep(2000);
 
@@ -164,12 +157,12 @@ public class ActorWorkloadManager : WorkloadManager
         Console.WriteLine("Thread {0} started", threadId);
         int currentTid = 0;
 
-        barrier.SignalAndWait();
+        this.barrier.SignalAndWait();
 
         while (!countdown.IsSet)
         {
-            TransactionType tx = PickTransactionFromDistribution();
-            SubmitTransaction(threadId+"-"+currentTid++.ToString(), tx);
+            TransactionType tx = this.PickTransactionFromDistribution();
+            this.SubmitTransaction(threadId+"-"+currentTid++.ToString(), tx);
         }
         Console.WriteLine("Thread {0} finished", threadId);
     }
@@ -186,60 +179,17 @@ public class ActorWorkloadManager : WorkloadManager
         
         int currentTid = 0;
 
-        barrier.SignalAndWait();
+        this.barrier.SignalAndWait();
 
         while(!countdown.IsSet)
         {
-            TransactionType tx = PickTransactionFromDistribution();
+            TransactionType tx = this.PickTransactionFromDistribution();
             //histogram[tx]++;
-            SubmitTransaction(threadId+"-"+currentTid++.ToString(), tx);
+            this.SubmitTransaction(threadId+"-"+currentTid++.ToString(), tx);
         }
 
         //histograms.Add(histogram);
         Console.WriteLine("Thread {0} finished", threadId);
-    }
-
-    protected override void SubmitTransaction(string tid, TransactionType type)
-    {
-        try
-        {
-            switch (type)
-            {
-                case TransactionType.CUSTOMER_SESSION:
-                {
-                    int customerId = this.customerIdleQueue.Take();
-                    this.customerService.Run(customerId, tid);
-                    this.customerIdleQueue.Add(customerId);
-                    break;
-                }
-                // delivery worker
-                case TransactionType.UPDATE_DELIVERY:
-                {
-                    this.deliveryService.Run(tid);
-                    break;
-                }
-                // seller worker
-                case TransactionType.PRICE_UPDATE:
-                case TransactionType.UPDATE_PRODUCT:
-                case TransactionType.QUERY_DASHBOARD:
-                {
-                    int sellerId = this.sellerIdGenerator.Sample();
-                    this.sellerService.Run(sellerId, tid, type);
-                    break;
-                }
-                default:
-                {
-                    long threadId = Environment.CurrentManagedThreadId;
-                    this.logger.LogError("Thread ID " + threadId + " Unknown transaction type defined!");
-                    break;
-                }
-            }
-        }
-        catch (Exception e)
-        {
-            long threadId = Environment.CurrentManagedThreadId;
-            this.logger.LogError("Thread ID {0} Error caught in SubmitTransaction: {1}", threadId, e.Message);
-        }
     }
 
 }

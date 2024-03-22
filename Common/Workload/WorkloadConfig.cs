@@ -7,7 +7,7 @@ using Common.Workload.Delivery;
 namespace Common.Workload
 {
 
-    public class WorkloadConfig
+    public sealed class WorkloadConfig
     {
 
         public const double sellerZipfian = 1;

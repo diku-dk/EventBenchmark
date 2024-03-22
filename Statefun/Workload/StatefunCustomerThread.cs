@@ -1,6 +1,5 @@
 ﻿using Common.Distribution;
 using Common.Entities;
-using Common.Http;
 using Common.Infra;
 using Common.Services;
 using Common.Streaming;
@@ -10,15 +9,16 @@ using Common.Workload.CustomerWorker;
 using Common.Workload.Metrics;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
+using Statefun.Infra;
 
 namespace Statefun.Workers;
 
-public class StatefunCustomerThread : HttpCustomerThread
+public sealed class StatefunCustomerThread : HttpCustomerThread
 {
     string partitionID;
     string baseContentType = "application/vnd.marketplace/";
     
-    protected readonly ConcurrentBag<TransactionOutput> finishedTransactions;
+    private readonly ConcurrentBag<TransactionOutput> finishedTransactions;
 
     private StatefunCustomerThread(ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer, HttpClient httpClient, ILogger logger) : base(sellerService, numberOfProducts, config, customer, httpClient, logger)
     {
@@ -48,12 +48,12 @@ public class StatefunCustomerThread : HttpCustomerThread
         string apiUrl = string.Concat(this.config.cartUrl, "/", partitionID);        
         string eventType = "AddCartItem";
         string contentType = string.Concat(baseContentType, eventType);
-        HttpUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Wait();                    
+        StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Wait();                    
     }
 
     protected override void SendCheckoutRequest(string tid)
     {
-        var payload = BuildCheckoutPayload(tid);
+        var payload = this.BuildCheckoutPayload(tid);
         try
         {
             DateTime sentTs = DateTime.UtcNow;
@@ -62,7 +62,7 @@ public class StatefunCustomerThread : HttpCustomerThread
             string eventType = "CustomerCheckout";
             string contentType = string.Concat(baseContentType, eventType);
             
-            HttpResponseMessage resp = HttpUtils.SendHttpToStatefun(apiUrl, contentType, payload).Result;  
+            HttpResponseMessage resp = StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payload).Result;  
                     
             if (resp.IsSuccessStatusCode)
             {
@@ -87,7 +87,7 @@ public class StatefunCustomerThread : HttpCustomerThread
         string eventType = "Seal";
         string contentType = string.Concat(baseContentType, eventType);
         string payLoad = "{}";
-        HttpUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Wait();  
+        StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Wait();  
     }
 
     public override void AddFinishedTransaction(TransactionOutput transactionOutput){

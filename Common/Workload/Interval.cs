@@ -2,7 +2,7 @@
 
 namespace Common.Workload
 {
-    public class Interval
+    public sealed class Interval
     {
         public int min { get; set; }
 

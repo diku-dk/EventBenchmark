@@ -142,7 +142,7 @@ public sealed class CustomIngestionOrchestrator
         string apiUrl = string.Concat(url, "/", partitionKey);
         string payLoad = JsonConvert.SerializeObject(obj);
         string contentType = string.Concat(baseContentType, eventType);
-        HttpUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Wait();
+        StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Wait();
                 
         // HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, url)
         // {
