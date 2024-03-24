@@ -15,15 +15,6 @@ public sealed class DriverBenchExperimentManager : AbstractExperimentManager
         throw new NotImplementedException();
     }
 
-    protected override void PostExperiment()
-    {
-        throw new NotImplementedException();
-    }
-
-    protected override void PostRunTasks(int runIdx, int lastRunIdx)
-    {
-        throw new NotImplementedException();
-    }
 
     protected override void PreExperiment()
     {
@@ -40,10 +31,7 @@ public sealed class DriverBenchExperimentManager : AbstractExperimentManager
         throw new NotImplementedException();
     }
 
-    protected override void TrimStreams()
-    {
-        throw new NotImplementedException();
-    }
+
 
 }
 

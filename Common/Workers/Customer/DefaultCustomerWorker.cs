@@ -12,36 +12,30 @@ using Newtonsoft.Json;
 
 namespace Common.Workers.Customer;
 
-public class HttpCustomerThread : AbstractCustomerThread
+/*
+ * Contains default customer functionality
+ */
+public class DefaultCustomerWorker : AbstractCustomerWorker
 {
     protected readonly HttpClient httpClient;
     protected readonly IDictionary<(int sellerId, int productId),Product> cartItems;
 
     protected readonly ISet<string> tids;
 
-    protected HttpCustomerThread(ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Entities.Customer customer, HttpClient httpClient, ILogger logger) : base(sellerService, numberOfProducts, config, customer, logger)
+    protected DefaultCustomerWorker(ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Entities.Customer customer, HttpClient httpClient, ILogger logger) : base(sellerService, numberOfProducts, config, customer, logger)
     {
         this.httpClient = httpClient;
         this.cartItems = new Dictionary<(int, int),Product>(config.maxNumberKeysToAddToCart);
         this.tids = new HashSet<string>();
     }
 
-    public static HttpCustomerThread BuildCustomerThread(IHttpClientFactory httpClientFactory, ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Entities.Customer customer)
+    public static DefaultCustomerWorker BuildCustomerThread(IHttpClientFactory httpClientFactory, ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Entities.Customer customer)
     {
         var logger = LoggerProxy.GetInstance("Customer" + customer.id.ToString());
-        return new HttpCustomerThread(sellerService, numberOfProducts, config, customer, httpClientFactory.CreateClient(), logger);
+        return new DefaultCustomerWorker(sellerService, numberOfProducts, config, customer, httpClientFactory.CreateClient(), logger);
     }
 
-    /**
-     * Only implemented if the target data platform has a synchronous API
-     * for submitting transaction requests. This is the case for Orleans, for example.
-     */
-    public override List<TransactionOutput> GetFinishedTransactions()
-    {
-        throw new NotImplementedException();
-    }
-
-    public override void AddItemsToCart()
+    protected override void AddItemsToCart()
     {
         int numberKeysToAddToCart = this.random.Next(1, this.config.maxNumberKeysToAddToCart + 1);
         while (this.cartItems.Count < numberKeysToAddToCart)
@@ -93,9 +87,7 @@ public class HttpCustomerThread : AbstractCustomerThread
     protected override void SendCheckoutRequest(string tid)
     {
         var objStr = this.BuildCheckoutPayload(tid);
-
         var payload = HttpUtils.BuildPayload(objStr);
-
         string url = this.config.cartUrl + "/" + this.customer.id + "/checkout";
         DateTime sentTs;
         int attempt = 0;
@@ -119,10 +111,11 @@ public class HttpCustomerThread : AbstractCustomerThread
 
             } while(!success && attempt < maxAttempts);
 
-            if(resp.IsSuccessStatusCode){
+            if(success)
+            {
+                this.DoAfterSuccessSubmission(tid);
                 TransactionIdentifier txId = new(tid, TransactionType.CUSTOMER_SESSION, sentTs);
                 this.submittedTransactions.Add(txId);
-                this.DoAfterSubmission(tid);
             } else
             {
                 this.abortedTransactions.Add(new TransactionMark(tid, TransactionType.CUSTOMER_SESSION, this.customer.id, MarkStatus.ABORT, "cart"));
@@ -133,11 +126,16 @@ public class HttpCustomerThread : AbstractCustomerThread
             this.logger.LogError("Customer {0} Url {1}: Exception Message: {5} ", customer.id, url, e.Message);
             this.InformFailedCheckout();
         }
+
+    }
+
+    protected override void DoAfterCustomerSession()
+    {
         // clean it for next customer session. besides, allow garbage collector to collect the items
         this.cartItems.Clear();
     }
 
-    protected virtual void DoAfterSubmission(string tid)
+    protected virtual void DoAfterSuccessSubmission(string tid)
     {
         if (this.config.trackTids)
         {

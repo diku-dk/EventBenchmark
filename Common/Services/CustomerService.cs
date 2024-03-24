@@ -8,9 +8,9 @@ namespace Common.Services;
 public sealed class CustomerService : ICustomerService
 {
 
-    private readonly Dictionary<int, AbstractCustomerThread> customers;
+    private readonly Dictionary<int, AbstractCustomerWorker> customers;
 
-    public CustomerService(Dictionary<int, AbstractCustomerThread> customers)
+    public CustomerService(Dictionary<int, AbstractCustomerWorker> customers)
     {
         this.customers = customers;
     }

@@ -14,7 +14,6 @@ public sealed class Program
         Console.WriteLine("Initializing benchmark driver...");
         ExperimentConfig config = ConsoleUtility.BuildExperimentConfig(args);
         Console.WriteLine("Configuration parsed. Starting program...");
-        DuckDBConnection connection = null;
 
         try
         {
@@ -29,7 +28,7 @@ public sealed class Program
                     case "1":
                     {
                         var expManager = new DriverBenchExperimentManager(config, null);
-                        await expManager.RunSimpleExperiment(0);
+                        await expManager.RunSimpleExperiment();
                         break;
                     }
                     case "q":

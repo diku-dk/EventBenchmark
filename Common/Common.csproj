@@ -31,9 +31,6 @@
     <Folder Include="Workload\Metrics\" />
     <Folder Include="Workload\Delivery\" />
     <Folder Include="Services\" />
-    <Folder Include="Workers\" />
-    <Folder Include="Workers\Seller\" />
-    <Folder Include="Workers\Customer\" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />

@@ -11,6 +11,13 @@ public class IngestionTest
 	public async void TestIngestion()
 	{
 
+        if(OperatingSystem.IsWindows())
+        {
+            Console.WriteLine("DuckDB library does not work in Windows platform. The test will not run.");
+            Assert.True(true);
+            return;
+        }
+
 		var connection = new DuckDBConnection("DataSource=:memory:");
 
         connection.Open();
@@ -45,8 +52,6 @@ public class IngestionTest
         await IngestionOrchestrator.Run(connection, ingestionConfig);
 
         // retrieve some random and see if they match
-
-
 
 	}
 }

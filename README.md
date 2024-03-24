@@ -17,6 +17,7 @@ Online Marketplace is a benchmark modeling an event-driven microservice system i
 - [Supplemental Material](#supplemental)
     * [Tracking Replication Anomalies](#replication)
     * [Scalability](#scalability)
+    * [Future Work](#future)
     * [Etc](#etc)
 
 ## <a name="marketplace"></a>Online Marketplace Benchmark Driver
@@ -180,7 +181,7 @@ In both cases, the following menu will be shown to the user:
  1 - Generate Data
  2 - Ingest Data
  3 - Run Experiment
- 4 - Full Experiment (i.e., 1, 2, and 3)
+ 4 - Ingest and Run (2 and 3)
  5 - Parse New Configuration
  q - Exit
 ```
@@ -202,6 +203,10 @@ We understand these settings are sensible and prone to error. We are looking for
 ### <a name="scalability"></a>Driver Scalability
 
 The project DriverBench runs simulated workload to test the driver scalability. That is, the driver's ability to submit more requests as more computational resources are added.
+
+### <a name="future"></a>Future Work
+
+We intend to count the "add item to cart" operation as a measured query in the driver. In the current implementation, although the add item operation is not counted as part of the latency of a customer checkout, capturing the cost of add item allows capturing the overall latency of a customer session as a whole and not only the checkout operation.
 
 ### <a name="etc"></a>Etc
 

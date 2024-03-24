@@ -30,13 +30,13 @@ public abstract class AbstractExperimentManager
 
     protected abstract void PreExperiment();
 
-    protected abstract void PostExperiment();
+    protected virtual void PostExperiment() { }
 
-    protected abstract void TrimStreams();
+    protected virtual void TrimStreams() { }
 
     protected abstract void PreWorkload(int runIdx);
 
-    protected abstract void PostRunTasks(int runIdx, int lastRunIdx);
+    protected virtual void PostRunTasks(int runIdx, int lastRunIdx) { }
 
     protected abstract WorkloadManager SetUpManager(int runIdx);
 
@@ -135,9 +135,18 @@ public abstract class AbstractExperimentManager
         logger.LogInformation("Experiment finished");
     }
 
-    public virtual Task RunSimpleExperiment(int type) 
+    public async Task RunSimpleExperiment()
     {
-        throw new NotImplementedException();
+        this.customers = DuckDbUtils.SelectAll<Customer>(this.connection, "customers");
+        this.PreExperiment();
+        this.PreWorkload(0);
+        var workloadManager = this.SetUpManager(0);
+        (DateTime startTime, DateTime finishTime) res = await workloadManager.Run();
+        DateTime startTime = res.startTime;
+        DateTime finishTime = res.finishTime;
+        this.Collect(0, startTime, finishTime);
+        this.PostExperiment();
+        this.CollectGarbage();
     }
 
     protected void CollectGarbage()
@@ -150,7 +159,5 @@ public abstract class AbstractExperimentManager
         logger.LogInformation("Memory used after full collection:   {0:N0}",
         GC.GetTotalMemory(true));
     }
-
-
 
 }

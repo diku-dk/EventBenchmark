@@ -12,15 +12,11 @@ using Statefun.Infra;
 
 namespace Statefun.Workers;
 
-public sealed class StatefunSellerThread : AbstractSellerThread
+public sealed class StatefunSellerThread : AbstractSellerWorker
 {
-    private readonly HttpClient httpClient;
-
-    string baseContentType = "application/vnd.marketplace/";
 
     public StatefunSellerThread(int sellerId, HttpClient httpClient, SellerWorkerConfig workerConfig, ILogger logger) : base(sellerId, workerConfig, logger)
     {
-        this.httpClient = httpClient;
     }
 
     public static StatefunSellerThread BuildSellerThread(int sellerId, IHttpClientFactory httpClientFactory, SellerWorkerConfig workerConfig)
@@ -32,13 +28,10 @@ public sealed class StatefunSellerThread : AbstractSellerThread
     protected override void SendUpdatePriceRequest(Product product, string tid)
     {
         string payLoad = JsonConvert.SerializeObject(new PriceUpdate(this.sellerId, product.product_id, product.price, tid));
-
         string partitionID = this.sellerId + "-" + product.product_id;
-
-
         string apiUrl = string.Concat(this.config.productUrl, "/", partitionID);        
         string eventType = "UpdatePrice";
-        string contentType = string.Concat(baseContentType, eventType);
+        string contentType = string.Concat(StatefunUtils.BASE_CONTENT_TYPE, eventType);
         HttpResponseMessage resp = StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Result;    
 
         var initTime = DateTime.UtcNow;
@@ -61,7 +54,7 @@ public sealed class StatefunSellerThread : AbstractSellerThread
 
         string apiUrl = string.Concat(this.config.productUrl, "/", partitionID);        
         string eventType = "UpsertProduct";
-        string contentType = string.Concat(baseContentType, eventType);
+        string contentType = string.Concat(StatefunUtils.BASE_CONTENT_TYPE, eventType);
         HttpResponseMessage resp = StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Result;   
 
         var now = DateTime.UtcNow;
@@ -85,7 +78,7 @@ public sealed class StatefunSellerThread : AbstractSellerThread
             string partitionID = this.sellerId.ToString();
             string apiUrl = string.Concat(this.config.sellerUrl, "/", partitionID);        
             string eventType = "QueryDashboard";
-            string contentType = string.Concat(baseContentType, eventType);
+            string contentType = string.Concat(StatefunUtils.BASE_CONTENT_TYPE, eventType);
             string payLoad = "{ \"tid\" : " + tid + " }";
             HttpResponseMessage resp = StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Result;   
 

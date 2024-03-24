@@ -1,6 +1,5 @@
 ﻿using System.Collections.Concurrent;
 using Common.Ingestion.Config;
-using Common.Http;
 using Common.Infra;
 using DuckDB.NET.Data;
 using Newtonsoft.Json;
@@ -143,12 +142,6 @@ public sealed class CustomIngestionOrchestrator
         string payLoad = JsonConvert.SerializeObject(obj);
         string contentType = string.Concat(baseContentType, eventType);
         StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Wait();
-                
-        // HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, url)
-        // {
-        //     Content = HttpUtils.BuildPayload(JsonConvert.SerializeObject(obj))
-        // };
-        // HttpUtils.client.Send(message, HttpCompletionOption.ResponseHeadersRead);
     }
 
     public static async Task<long> getCurrentReadRecord(string stateFunUrl)
@@ -169,10 +162,8 @@ public sealed class CustomIngestionOrchestrator
                 responseBody = await response.Content.ReadAsStringAsync();
                 responseJson = JObject.Parse(responseBody);                    
 
-                JObject targetVertex = responseJson["vertices"].FirstOrDefault(v => (string)v["name"] == "feedback-union -> functions -> Sink: io.statefun.playground-egress-egress") as JObject;                
-                // JObject targetVertex = responseJson["vertices"].FirstOrDefault(v => (string)v["name"] == "feedback-union -> functions -> Sink: e-commerce.fns-kafkaSink-egress") as JObject;
+                JObject targetVertex = responseJson["vertices"].FirstOrDefault(v => (string)v["name"] == "feedback-union -> functions -> Sink: io.statefun.playground-egress-egress") as JObject;
                 long readRecords = (long)targetVertex["metrics"]["read-records"];
-                // Console.WriteLine(readRecords);
                 return readRecords;                    
             }
             catch (HttpRequestException ex)

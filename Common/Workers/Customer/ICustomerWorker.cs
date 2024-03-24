@@ -13,7 +13,7 @@ public interface ICustomerWorker
 
     List<TransactionIdentifier> GetSubmittedTransactions();
 
-    // only for synchrnous-based APIs, like Orleans
+    // only for synchronous-based APIs, like Orleans
     List<TransactionOutput> GetFinishedTransactions();
 
     // support only in Orleans implementation right now

@@ -13,11 +13,11 @@ using Statefun.Infra;
 
 namespace Statefun.Workers;
 
-public sealed class StatefunCustomerThread : HttpCustomerThread
+public sealed class StatefunCustomerThread : DefaultCustomerWorker
 {
-    string partitionID;
-    string baseContentType = "application/vnd.marketplace/";
-    
+    private readonly string partitionID;
+
+    // concurrent data structure is necessary because results are received asynchronously, possibly via concurrent pulling thread    
     private readonly ConcurrentBag<TransactionOutput> finishedTransactions;
 
     private StatefunCustomerThread(ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer, HttpClient httpClient, ILogger logger) : base(sellerService, numberOfProducts, config, customer, httpClient, logger)
@@ -47,7 +47,7 @@ public sealed class StatefunCustomerThread : HttpCustomerThread
     {        
         string apiUrl = string.Concat(this.config.cartUrl, "/", partitionID);        
         string eventType = "AddCartItem";
-        string contentType = string.Concat(baseContentType, eventType);
+        string contentType = string.Concat(StatefunUtils.BASE_CONTENT_TYPE, eventType);
         StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Wait();                    
     }
 
@@ -60,7 +60,7 @@ public sealed class StatefunCustomerThread : HttpCustomerThread
 
             string apiUrl = string.Concat(this.config.cartUrl, "/", partitionID);        
             string eventType = "CustomerCheckout";
-            string contentType = string.Concat(baseContentType, eventType);
+            string contentType = string.Concat(StatefunUtils.BASE_CONTENT_TYPE, eventType);
             
             HttpResponseMessage resp = StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payload).Result;  
                     
@@ -77,7 +77,7 @@ public sealed class StatefunCustomerThread : HttpCustomerThread
         catch (Exception e)
         {
             this.logger.LogError("Customer {0} Url {1}: Exception Message: {5} ", customer.id, this.config.cartUrl + "/" + this.customer.id, e.Message);
-            InformFailedCheckout();
+            this.InformFailedCheckout();
         }
     }
 
@@ -85,7 +85,7 @@ public sealed class StatefunCustomerThread : HttpCustomerThread
     {
         string apiUrl = string.Concat(this.config.cartUrl, "/", partitionID);        
         string eventType = "Seal";
-        string contentType = string.Concat(baseContentType, eventType);
+        string contentType = string.Concat(StatefunUtils.BASE_CONTENT_TYPE, eventType);
         string payLoad = "{}";
         StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Wait();  
     }
@@ -93,4 +93,5 @@ public sealed class StatefunCustomerThread : HttpCustomerThread
     public override void AddFinishedTransaction(TransactionOutput transactionOutput){
         this.finishedTransactions.Add(transactionOutput);
     }
+
 }

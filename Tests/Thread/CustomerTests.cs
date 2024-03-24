@@ -20,7 +20,6 @@ public class CustomerTests
     // cart with causal cut is only necessary if we had multi-object updates
 
     private static int numThreads = 100;
-    private static readonly Random random = new Random();
 
     [Fact]
     public async void SimpleCheckoutTest()
@@ -62,7 +61,7 @@ public class CustomerTests
         } 
     }
 
-    private class CustomerThreadTest : AbstractCustomerThread
+    private class CustomerThreadTest : AbstractCustomerWorker
     {
         public readonly ISet<(int, int)> cartItems = new HashSet<(int, int)>();
 
@@ -70,13 +69,12 @@ public class CustomerTests
 
         public CustomerThreadTest(ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer, ILogger logger) : base(sellerService, numberOfProducts, config, customer, logger)
         {
-
         }
 
-        public override void AddItemsToCart()
+        protected override void AddItemsToCart()
         {
             int numberOfProducts = random.Next(1, this.config.maxNumberKeysToAddToCart + 1);
-            while (cartItems.Count < numberOfProducts)
+            while (this.cartItems.Count < numberOfProducts)
             {
                 var sellerId = this.sellerIdGenerator.Sample();
                 var product = this.sellerService.GetProduct(sellerId, this.productIdGenerator.Sample() - 1);
@@ -96,7 +94,7 @@ public class CustomerTests
 
         protected override void SendCheckoutRequest(string tid)
         {
-            checkoutSent = true;
+            this.checkoutSent = true;
         }
     }
 
@@ -131,7 +129,7 @@ public class CustomerTests
 
         public Product GetProduct(int sellerId, int idx)
         {
-            return products[sellerId-1][idx];
+            return this.products[sellerId-1][idx];
         }
 
         public List<TransactionIdentifier> GetSubmittedTransactions(int sellerId)

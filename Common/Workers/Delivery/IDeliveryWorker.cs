@@ -1,7 +1,7 @@
 ﻿using Common.Streaming;
 using Common.Workload.Metrics;
 
-namespace Common.Workers;
+namespace Common.Workers.Delivery;
 
 public interface IDeliveryWorker
 {

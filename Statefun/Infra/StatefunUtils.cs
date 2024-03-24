@@ -2,7 +2,6 @@
 
 namespace Statefun.Infra;
 
-
 /**
 * For StateFun only
 *   
@@ -10,7 +9,7 @@ namespace Statefun.Infra;
 public sealed class StatefunUtils
 {
 
-    public const string baseContentType = "application/vnd.marketplace/";
+    public const string BASE_CONTENT_TYPE = "application/vnd.marketplace/";
 
     /**
      * used to send http request to StateFun application.

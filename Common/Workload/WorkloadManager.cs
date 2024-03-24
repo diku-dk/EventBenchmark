@@ -86,13 +86,11 @@ public class WorkloadManager
     // for a is tricky, we never know when it completes
     public virtual async Task<(DateTime startTime, DateTime finishTime)> Run()
 	{
-        var startTime = DateTime.UtcNow;
-        this.logger.LogInformation("Started sending batch of transactions with concurrency level {0}  at {0}.", this.concurrencyLevel, startTime);
-
         Stopwatch s = new Stopwatch();
         var execTime = TimeSpan.FromMilliseconds(this.executionTime);
         int currentTid = 0;
-
+        var startTime = DateTime.UtcNow;
+        this.logger.LogInformation("Started sending batch of transactions with concurrency level {0}  at {0}.", this.concurrencyLevel, startTime);
         s.Start();
         while (currentTid < this.concurrencyLevel)
         {

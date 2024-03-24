@@ -23,7 +23,7 @@ public class Program
             while (true)
             {
 
-                Console.WriteLine("\n Select an option: \n 1 - Generate Data \n 2 - Ingest Data \n 3 - Run Experiment \n 4 - Full Experiment (i.e., 1, 2, and 3) \n 5 - Parse New Configuration \n q - Exit");
+                Console.WriteLine("\n Select an option: \n 1 - Generate Data \n 2 - Ingest Data \n 3 - Run Experiment \n 4 - Ingest and Run (2 and 3) \n 5 - Parse New Configuration \n q - Exit");
                 string op = Console.ReadLine();
 
                 switch (op)
@@ -49,10 +49,18 @@ public class Program
                         }
                     case "2":
                         {
-                            if (connection is null && config.connectionString.SequenceEqual("DataSource=:memory:"))
+                            if (connection is null)
                             {
-                                Console.WriteLine("Please generate some data first!");
-                                break;
+                                if (config.connectionString.SequenceEqual("DataSource=:memory:"))
+                                {
+                                    Console.WriteLine("Please generate some data first by selecting option 1.");
+                                    break;
+                                }
+                                else
+                                {
+                                    connection = new DuckDBConnection(config.connectionString);
+                                    connection.Open();
+                                }
                             }
                             connection = new DuckDBConnection(config.connectionString);
                             connection.Open();
@@ -61,15 +69,44 @@ public class Program
                             break;
                         }
                     case "3":
-                        {                            
-                            if (connection is null) Console.WriteLine("Warning: Connection has not been set! Starting anyway...");
+                        {
+                            if (connection is null)
+                            {
+                                if (config.connectionString.SequenceEqual("DataSource=:memory:"))
+                                {
+                                    Console.WriteLine("Please generate some data first by selecting option 1.");
+                                    break;
+                                }
+                                else
+                                {
+                                    connection = new DuckDBConnection(config.connectionString);
+                                    connection.Open();
+                                }
+                            }
                             var expManager = new StatefunExperimentManager(new CustomHttpClientFactory(), config, connection);
-                            await expManager.RunSimpleExperiment(2);
+                            await expManager.Run();
                             Console.WriteLine("Experiment finished.");
                             break;
                         }
                     case "4":
                         {
+                            if (connection is null)
+                            {
+                                if (config.connectionString.SequenceEqual("DataSource=:memory:"))
+                                {
+                                    Console.WriteLine("Please generate some data first by selecting option 1.");
+                                    break;
+                                }
+                                else
+                                {
+                                    connection = new DuckDBConnection(config.connectionString);
+                                    connection.Open();
+                                }
+                            }
+                            // ingest data
+                            await CustomIngestionOrchestrator.Run(connection, config.ingestionConfig);
+                            Console.WriteLine("Delay after ingest...");
+                            await Task.Delay(10000);
                             var expManager = new StatefunExperimentManager(new CustomHttpClientFactory(), config);
                             await expManager.Run();
                             Console.WriteLine("Experiment finished.");

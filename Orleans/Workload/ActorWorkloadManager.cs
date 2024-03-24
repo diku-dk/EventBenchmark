@@ -3,7 +3,7 @@ using Common.Services;
 using Common.Workload;
 using Microsoft.Extensions.Logging;
 
-namespace Dapr.Workload;
+namespace Orleans.Workload;
 
 public sealed class ActorWorkloadManager : WorkloadManager
 {

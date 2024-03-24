@@ -10,7 +10,11 @@ using Common.Entities;
 
 namespace Common.Workers.Customer;
 
-public abstract class AbstractCustomerThread : ICustomerWorker
+/**
+ * Contains default customer behavior functionality.
+ * The default behavior assumes the checkout completes asynchronously
+ */
+public abstract class AbstractCustomerWorker : ICustomerWorker
 {  
     protected readonly Random random;
 
@@ -23,7 +27,7 @@ public abstract class AbstractCustomerThread : ICustomerWorker
     // the object respective to this worker
     protected readonly Entities.Customer customer;
 
-    // not concurrent because it is not necessary
+    // it is not necessary to be concurrent 
     protected readonly List<TransactionIdentifier> submittedTransactions;
 
     protected readonly List<TransactionMark> abortedTransactions;
@@ -32,7 +36,7 @@ public abstract class AbstractCustomerThread : ICustomerWorker
 
     protected readonly ILogger logger;
 
-    protected AbstractCustomerThread(ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Entities.Customer customer, ILogger logger)
+    protected AbstractCustomerWorker(ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Entities.Customer customer, ILogger logger)
     {
         this.sellerService = sellerService;
         this.config = config;
@@ -60,9 +64,16 @@ public abstract class AbstractCustomerThread : ICustomerWorker
     {
         this.AddItemsToCart();
         this.Checkout(tid);
+        // it avoids implementations based on default customer worker to "forget" to clean the cart
+        this.DoAfterCustomerSession();
     }
 
-    public abstract void AddItemsToCart();
+    protected virtual void DoAfterCustomerSession()
+    {
+        // do nothing by default
+    }
+
+    protected abstract void AddItemsToCart();
 
     public void Checkout(string tid)
     {
@@ -85,17 +96,24 @@ public abstract class AbstractCustomerThread : ICustomerWorker
         return this.submittedTransactions;
     }
 
-    public virtual void AddFinishedTransaction(TransactionOutput transactionOutput)
-    {
-        throw new NotImplementedException();
-    }
-
     public List<TransactionMark> GetAbortedTransactions()
     {
         return this.abortedTransactions;
     }
 
-    public abstract List<TransactionOutput> GetFinishedTransactions();
+    /**
+    * Only implemented if the target data platform has an asynchronous API
+    * for submitting transaction requests. This is the case for Statefun, for example. Data structure for storing TransactionOutput is not declared in this class becuase this may differ according to the data platform
+    */
+    public virtual void AddFinishedTransaction(TransactionOutput transactionOutput)
+    {
+        throw new NotImplementedException();
+    }
+
+    public virtual List<TransactionOutput> GetFinishedTransactions()
+    {
+        throw new NotImplementedException();
+    }
 
     public virtual IDictionary<string, List<CartItem>> GetCartItemsPerTid(DateTime finishTime)
     {

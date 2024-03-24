@@ -4,15 +4,14 @@ using Common.Infra;
 using Common.Streaming;
 using Common.Metric;
 using Common.Services;
-using Common.Workers;
 using System.Text;
 using Daprr.Streaming.Redis;
 using Common.Http;
-using Dapr.Workers;
 using Common.Workers.Seller;
 using Common.Workload;
 using Common.Workers.Customer;
 using DuckDB.NET.Data;
+using Common.Workers.Delivery;
 
 namespace Dapr.Workload;
 
@@ -28,8 +27,8 @@ public class DaprExperimentManager : AbstractExperimentManager
     private readonly DeliveryService deliveryService;
 
     private readonly Dictionary<int, ISellerWorker> sellerThreads;
-    private readonly Dictionary<int, AbstractCustomerThread> customerThreads;
-    private readonly DeliveryThread deliveryThread;
+    private readonly Dictionary<int, AbstractCustomerWorker> customerThreads;
+    private readonly DefaultDeliveryWorker deliveryThread;
 
     private int numSellers;
 
@@ -41,12 +40,12 @@ public class DaprExperimentManager : AbstractExperimentManager
         this.httpClientFactory = httpClientFactory;
         this.redisConnection = string.Format("{0}:{1}", config.streamingConfig.host, config.streamingConfig.port);
 
-        this.deliveryThread = DeliveryThread.BuildDeliveryThread(httpClientFactory, config.deliveryWorkerConfig);
+        this.deliveryThread = DefaultDeliveryWorker.BuildDeliveryThread(httpClientFactory, config.deliveryWorkerConfig);
         this.deliveryService = new DeliveryService(this.deliveryThread);
 
         this.sellerThreads = new Dictionary<int, ISellerWorker>();
         this.sellerService = new SellerService(this.sellerThreads);
-        this.customerThreads = new Dictionary<int, AbstractCustomerThread>();
+        this.customerThreads = new Dictionary<int, AbstractCustomerWorker>();
         this.customerService = new CustomerService(this.customerThreads);
 
         this.numSellers = 0;
@@ -119,12 +118,12 @@ public class DaprExperimentManager : AbstractExperimentManager
             this.channelsToTrim.Add(channel);
         }
 
-        TrimStreams();
+        this.TrimStreams();
 
         // initialize all customer thread objects
         for (int i = this.customerRange.min; i <= this.customerRange.max; i++)
         {
-            this.customerThreads.Add(i, HttpCustomerThread.BuildCustomerThread(httpClientFactory, this.sellerService, config.numProdPerSeller, config.customerWorkerConfig, this.customers[i-1]));
+            this.customerThreads.Add(i, DefaultCustomerWorker.BuildCustomerThread(httpClientFactory, this.sellerService, config.numProdPerSeller, config.customerWorkerConfig, this.customers[i-1]));
         }
 
     }
@@ -141,7 +140,7 @@ public class DaprExperimentManager : AbstractExperimentManager
             List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
             if (!sellerThreads.ContainsKey(i))
             {
-                sellerThreads[i] = HttpSellerThread.BuildSellerThread(i, httpClientFactory, config.sellerWorkerConfig);
+                sellerThreads[i] = DefaultSellerWorker.BuildSellerThread(i, httpClientFactory, config.sellerWorkerConfig);
                 sellerThreads[i].SetUp(products, config.runs[runIdx].keyDistribution);
             }
             else

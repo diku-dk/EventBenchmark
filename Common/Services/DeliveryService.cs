@@ -1,6 +1,6 @@
 ﻿using Common.Workload.Metrics;
-using Common.Workers;
 using Common.Streaming;
+using Common.Workers.Delivery;
 
 namespace Common.Services;
 
@@ -43,5 +43,4 @@ public class DeliveryService : IDeliveryService
         return this.deliveryThread.GetFinishedTransactions();
     }
 }
-
 

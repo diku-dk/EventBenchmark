@@ -4,15 +4,14 @@ using Common.Workload;
 using Common.Workload.Delivery;
 using Common.Workload.Metrics;
 using Microsoft.Extensions.Logging;
-using Common.Workers;
 using System.Collections.Concurrent;
 using Statefun.Infra;
+using Common.Workers.Delivery;
 
 namespace Statefun.Workers;
 
 public sealed class StatefunDeliveryThread : IDeliveryWorker
 {
-    private static readonly string baseContentType = "application/vnd.marketplace/";
 
     private readonly DeliveryWorkerConfig config;
 
@@ -49,7 +48,7 @@ public sealed class StatefunDeliveryThread : IDeliveryWorker
 
         string apiUrl = string.Concat(this.config.shipmentUrl, "/", partitionID);        
         string eventType = "UpdateShipment";
-        string contentType = string.Concat(baseContentType, eventType);
+        string contentType = string.Concat(StatefunUtils.BASE_CONTENT_TYPE, eventType);
 
         var initTime = DateTime.UtcNow; 
         HttpResponseMessage resp = StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Result;      

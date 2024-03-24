@@ -10,7 +10,10 @@ using Microsoft.Extensions.Logging;
 
 namespace Common.Workers.Seller;
 
-public abstract class AbstractSellerThread : ISellerWorker
+/**
+ * Contains core functionality related ensuring safety in product selection
+ */
+public abstract class AbstractSellerWorker : ISellerWorker
 {
 
     private readonly Random random;
@@ -25,6 +28,8 @@ public abstract class AbstractSellerThread : ISellerWorker
 
     private Product[] products;
 
+    private object[] productLocks;
+
     // concurrent bag because of concurrent writes of different products
     protected readonly ConcurrentBag<TransactionIdentifier> submittedTransactions;
     protected readonly ConcurrentBag<TransactionOutput> finishedTransactions;
@@ -33,7 +38,7 @@ public abstract class AbstractSellerThread : ISellerWorker
     // track sequence of updates to items so it can be matched against the historical carts
     private readonly List<Product> trackedUpdates;
 
-    protected AbstractSellerThread(int sellerId, SellerWorkerConfig workerConfig, ILogger logger)
+    protected AbstractSellerWorker(int sellerId, SellerWorkerConfig workerConfig, ILogger logger)
 	{
         this.random = Random.Shared;
         this.logger = logger;
@@ -45,12 +50,18 @@ public abstract class AbstractSellerThread : ISellerWorker
         this.trackedUpdates = new List<Product>();
     }
 
-    public void SetUp(List<Product> products, DistributionType keyDistribution)
+    public void SetUp(List<Product> sellerProducts, DistributionType keyDistribution)
     {
-        this.products = products.ToArray();
+        this.products = sellerProducts.ToArray();
+        this.productLocks = new object[this.products.Length];
+        for(int i = 0; i < this.products.Length; i++)
+        {
+            this.productLocks[i] = new object();
+        }
+
         this.productIdGenerator = keyDistribution == DistributionType.UNIFORM ?
-                                 new DiscreteUniform(1, products.Count, Random.Shared) :
-                                 new Zipf(WorkloadConfig.productZipfian, products.Count, Random.Shared);
+                                 new DiscreteUniform(1, sellerProducts.Count, Random.Shared) :
+                                 new Zipf(WorkloadConfig.productZipfian, sellerProducts.Count, Random.Shared);
         this.submittedTransactions.Clear();
         this.finishedTransactions.Clear();
         this.abortedTransactions.Clear();
@@ -63,23 +74,23 @@ public abstract class AbstractSellerThread : ISellerWorker
     public void UpdatePrice(string tid)
     {
         int idx = this.productIdGenerator.Sample() - 1;
-        object locked = products[idx];
+        object locked = this.productLocks[idx];
         while(!Monitor.TryEnter(locked))
         {
             idx = this.productIdGenerator.Sample() - 1;
-            locked = products[idx];
+            locked = this.productLocks[idx];
         }
 
-        int percToAdjust = this.random.Next(config.adjustRange.min, config.adjustRange.max);
-        var currPrice = products[idx].price;
+        int percToAdjust = this.random.Next(this.config.adjustRange.min, this.config.adjustRange.max);
+        var currPrice = this.products[idx].price;
         var newPrice = currPrice + ((currPrice * percToAdjust) / 100);
 
         try {
-            Product product = new Product(products[idx], newPrice);
+            Product product = new Product(this.products[idx], newPrice);
             this.SendUpdatePriceRequest(product, tid);
             // update instance after successful request
             this.products[idx] = product;
-            if(config.trackUpdates) this.trackedUpdates.Add(product);
+            if(this.config.trackUpdates) this.trackedUpdates.Add(product);
         }
         finally
         {
@@ -93,35 +104,34 @@ public abstract class AbstractSellerThread : ISellerWorker
     public void UpdateProduct(string tid)
     {
         int idx = this.productIdGenerator.Sample() - 1;
-        object locked = products[idx];
+        object locked = this.productLocks[idx];
         // only one update of a given version is allowed
         while(!Monitor.TryEnter(locked))
         {
             idx = this.productIdGenerator.Sample() - 1;
-            locked = products[idx];
+            locked = this.productLocks[idx];
         }
 
         try
         {
-            Product product = new Product(products[idx], tid);
+            Product product = new Product(this.products[idx], tid);
             this.SendProductUpdateRequest(product, tid);
             // trick so customer do not need to synchronize to get a product
-            // (concurrent thread may refer to an older version though)
+            // (concurrent thread may refer to an older reference, i.e., version, though)
             this.products[idx] = product;
-            if(config.trackUpdates) this.trackedUpdates.Add(product);
+            if(this.config.trackUpdates) this.trackedUpdates.Add(product);
         }
         finally
         {
             Monitor.Exit(locked);
-        }
-        
+        } 
     }
 
     protected abstract void SendProductUpdateRequest(Product product, string tid);
 
-    // yes, we may retrieve a product that is being concurrently deleted
+    // we may retrieve a product that is being concurrently deleted
     // at first, I was thinking to always get available product..
-    // because concurrently a seller can delete a product and the time spent on finding a available product is lost
+    // because concurrently, a seller can delete a product and the time spent on finding a available product is lost
     public Product GetProduct(int idx)
     {
         return this.products[idx];
@@ -149,7 +159,10 @@ public abstract class AbstractSellerThread : ISellerWorker
         return list;
     }
 
-    public abstract void AddFinishedTransaction(TransactionOutput transactionOutput);
+    public virtual void AddFinishedTransaction(TransactionOutput transactionOutput)
+    {
+        throw new NotImplementedException("Not supported by current implementation.");
+    }
 
     public List<TransactionMark> GetAbortedTransactions()
     {

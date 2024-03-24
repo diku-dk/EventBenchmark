@@ -6,25 +6,30 @@ using Common.Workload.Delivery;
 using Common.Workload.Metrics;
 using Microsoft.Extensions.Logging;
 
-namespace Common.Workers;
+namespace Common.Workers.Delivery;
 
-public class DeliveryThread : IDeliveryWorker
+/**
+ * Default delivery worker. It considers a synchronous API for requesting an UPDATE DELIVERY transaction
+ */
+public class DefaultDeliveryWorker : IDeliveryWorker
 {
     protected readonly HttpClient httpClient;
+
     protected readonly DeliveryWorkerConfig config;
 
     protected readonly ILogger logger;
 
     protected readonly BlockingCollection<(TransactionIdentifier, TransactionOutput)> resultQueue;
+
     protected readonly ConcurrentBag<TransactionMark> abortedTransactions;
 
-    public static DeliveryThread BuildDeliveryThread(IHttpClientFactory httpClientFactory, DeliveryWorkerConfig config)
+    public static DefaultDeliveryWorker BuildDeliveryThread(IHttpClientFactory httpClientFactory, DeliveryWorkerConfig config)
     {
         var logger = LoggerProxy.GetInstance("Delivery");
-        return new DeliveryThread(config, httpClientFactory.CreateClient(), logger);
+        return new DefaultDeliveryWorker(config, httpClientFactory.CreateClient(), logger);
     }
 
-    protected DeliveryThread(DeliveryWorkerConfig config, HttpClient httpClient, ILogger logger)
+    protected DefaultDeliveryWorker(DeliveryWorkerConfig config, HttpClient httpClient, ILogger logger)
     {
         this.config = config;
         this.httpClient = httpClient;
@@ -33,20 +38,21 @@ public class DeliveryThread : IDeliveryWorker
         this.abortedTransactions = new();
     }
 
-	public void Run(string tid)
-	{
-        HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, config.shipmentUrl + "/" + tid);
+    public void Run(string tid)
+    {
+        HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, this.config.shipmentUrl + "/" + tid);
         var initTime = DateTime.UtcNow;
-        var resp = httpClient.Send(message);
+        var resp = this.httpClient.Send(message);
         if (resp.IsSuccessStatusCode)
         {
-            var init = new TransactionIdentifier(tid, TransactionType.UPDATE_DELIVERY, initTime);
             var endTime = DateTime.UtcNow;
+            var init = new TransactionIdentifier(tid, TransactionType.UPDATE_DELIVERY, initTime);
             var end = new TransactionOutput(tid, endTime);
             this.resultQueue.Add((init, end));
-        } else
+        }
+        else
         {
-            this.abortedTransactions.Add( new TransactionMark(tid, TransactionType.UPDATE_DELIVERY, 1, MarkStatus.ABORT, "shipment")  );
+            this.abortedTransactions.Add(new TransactionMark(tid, TransactionType.UPDATE_DELIVERY, 1, MarkStatus.ABORT, "shipment"));
             this.logger.LogDebug("Delivery worker failed to update delivery for TID {0}: {1}", tid, resp.ReasonPhrase);
         }
     }
@@ -71,18 +77,18 @@ public class DeliveryThread : IDeliveryWorker
         return list;
     }
 
+    // from down below, never invoked in default delivery worker implementation
     public void AddFinishedTransaction(TransactionOutput transactionOutput)
     {
         throw new NotImplementedException();
     }
 
-    // never invoked in DeliveryThread
+
     public List<TransactionIdentifier> GetSubmittedTransactions()
     {
         throw new NotImplementedException();
     }
 
-    // never invoked in DeliveryThread
     public List<TransactionOutput> GetFinishedTransactions()
     {
         throw new NotImplementedException();

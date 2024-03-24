@@ -50,8 +50,18 @@ public class Program
             }
             case "3":
             {
-                if(connection is null) {
-                    Console.WriteLine("Warning: Connection has not been set! Starting anyway...");
+                if (connection is null)
+                {
+                    if (config.connectionString.SequenceEqual("DataSource=:memory:"))
+                    {
+                        Console.WriteLine("Please generate some data first by selecting option 1.");
+                        break;
+                    }
+                    else
+                    {
+                        connection = new DuckDBConnection(config.connectionString);
+                        connection.Open();
+                    }
                 }
                 var expManager = new ActorExperimentManager(new CustomHttpClientFactory(), config, connection);
                 await expManager.RunSimpleExperiment(2);

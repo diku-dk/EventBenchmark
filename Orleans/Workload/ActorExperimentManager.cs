@@ -3,15 +3,14 @@ using Common.Experiment;
 using Common.Infra;
 using Common.Workload;
 using Common.Services;
-using Common.Workers;
 using Common.Workers.Seller;
-using Dapr.Workload;
 using Microsoft.Extensions.Logging;
 using Orleans.Workers;
 using Common.Workers.Customer;
 using Common.Http;
 using Orleans.Metric;
 using DuckDB.NET.Data;
+using Common.Workers.Delivery;
 
 namespace Orleans.Workload;
 
@@ -24,8 +23,8 @@ public sealed class ActorExperimentManager : AbstractExperimentManager
     private readonly DeliveryService deliveryService;
 
     private readonly Dictionary<int, ISellerWorker> sellerThreads;
-    private readonly Dictionary<int, AbstractCustomerThread> customerThreads;
-    private readonly DeliveryThread deliveryThread;
+    private readonly Dictionary<int, AbstractCustomerWorker> customerThreads;
+    private readonly DefaultDeliveryWorker deliveryThread;
 
     private int numSellers;
 
@@ -36,12 +35,12 @@ public sealed class ActorExperimentManager : AbstractExperimentManager
     {
         this.httpClientFactory = httpClientFactory;
 
-        this.deliveryThread = DeliveryThread.BuildDeliveryThread(httpClientFactory, config.deliveryWorkerConfig);
+        this.deliveryThread = DefaultDeliveryWorker.BuildDeliveryThread(httpClientFactory, config.deliveryWorkerConfig);
         this.deliveryService = new DeliveryService(this.deliveryThread);
 
         this.sellerThreads = new Dictionary<int, ISellerWorker>();
         this.sellerService = new SellerService(this.sellerThreads);
-        this.customerThreads = new Dictionary<int, AbstractCustomerThread>();
+        this.customerThreads = new Dictionary<int, AbstractCustomerWorker>();
         this.customerService = new CustomerService(this.customerThreads);
 
         this.numSellers = 0;
@@ -58,9 +57,9 @@ public sealed class ActorExperimentManager : AbstractExperimentManager
         this.metricManager = new ActorMetricManager(sellerService, customerService, deliveryService);
     }
 
-    public override async Task RunSimpleExperiment(int type)
+    public async Task RunSimpleExperiment(int type)
     {
-        this.customers = DuckDbUtils.SelectAll<Customer>(connection, "customers");
+        this.customers = DuckDbUtils.SelectAll<Customer>(this.connection, "customers");
         this.PreExperiment();
         this.PreWorkload(0);
         this.SetUpManager(0);
@@ -89,7 +88,7 @@ public sealed class ActorExperimentManager : AbstractExperimentManager
         Console.WriteLine("Initializing customer threads...");
         for (int i = this.customerRange.min; i <= this.customerRange.max; i++)
         {
-            this.customerThreads.Add(i, ActorCustomerThread.BuildCustomerThread(this.httpClientFactory, this.sellerService, this.config.numProdPerSeller, this.config.customerWorkerConfig, this.customers[i-1]));
+            this.customerThreads.Add(i, ActorCustomerWorker.BuildCustomerThread(this.httpClientFactory, this.sellerService, this.config.numProdPerSeller, this.config.customerWorkerConfig, this.customers[i-1]));
         }
     }
 
@@ -102,7 +101,7 @@ public sealed class ActorExperimentManager : AbstractExperimentManager
             List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
             if (!this.sellerThreads.ContainsKey(i))
             {
-                this.sellerThreads[i] = ActorSellerThread.BuildSellerThread(i, this.httpClientFactory, this.config.sellerWorkerConfig);
+                this.sellerThreads[i] = ActorSellerWorker.BuildSellerThread(i, this.httpClientFactory, this.config.sellerWorkerConfig);
                 this.sellerThreads[i].SetUp(products, this.config.runs[runIdx].keyDistribution);
             }
             else
@@ -163,8 +162,4 @@ public sealed class ActorExperimentManager : AbstractExperimentManager
         await Task.WhenAll(resps_);
     }
 
-    protected override void TrimStreams()
-    {
-        // nothing to do for orleans
-    }
 }
