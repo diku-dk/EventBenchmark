@@ -63,7 +63,7 @@ public class Program
                         connection.Open();
                     }
                 }
-                var expManager = new ActorExperimentManager(new CustomHttpClientFactory(), config, connection);
+                var expManager = ActorExperimentManager.BuildActorExperimentManager(new CustomHttpClientFactory(), config, connection);
                 await expManager.RunSimpleExperiment(2);
                 break;
             }
@@ -83,7 +83,7 @@ public class Program
                 }
                 // ingest data
                 await CustomIngestionOrchestrator.Run(connection, config.ingestionConfig);
-                var expManager = new ActorExperimentManager(new CustomHttpClientFactory(), config, connection);
+                var expManager = ActorExperimentManager.BuildActorExperimentManager(new CustomHttpClientFactory(), config, connection);
                 // could be a config param: delay after ingest
                 Console.WriteLine("Delay after ingest...");
                 await Task.Delay(10000);

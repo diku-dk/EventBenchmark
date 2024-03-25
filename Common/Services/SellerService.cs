@@ -3,17 +3,23 @@ using Common.Workload;
 using Common.Workload.Metrics;
 using Common.Workers.Seller;
 using Common.Streaming;
+using Common.Workload.Seller;
 
 namespace Common.Services;
 
 public sealed class SellerService : ISellerService
 {
+    public delegate ISellerWorker BuildSellerWorkerDelegate(int sellerId, IHttpClientFactory httpClientFactory, SellerWorkerConfig workerConfig);
+
+    // callback
+    public readonly BuildSellerWorkerDelegate BuildSellerWorker;
 
     private readonly Dictionary<int, ISellerWorker> sellers;
 
-    public SellerService(Dictionary<int, ISellerWorker> sellers)
+    public SellerService(Dictionary<int, ISellerWorker> sellers, BuildSellerWorkerDelegate buildSellerWorker)
     {
         this.sellers = sellers;
+        this.BuildSellerWorker = buildSellerWorker;
     }
 
     public Product GetProduct(int sellerId, int idx) => this.sellers[sellerId].GetProduct(idx);

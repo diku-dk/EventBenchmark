@@ -15,7 +15,7 @@ namespace Tests.Thread;
  * 
  * CAUTION: do not run the tests concurrently
  */
-[Collection(nameof(SafetyCollection))]
+[Collection(nameof(SafetyCollectionDefinition))]
 public class SellerTests
 {
 
@@ -158,16 +158,7 @@ public class SellerTests
             if(list[i].type == TransactionType.PRICE_UPDATE && list[i-1].type == TransactionType.UPDATE_PRODUCT) 
             {
                 bool outcome = list[i].version.SequenceEqual(list[i - 1].version);
-                if (!outcome)
-                {
-                    // FIXME has to investigate this specific case. results are non deterministic in windows platform
-                    // Assert.True(outcome, "MY CUSTOM ERROR!" );
-                    // fix: has to find the version that this seller thread has seen. but is this correct????
-                    Console.WriteLine("Problem!");
-                }
-             
                 Assert.True(outcome, list[i].version + " is != " + list[i - 1].version);
-
             } 
             else if (list[i].type == TransactionType.PRICE_UPDATE && list[i - 1].type == TransactionType.PRICE_UPDATE)
             {

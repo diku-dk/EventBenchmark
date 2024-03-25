@@ -1,5 +1,6 @@
 ﻿using Common.Entities;
 using Common.Http;
+using Common.Infra;
 using Common.Services;
 using Common.Workers.Customer;
 using Common.Workload.CustomerWorker;
@@ -12,9 +13,15 @@ public sealed class CustomerWorker : DefaultCustomerWorker
 {
     private readonly List<TransactionOutput> finishedTransactions;
 
-    public CustomerWorker(ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer, HttpClient httpClient, ILogger logger) : base(sellerService, numberOfProducts, config, customer, httpClient, logger)
+    private CustomerWorker(ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer, HttpClient httpClient, ILogger logger) : base(sellerService, numberOfProducts, config, customer, httpClient, logger)
     {
         this.finishedTransactions = new();
+    }
+
+    public static new CustomerWorker BuildCustomerWorker(IHttpClientFactory httpClientFactory, ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer)
+    {
+        var logger = LoggerProxy.GetInstance("Customer" + customer.id.ToString());
+        return new CustomerWorker(sellerService, numberOfProducts, config, customer, httpClientFactory.CreateClient(), logger);
     }
 
     protected override void BuildAddCartPayloadAndSend(string objStr)

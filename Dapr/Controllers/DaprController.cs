@@ -34,7 +34,7 @@ public class DaprController : ControllerBase
             logger.LogInformation("Request for experiment run accepted.");
             connection = new DuckDBConnection(config.connectionString);
             connection.Open();
-            DaprExperimentManager experimentManager = new DaprExperimentManager(httpClientFactory, config, connection);
+            DaprExperimentManager experimentManager = DaprExperimentManager.BuildDaprExperimentManager(httpClientFactory, config, connection);
             await experimentManager.Run();
             Interlocked.Exchange(ref usingResource, 0);
             return Ok();

@@ -23,7 +23,7 @@ public class DefaultSellerWorker : AbstractSellerWorker
         this.httpClient = httpClient;
 	}
 
-	public static DefaultSellerWorker BuildSellerThread(int sellerId, IHttpClientFactory httpClientFactory, SellerWorkerConfig workerConfig)
+	public static DefaultSellerWorker BuildSellerWorker(int sellerId, IHttpClientFactory httpClientFactory, SellerWorkerConfig workerConfig)
     {
         var logger = LoggerProxy.GetInstance("SellerThread_"+ sellerId);
         return new DefaultSellerWorker(sellerId, httpClientFactory.CreateClient(), workerConfig, logger);
@@ -85,7 +85,7 @@ public class DefaultSellerWorker : AbstractSellerWorker
             HttpRequestMessage message = new(HttpMethod.Get, config.sellerUrl + "/dashboard/" + this.sellerId);
 
             var now = DateTime.UtcNow;
-            var response = httpClient.Send(message);
+            var response = this.httpClient.Send(message);
             if (response.IsSuccessStatusCode)
             {
                 this.finishedTransactions.Add(new TransactionOutput(tid, DateTime.UtcNow));

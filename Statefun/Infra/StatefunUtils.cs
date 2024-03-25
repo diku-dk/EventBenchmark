@@ -14,15 +14,12 @@ public sealed class StatefunUtils
     /**
      * used to send http request to StateFun application.
      */
-    public static async Task<HttpResponseMessage> SendHttpToStatefun(string url, string contentType, string payLoad)
+    public static async Task<HttpResponseMessage> SendHttpToStatefun(HttpClient httpClient, string url, string contentType, string payLoad)
     {
         var content = HttpUtils.BuildPayload(payLoad);
         content.Headers.ContentType = null; // zero out default content type
         content.Headers.TryAddWithoutValidation("Content-Type", contentType);
-
-        HttpResponseMessage response = await HttpUtils.client.PostAsync(url, content);
-
-        return response;
+        return await httpClient.PostAsync(url, content);
     }
 
 }

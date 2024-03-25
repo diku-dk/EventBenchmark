@@ -1,46 +1,135 @@
 ﻿using Common.DataGeneration;
 using Common.Entities;
+using Common.Http;
 using Common.Infra;
 using Common.Ingestion;
+using Common.Metric;
+using Common.Services;
+using Common.Workers.Customer;
+using Common.Workers.Seller;
 using Common.Workload;
 using DuckDB.NET.Data;
 using Microsoft.Extensions.Logging;
+using static Common.Services.CustomerService;
+using static Common.Services.DeliveryService;
+using static Common.Services.SellerService;
 
 namespace Common.Experiment;
 
 public abstract class AbstractExperimentManager
 {
+
+    protected readonly IHttpClientFactory httpClientFactory;
+
     protected readonly ExperimentConfig config;
+
     protected readonly DuckDBConnection connection;
-    protected List<Customer> customers;
-    protected readonly Interval customerRange;
 
     protected static readonly byte ITEM = 0;
 
     protected static readonly ILogger logger = LoggerProxy.GetInstance("ExperimentManager");
 
-    protected static readonly List<TransactionType> eventualCompletionTransactions = new() { TransactionType.CUSTOMER_SESSION, TransactionType.PRICE_UPDATE, TransactionType.UPDATE_PRODUCT };
+    // workers config
+    protected readonly DeliveryService deliveryService;
 
-    public AbstractExperimentManager(ExperimentConfig config, DuckDBConnection duckDBConnection)
+    protected List<Customer> customers;
+    protected readonly Interval customerRange;
+    private readonly Dictionary<int, AbstractCustomerWorker> customerThreads;
+    protected readonly CustomerService customerService;
+
+    protected readonly SellerService sellerService;
+    private readonly Dictionary<int, ISellerWorker> sellerThreads;
+    protected int numSellers;
+
+    public AbstractExperimentManager(IHttpClientFactory httpClientFactory, BuildSellerWorkerDelegate buildSellerWorkerDelegate, BuildCustomerWorkerDelegate customerWorkerDelegate, BuildDeliveryWorkerDelegate deliveryWorkerDelegate, ExperimentConfig config, DuckDBConnection duckDBConnection)
     {
+        this.httpClientFactory = httpClientFactory;
         this.config = config;
-        this.customerRange = new Interval(1, config.numCustomers);
         this.connection = duckDBConnection;
+
+        this.deliveryService = new DeliveryService(deliveryWorkerDelegate(httpClientFactory, config.deliveryWorkerConfig));
+
+        this.sellerThreads = new Dictionary<int, ISellerWorker>();
+        this.sellerService = new SellerService(this.sellerThreads, buildSellerWorkerDelegate);
+        this.numSellers = 0;
+
+        this.customerThreads = new Dictionary<int, AbstractCustomerWorker>();
+        this.customerService = new CustomerService(this.customerThreads, customerWorkerDelegate);
+        this.customerRange = new Interval(1, config.numCustomers);
     }
 
-    protected abstract void PreExperiment();
+    protected virtual void PreExperiment()
+    {
+        Console.WriteLine("Initializing customer workers...");
+        for (int i = this.customerRange.min; i <= this.customerRange.max; i++)
+        {
+            this.customerThreads.Add(i, this.customerService.BuildCustomerWorker(this.httpClientFactory, this.sellerService, this.config.numProdPerSeller, this.config.customerWorkerConfig, this.customers[i - 1]));
+        }
+    }
 
-    protected virtual void PostExperiment() { }
+    protected virtual void PreWorkload(int runIdx)
+    {
+        Console.WriteLine("Initializing seller workers...");
+        this.numSellers = (int)DuckDbUtils.Count(this.connection, "sellers");
+        for (int i = 1; i <= this.numSellers; i++)
+        {
+            List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
+            if (!this.sellerThreads.ContainsKey(i))
+            {
+                this.sellerThreads[i] = this.sellerService.BuildSellerWorker(i, this.httpClientFactory, this.config.sellerWorkerConfig); 
+            }
+            this.sellerThreads[i].SetUp(products, this.config.runs[runIdx].keyDistribution);
+        }
 
-    protected virtual void TrimStreams() { }
+        Console.WriteLine("Setting up seller workload info in customer workers...");
+        Interval sellerRange = new Interval(1, this.numSellers);
+        for (int i = this.customerRange.min; i <= this.customerRange.max; i++)
+        {
+            this.customerThreads[i].SetUp(this.config.runs[runIdx].sellerDistribution, sellerRange, this.config.runs[runIdx].keyDistribution);
+        }
+    }
 
-    protected abstract void PreWorkload(int runIdx);
+    protected virtual async void PostRunTasks(int runIdx, int lastRunIdx)
+    {
+        // reset microservice states
+        var resps_ = new List<Task<HttpResponseMessage>>();
+        foreach (var task in this.config.postRunTasks)
+        {
+            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
+            logger.LogInformation("Post run task to URL {0}", task.url);
+            resps_.Add(HttpUtils.client.SendAsync(message));
+        }
+        await Task.WhenAll(resps_);
+    }
 
-    protected virtual void PostRunTasks(int runIdx, int lastRunIdx) { }
+    private async Task TriggerPostExperimentTasks()
+    {
+        // cleanup microservice states
+        var resps_ = new List<Task<HttpResponseMessage>>();
+        foreach (var task in this.config.postExperimentTasks)
+        {
+            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
+            logger.LogInformation("Post experiment task to URL {0}", task.url);
+            resps_.Add(HttpUtils.client.SendAsync(message));
+        }
+        await Task.WhenAll(resps_);
+    }
 
-    protected abstract WorkloadManager SetUpManager(int runIdx);
+    protected virtual async void PostExperiment()
+    {
+        await this.TriggerPostExperimentTasks();
+    }
 
-    protected abstract void Collect(int runIdx, DateTime startTime, DateTime finishTime);
+    protected abstract WorkloadManager SetUpWorkloadManager(int runIdx);
+
+    protected abstract MetricManager SetUpMetricManager(int runIdx);
+
+    protected virtual void Collect(int runIdx, DateTime startTime, DateTime finishTime)
+    {
+        var metricManager = this.SetUpMetricManager(runIdx);
+        string ts = new DateTimeOffset(startTime).ToUnixTimeMilliseconds().ToString();
+        metricManager.Collect(startTime, finishTime, config.epoch, string.Format("{0}#{1}_{2}_{3}_{4}_{5}_{6}", ts, runIdx, this.config.numCustomers, this.config.concurrencyLevel, this.config.runs[runIdx].numProducts, this.config.runs[runIdx].sellerDistribution, this.config.runs[runIdx].keyDistribution));
+    }
 
     public virtual async Task Run()
     {
@@ -99,7 +188,7 @@ public abstract class AbstractExperimentManager
 
             this.PreWorkload(runIdx);
 
-            WorkloadManager workloadManager = this.SetUpManager(runIdx);
+            WorkloadManager workloadManager = this.SetUpWorkloadManager(runIdx);
 
             logger.LogInformation("Run #{0} started at {1}", runIdx, DateTime.UtcNow);
 
@@ -114,9 +203,6 @@ public abstract class AbstractExperimentManager
             // set up data collection for metrics
             this.Collect(runIdx, startTime, finishTime);
 
-            // trim first to avoid receiving events after the post run task
-            this.TrimStreams();
-
             this.CollectGarbage();
 
             logger.LogInformation("Run #{0} finished at {1}", runIdx, DateTime.UtcNow);
@@ -128,7 +214,7 @@ public abstract class AbstractExperimentManager
                 this.PostRunTasks(runIdx, lastRunIdx);
         }
 
-        logger.LogInformation("Post experiment cleanup tasks started.");
+        logger.LogInformation("Post experiment cleanup tasks starting...");
 
         this.PostExperiment();
 
@@ -140,7 +226,7 @@ public abstract class AbstractExperimentManager
         this.customers = DuckDbUtils.SelectAll<Customer>(this.connection, "customers");
         this.PreExperiment();
         this.PreWorkload(0);
-        var workloadManager = this.SetUpManager(0);
+        var workloadManager = this.SetUpWorkloadManager(0);
         (DateTime startTime, DateTime finishTime) res = await workloadManager.Run();
         DateTime startTime = res.startTime;
         DateTime finishTime = res.finishTime;

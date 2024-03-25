@@ -29,7 +29,7 @@ public class DefaultCustomerWorker : AbstractCustomerWorker
         this.tids = new HashSet<string>();
     }
 
-    public static DefaultCustomerWorker BuildCustomerThread(IHttpClientFactory httpClientFactory, ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Entities.Customer customer)
+    public static DefaultCustomerWorker BuildCustomerWorker(IHttpClientFactory httpClientFactory, ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Entities.Customer customer)
     {
         var logger = LoggerProxy.GetInstance("Customer" + customer.id.ToString());
         return new DefaultCustomerWorker(sellerService, numberOfProducts, config, customer, httpClientFactory.CreateClient(), logger);

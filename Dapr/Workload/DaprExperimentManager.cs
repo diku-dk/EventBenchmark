@@ -1,9 +1,6 @@
-using Common.Entities;
 using Common.Experiment;
-using Common.Infra;
 using Common.Streaming;
 using Common.Metric;
-using Common.Services;
 using System.Text;
 using Daprr.Streaming.Redis;
 using Common.Http;
@@ -12,44 +9,31 @@ using Common.Workload;
 using Common.Workers.Customer;
 using DuckDB.NET.Data;
 using Common.Workers.Delivery;
+using static Common.Services.CustomerService;
+using static Common.Services.DeliveryService;
+using static Common.Services.SellerService;
 
 namespace Dapr.Workload;
 
 public class DaprExperimentManager : AbstractExperimentManager
 {
-    private readonly IHttpClientFactory httpClientFactory;
 
     private readonly string redisConnection;
     private readonly List<string> channelsToTrim;
 
-    private readonly SellerService sellerService;
-    private readonly CustomerService customerService;
-    private readonly DeliveryService deliveryService;
-
-    private readonly Dictionary<int, ISellerWorker> sellerThreads;
-    private readonly Dictionary<int, AbstractCustomerWorker> customerThreads;
-    private readonly DefaultDeliveryWorker deliveryThread;
-
-    private int numSellers;
-
     private readonly DaprWorkloadManager workflowManager;
     private readonly DaprMetricManager metricManager;
 
-    public DaprExperimentManager(IHttpClientFactory httpClientFactory, ExperimentConfig config, DuckDBConnection connection) : base(config, connection)
+    protected static readonly List<TransactionType> eventualCompletionTransactions = new() { TransactionType.CUSTOMER_SESSION, TransactionType.PRICE_UPDATE, TransactionType.UPDATE_PRODUCT };
+
+    public static DaprExperimentManager BuildDaprExperimentManager(IHttpClientFactory httpClientFactory, ExperimentConfig config, DuckDBConnection connection)
     {
-        this.httpClientFactory = httpClientFactory;
+        return new DaprExperimentManager(httpClientFactory, DefaultSellerWorker.BuildSellerWorker, DefaultCustomerWorker.BuildCustomerWorker, DefaultDeliveryWorker.BuildDeliveryWorker, config, connection);
+    }
+
+    private DaprExperimentManager(IHttpClientFactory httpClientFactory, BuildSellerWorkerDelegate sellerWorkerDelegate, BuildCustomerWorkerDelegate customerWorkerDelegate, BuildDeliveryWorkerDelegate deliveryWorkerDelegate, ExperimentConfig config, DuckDBConnection connection) : base(httpClientFactory, sellerWorkerDelegate, customerWorkerDelegate, deliveryWorkerDelegate, config, connection)
+    {
         this.redisConnection = string.Format("{0}:{1}", config.streamingConfig.host, config.streamingConfig.port);
-
-        this.deliveryThread = DefaultDeliveryWorker.BuildDeliveryThread(httpClientFactory, config.deliveryWorkerConfig);
-        this.deliveryService = new DeliveryService(this.deliveryThread);
-
-        this.sellerThreads = new Dictionary<int, ISellerWorker>();
-        this.sellerService = new SellerService(this.sellerThreads);
-        this.customerThreads = new Dictionary<int, AbstractCustomerWorker>();
-        this.customerService = new CustomerService(this.customerThreads);
-
-        this.numSellers = 0;
-
         this.channelsToTrim = new();
 
         this.workflowManager = new DaprWorkloadManager(
@@ -63,15 +47,7 @@ public class DaprExperimentManager : AbstractExperimentManager
         this.metricManager = new DaprMetricManager(sellerService, customerService, deliveryService);
     }
 
-    protected override void Collect(int runIdx, DateTime startTime, DateTime finishTime)
-    {
-        string ts = new DateTimeOffset(startTime).ToUnixTimeMilliseconds().ToString();
-        this.metricManager.SetUp(numSellers, config.numCustomers);
-        this.metricManager.Collect(startTime, finishTime, config.epoch, string.Format("{0}#{1}_{2}_{3}_{4}_{5}", ts, runIdx, config.concurrencyLevel,
-                    config.runs[runIdx].numProducts, config.runs[runIdx].sellerDistribution, config.runs[runIdx].keyDistribution));
-    }
-
-    protected override WorkloadManager SetUpManager(int runIdx)
+    protected override WorkloadManager SetUpWorkloadManager(int runIdx)
     {
         this.workflowManager.SetUp(config.runs[runIdx].sellerDistribution, new Interval(1, this.numSellers));
         return workflowManager;
@@ -80,16 +56,7 @@ public class DaprExperimentManager : AbstractExperimentManager
     protected override async void PostExperiment()
     {
         await RedisUtils.TrimStreams(redisConnection, channelsToTrim);
-
-        var resps = new List<Task<HttpResponseMessage>>();
-        foreach (var task in config.postExperimentTasks)
-        {
-            HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
-            logger.LogInformation("Post experiment task to URL {0}", task.url);
-            resps.Add(HttpUtils.client.SendAsync(message));
-        }
-        await Task.WhenAll(resps);
-        logger.LogInformation("Post experiment cleanup tasks finished");
+        base.PostExperiment();
     }
 
     /**
@@ -118,52 +85,17 @@ public class DaprExperimentManager : AbstractExperimentManager
             this.channelsToTrim.Add(channel);
         }
 
-        this.TrimStreams();
-
-        // initialize all customer thread objects
-        for (int i = this.customerRange.min; i <= this.customerRange.max; i++)
-        {
-            this.customerThreads.Add(i, DefaultCustomerWorker.BuildCustomerThread(httpClientFactory, this.sellerService, config.numProdPerSeller, config.customerWorkerConfig, this.customers[i-1]));
-        }
-
-    }
-
-    /**
-     * Initialize seller threads
-     */
-    protected override void PreWorkload(int runIdx)
-    {
-        this.numSellers = (int)DuckDbUtils.Count(connection, "sellers");
-
-        for (int i = 1; i <= numSellers; i++)
-        {
-            List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
-            if (!sellerThreads.ContainsKey(i))
-            {
-                sellerThreads[i] = DefaultSellerWorker.BuildSellerThread(i, httpClientFactory, config.sellerWorkerConfig);
-                sellerThreads[i].SetUp(products, config.runs[runIdx].keyDistribution);
-            }
-            else
-            {
-                sellerThreads[i].SetUp(products, config.runs[runIdx].keyDistribution);
-            }
-        }
-
-        Interval sellerRange = new Interval(1, this.numSellers);
-        for (int i = customerRange.min; i <= customerRange.max; i++)
-        {
-            this.customerThreads[i].SetUp(this.config.runs[runIdx].sellerDistribution, sellerRange, this.config.runs[runIdx].keyDistribution);
-        }
-
-    }
-
-    protected override async void TrimStreams()
-    {
         await RedisUtils.TrimStreams(redisConnection, channelsToTrim);
+
+        base.PreExperiment();
+
     }
 
     protected override async void PostRunTasks(int runIdx, int lastRunIdx)
     {
+        // trim first to avoid receiving events after the post run task
+        await RedisUtils.TrimStreams(redisConnection, channelsToTrim);
+
         // reset data in microservices - post run
         if (runIdx < lastRunIdx)
         {
@@ -193,4 +125,9 @@ public class DaprExperimentManager : AbstractExperimentManager
 
     }
 
+    protected override MetricManager SetUpMetricManager(int runIdx)
+    {
+        this.metricManager.SetUp(this.numSellers, this.config.numCustomers);
+        return this.metricManager;
+    }
 }

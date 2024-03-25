@@ -1,4 +1,5 @@
-﻿using Common.Workers.Delivery;
+﻿using Common.Infra;
+using Common.Workers.Delivery;
 using Common.Workload.Delivery;
 using Common.Workload.Metrics;
 using Microsoft.Extensions.Logging;
@@ -7,8 +8,14 @@ namespace DriverBench.Workers;
 
 public sealed class DeliveryWorker : DefaultDeliveryWorker
 {
-    public DeliveryWorker(DeliveryWorkerConfig config, HttpClient httpClient, ILogger logger) : base(config, httpClient, logger)
+    private DeliveryWorker(DeliveryWorkerConfig config, HttpClient httpClient, ILogger logger) : base(config, httpClient, logger)
     {
+    }
+
+    public static new DeliveryWorker BuildDeliveryWorker(IHttpClientFactory httpClientFactory, DeliveryWorkerConfig config)
+    {
+        var logger = LoggerProxy.GetInstance("Delivery");
+        return new DeliveryWorker(config, httpClientFactory.CreateClient(), logger);
     }
 
     public new void Run(string tid)

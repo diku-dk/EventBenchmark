@@ -1,4 +1,5 @@
 ﻿using Common.Entities;
+using Common.Infra;
 using Common.Workers.Seller;
 using Common.Workload;
 using Common.Workload.Metrics;
@@ -9,8 +10,14 @@ namespace DriverBench.Workers;
 
 public sealed class SellerWorker : AbstractSellerWorker
 {
-    public SellerWorker(int sellerId, SellerWorkerConfig workerConfig, ILogger logger) : base(sellerId, workerConfig, logger)
+    private SellerWorker(int sellerId, SellerWorkerConfig workerConfig, ILogger logger) : base(sellerId, workerConfig, logger)
     {
+    }
+
+    public static SellerWorker BuildSellerWorker(int sellerId, IHttpClientFactory httpClientFactory, SellerWorkerConfig workerConfig)
+    {
+        var logger = LoggerProxy.GetInstance("SellerThread_" + sellerId);
+        return new SellerWorker(sellerId, workerConfig, logger);
     }
 
     public override void BrowseDashboard(string tid)

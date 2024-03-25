@@ -12,6 +12,7 @@ namespace Statefun.Workers;
 
 public sealed class StatefunDeliveryThread : IDeliveryWorker
 {
+    private readonly HttpClient httpClient;
 
     private readonly DeliveryWorkerConfig config;
 
@@ -23,15 +24,16 @@ public sealed class StatefunDeliveryThread : IDeliveryWorker
 
     private readonly ConcurrentBag<TransactionOutput> finishedTransactions;
 
-    public static StatefunDeliveryThread BuildDeliveryThread(DeliveryWorkerConfig config)
+    public static StatefunDeliveryThread BuildDeliveryThread(IHttpClientFactory httpClientFactory, DeliveryWorkerConfig config)
     {
         var logger = LoggerProxy.GetInstance("Delivery");
-        return new StatefunDeliveryThread(config, logger);
+        return new StatefunDeliveryThread(config, httpClientFactory.CreateClient(), logger);
     }
 
-    private StatefunDeliveryThread(DeliveryWorkerConfig config, ILogger logger) 
+    private StatefunDeliveryThread(DeliveryWorkerConfig config, HttpClient httpClient, ILogger logger) 
     {       
         this.config = config;
+        this.httpClient = httpClient;
         this.logger = logger;
         this.submittedTransactions = new();
         this.finishedTransactions = new();
@@ -51,7 +53,7 @@ public sealed class StatefunDeliveryThread : IDeliveryWorker
         string contentType = string.Concat(StatefunUtils.BASE_CONTENT_TYPE, eventType);
 
         var initTime = DateTime.UtcNow; 
-        HttpResponseMessage resp = StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Result;      
+        HttpResponseMessage resp = StatefunUtils.SendHttpToStatefun(this.httpClient, apiUrl, contentType, payLoad).Result;      
 
         if (resp.IsSuccessStatusCode)
         {

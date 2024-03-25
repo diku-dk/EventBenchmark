@@ -25,7 +25,7 @@ public sealed class ActorCustomerWorker : DefaultCustomerWorker
         this.finishedTransactions = new List<TransactionOutput>();
     }
 
-    public static new ActorCustomerWorker BuildCustomerThread(IHttpClientFactory httpClientFactory, ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer)
+    public static new ActorCustomerWorker BuildCustomerWorker(IHttpClientFactory httpClientFactory, ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer)
     {
         var logger = LoggerProxy.GetInstance("Customer" + customer.id.ToString());
         return new ActorCustomerWorker(sellerService, numberOfProducts, config, customer, httpClientFactory.CreateClient(), logger);

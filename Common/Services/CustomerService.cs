@@ -2,17 +2,23 @@
 using Common.Workers.Customer;
 using Common.Streaming;
 using Common.Entities;
+using Common.Workload.CustomerWorker;
 
 namespace Common.Services;
 
 public sealed class CustomerService : ICustomerService
 {
+    public delegate AbstractCustomerWorker BuildCustomerWorkerDelegate(IHttpClientFactory httpClientFactory, ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer);
+
+    // callback
+    public readonly BuildCustomerWorkerDelegate BuildCustomerWorker;
 
     private readonly Dictionary<int, AbstractCustomerWorker> customers;
 
-    public CustomerService(Dictionary<int, AbstractCustomerWorker> customers)
+    public CustomerService(Dictionary<int, AbstractCustomerWorker> customers, BuildCustomerWorkerDelegate callback)
     {
         this.customers = customers;
+        this.BuildCustomerWorker = callback;
     }
 
     public void Run(int customerId, string tid) => this.customers[customerId].Run(tid);

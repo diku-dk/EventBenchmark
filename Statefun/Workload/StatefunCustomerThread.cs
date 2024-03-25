@@ -48,7 +48,7 @@ public sealed class StatefunCustomerThread : DefaultCustomerWorker
         string apiUrl = string.Concat(this.config.cartUrl, "/", partitionID);        
         string eventType = "AddCartItem";
         string contentType = string.Concat(StatefunUtils.BASE_CONTENT_TYPE, eventType);
-        StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Wait();                    
+        StatefunUtils.SendHttpToStatefun(this.httpClient, apiUrl, contentType, payLoad).Wait();                    
     }
 
     protected override void SendCheckoutRequest(string tid)
@@ -62,7 +62,7 @@ public sealed class StatefunCustomerThread : DefaultCustomerWorker
             string eventType = "CustomerCheckout";
             string contentType = string.Concat(StatefunUtils.BASE_CONTENT_TYPE, eventType);
             
-            HttpResponseMessage resp = StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payload).Result;  
+            HttpResponseMessage resp = StatefunUtils.SendHttpToStatefun(this.httpClient, apiUrl, contentType, payload).Result;  
                     
             if (resp.IsSuccessStatusCode)
             {
@@ -87,7 +87,7 @@ public sealed class StatefunCustomerThread : DefaultCustomerWorker
         string eventType = "Seal";
         string contentType = string.Concat(StatefunUtils.BASE_CONTENT_TYPE, eventType);
         string payLoad = "{}";
-        StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Wait();  
+        StatefunUtils.SendHttpToStatefun(this.httpClient, apiUrl, contentType, payLoad).Wait();  
     }
 
     public override void AddFinishedTransaction(TransactionOutput transactionOutput){

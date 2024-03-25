@@ -14,9 +14,11 @@ namespace Statefun.Workers;
 
 public sealed class StatefunSellerThread : AbstractSellerWorker
 {
+    protected readonly HttpClient httpClient;
 
-    public StatefunSellerThread(int sellerId, HttpClient httpClient, SellerWorkerConfig workerConfig, ILogger logger) : base(sellerId, workerConfig, logger)
+    private StatefunSellerThread(int sellerId, HttpClient httpClient, SellerWorkerConfig workerConfig, ILogger logger) : base(sellerId, workerConfig, logger)
     {
+        this.httpClient = httpClient;
     }
 
     public static StatefunSellerThread BuildSellerThread(int sellerId, IHttpClientFactory httpClientFactory, SellerWorkerConfig workerConfig)
@@ -32,7 +34,7 @@ public sealed class StatefunSellerThread : AbstractSellerWorker
         string apiUrl = string.Concat(this.config.productUrl, "/", partitionID);        
         string eventType = "UpdatePrice";
         string contentType = string.Concat(StatefunUtils.BASE_CONTENT_TYPE, eventType);
-        HttpResponseMessage resp = StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Result;    
+        HttpResponseMessage resp = StatefunUtils.SendHttpToStatefun(this.httpClient, apiUrl, contentType, payLoad).Result;    
 
         var initTime = DateTime.UtcNow;
         if (resp.IsSuccessStatusCode)
@@ -55,7 +57,7 @@ public sealed class StatefunSellerThread : AbstractSellerWorker
         string apiUrl = string.Concat(this.config.productUrl, "/", partitionID);        
         string eventType = "UpsertProduct";
         string contentType = string.Concat(StatefunUtils.BASE_CONTENT_TYPE, eventType);
-        HttpResponseMessage resp = StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Result;   
+        HttpResponseMessage resp = StatefunUtils.SendHttpToStatefun(this.httpClient, apiUrl, contentType, payLoad).Result;   
 
         var now = DateTime.UtcNow;
 
@@ -80,7 +82,7 @@ public sealed class StatefunSellerThread : AbstractSellerWorker
             string eventType = "QueryDashboard";
             string contentType = string.Concat(StatefunUtils.BASE_CONTENT_TYPE, eventType);
             string payLoad = "{ \"tid\" : " + tid + " }";
-            HttpResponseMessage resp = StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Result;   
+            HttpResponseMessage resp = StatefunUtils.SendHttpToStatefun(this.httpClient, apiUrl, contentType, payLoad).Result;   
 
             var now = DateTime.UtcNow;
             if (resp.IsSuccessStatusCode)

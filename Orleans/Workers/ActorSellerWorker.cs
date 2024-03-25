@@ -13,7 +13,7 @@ public sealed class ActorSellerWorker : DefaultSellerWorker
 	{
 	}
 
-	public static new ActorSellerWorker BuildSellerThread(int sellerId, IHttpClientFactory httpClientFactory, SellerWorkerConfig workerConfig)
+	public static new ActorSellerWorker BuildSellerWorker(int sellerId, IHttpClientFactory httpClientFactory, SellerWorkerConfig workerConfig)
     {
         var logger = LoggerProxy.GetInstance("SellerThread_"+ sellerId);
         return new ActorSellerWorker(sellerId, httpClientFactory.CreateClient(), workerConfig, logger);

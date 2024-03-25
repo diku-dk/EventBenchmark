@@ -4,6 +4,7 @@ using Common.Infra;
 using DuckDB.NET.Data;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Common.Http;
 
 namespace Statefun.Infra;
 
@@ -141,7 +142,7 @@ public sealed class CustomIngestionOrchestrator
         string apiUrl = string.Concat(url, "/", partitionKey);
         string payLoad = JsonConvert.SerializeObject(obj);
         string contentType = string.Concat(baseContentType, eventType);
-        StatefunUtils.SendHttpToStatefun(apiUrl, contentType, payLoad).Wait();
+        StatefunUtils.SendHttpToStatefun(HttpUtils.client, apiUrl, contentType, payLoad).Wait();
     }
 
     public static async Task<long> getCurrentReadRecord(string stateFunUrl)

@@ -12,6 +12,7 @@ namespace Common.Workers.Seller;
 
 /**
  * Contains core functionality related ensuring safety in product selection
+ * Thus, there is no communication protocol here
  */
 public abstract class AbstractSellerWorker : ISellerWorker
 {

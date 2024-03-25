@@ -2,7 +2,6 @@
 using Common.Http;
 using Common.Infra;
 using DriverBench.Experiment;
-using DuckDB.NET.Data;
 
 namespace DriverBench;
 
@@ -21,13 +20,13 @@ public sealed class Program
             {
 
                 Console.WriteLine("\n Select an option: \n 1 - Run Scalability Experiment \n q - Exit");
-                string op = Console.ReadLine();
+                string? op = Console.ReadLine();
 
                 switch (op)
                 {
                     case "1":
                     {
-                        var expManager = new DriverBenchExperimentManager(config, null);
+                        var expManager = DriverBenchExperimentManager.BuildDriverBenchExperimentManager(new CustomHttpClientFactory(), config, null);
                         await expManager.RunSimpleExperiment();
                         break;
                     }

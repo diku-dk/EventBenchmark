@@ -23,7 +23,7 @@ public class DefaultDeliveryWorker : IDeliveryWorker
 
     protected readonly ConcurrentBag<TransactionMark> abortedTransactions;
 
-    public static DefaultDeliveryWorker BuildDeliveryThread(IHttpClientFactory httpClientFactory, DeliveryWorkerConfig config)
+    public static DefaultDeliveryWorker BuildDeliveryWorker(IHttpClientFactory httpClientFactory, DeliveryWorkerConfig config)
     {
         var logger = LoggerProxy.GetInstance("Delivery");
         return new DefaultDeliveryWorker(config, httpClientFactory.CreateClient(), logger);
@@ -82,7 +82,6 @@ public class DefaultDeliveryWorker : IDeliveryWorker
     {
         throw new NotImplementedException();
     }
-
 
     public List<TransactionIdentifier> GetSubmittedTransactions()
     {
