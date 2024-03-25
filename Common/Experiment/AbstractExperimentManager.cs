@@ -89,7 +89,7 @@ public abstract class AbstractExperimentManager
         }
     }
 
-    protected virtual async void PostRunTasks(int runIdx, int lastRunIdx)
+    protected virtual async void PostRunTasks(int runIdx)
     {
         // reset microservice states
         var resps_ = new List<Task<HttpResponseMessage>>();
@@ -141,7 +141,6 @@ public abstract class AbstractExperimentManager
         };
 
         int runIdx = 0;
-        int lastRunIdx = this.config.runs.Count() - 1;
 
         var dataGen = new SyntheticDataGenerator(previousData);
         dataGen.CreateSchema(this.connection);
@@ -210,8 +209,7 @@ public abstract class AbstractExperimentManager
             // increment run index
             runIdx++;
 
-            if(runIdx < (config.runs.Count - 1))
-                this.PostRunTasks(runIdx, lastRunIdx);
+            this.PostRunTasks(runIdx);
         }
 
         logger.LogInformation("Post experiment cleanup tasks starting...");
@@ -231,6 +229,7 @@ public abstract class AbstractExperimentManager
         DateTime startTime = res.startTime;
         DateTime finishTime = res.finishTime;
         this.Collect(0, startTime, finishTime);
+        this.PostRunTasks(0);
         this.PostExperiment();
         this.CollectGarbage();
     }

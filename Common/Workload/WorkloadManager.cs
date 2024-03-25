@@ -88,7 +88,7 @@ public class WorkloadManager
 	{
         Stopwatch s = new Stopwatch();
         var execTime = TimeSpan.FromMilliseconds(this.executionTime);
-        int currentTid = 0;
+        int currentTid = 1;
         var startTime = DateTime.UtcNow;
         this.logger.LogInformation("Started sending batch of transactions with concurrency level {0}  at {0}.", this.concurrencyLevel, startTime);
         s.Start();
@@ -100,8 +100,6 @@ public class WorkloadManager
             _ = Task.Run(() => this.SubmitTransaction(toPass.ToString(), tx));
             currentTid++;
         }
-
-        logger.LogInformation("{0} transactions emitted in batch. Waiting for results to send remaining transactions.", this.concurrencyLevel);
 
         while (s.Elapsed < execTime)
         {

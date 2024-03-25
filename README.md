@@ -15,6 +15,7 @@ Online Marketplace is a benchmark modeling an event-driven microservice system i
     * [Configuration](#config)
     * [Running an Experiment](#run)
 - [Supplemental Material](#supplemental)
+    * [Design](#design)
     * [Tracking Replication Anomalies](#replication)
     * [Scalability](#scalability)
     * [Future Work](#future)
@@ -192,6 +193,20 @@ At the end of an experiment cycle, the results collected along the execution are
 
 ## <a name="supplemental"></a>Supplemental Material
 
+### <a name="design"></a>Design
+
+Data Generation.
+Ingestion Manager.
+Workload Manager.
+
+Workers
+- Customer worker. Simulate a customer session
+- Seller worker. Simulate a seller session
+- Delivery worker. Simulate an external system requesting package updates
+
+Statistics Collection.
+
+
 ### <a name="replication"></a>Tracking Replication Correctness
 
 The Online Marketplace implementation targeting [Microsoft Orleans](https://github.com/diku-dk/MarketplaceOnOrleans) supports  tracking the cart history (make sure that the options ```StreamReplication``` and ```TrackCartHistory``` are set to true). By tracking the cart history, we can match the items in the carts with the history of product updates. That enables the identification of possible causal anomalies related to updates in multiple objects.
@@ -202,11 +217,21 @@ We understand these settings are sensible and prone to error. We are looking for
 
 ### <a name="scalability"></a>Driver Scalability
 
-The project DriverBench runs simulated workload to test the driver scalability. That is, the driver's ability to submit more requests as more computational resources are added.
+The project DriverBench can run simulated workload to test the driver scalability. That is, the driver's ability to submit more requests as more computational resources are added.
+
+There are three impediments that refrain the driver from being scalable:
+a - Insufficient computational resources
+b - Contended workload
+c - The target platform itself
+
+"a" can be mitigated with more CPUs and memory (to hold data in memory if necessary)
+"b" does not occur if uniform distribution is used. However, when using non-uniform distribution, the task is tricky because there could be some level of synchronization in the driver to make sure a seller's updates are linearizable. Adjusting the zipfian constant can alleviate the problem in case non-uniform distribution is really necessary.
+"c" can be mitigated by (i) tuning the target data platform, (ii) increasing computational resources in the target platform, (iii) co-locating the driver with the data platform (remove network latency)
+
 
 ### <a name="future"></a>Future Work
 
-We intend to count the "add item to cart" operation as a measured query in the driver. In the current implementation, although the add item operation is not counted as part of the latency of a customer checkout, capturing the cost of add item allows capturing the overall latency of a customer session as a whole and not only the checkout operation.
+We intend to count the "add item to cart" operation as a measured query in the driver. In the current implementation, although the add item operation is not counted as part of the latency of a customer checkout, capturing the cost of an "add item" allows capturing the overall latency of the customer session as a whole and not only the checkout operation.
 
 ### <a name="etc"></a>Etc
 

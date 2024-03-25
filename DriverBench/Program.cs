@@ -2,6 +2,7 @@
 using Common.Http;
 using Common.Infra;
 using DriverBench.Experiment;
+using DuckDB.NET.Data;
 
 namespace DriverBench;
 
@@ -13,20 +14,39 @@ public sealed class Program
         Console.WriteLine("Initializing benchmark driver...");
         ExperimentConfig config = ConsoleUtility.BuildExperimentConfig(args);
         Console.WriteLine("Configuration parsed. Starting program...");
+        DuckDBConnection? connection = null;
 
         try
         {
             while (true)
             {
 
-                Console.WriteLine("\n Select an option: \n 1 - Run Scalability Experiment \n q - Exit");
+                Console.WriteLine("\n Select an option: \n 1 - Generate Data 2 - Run Scalability Experiment \n q - Exit");
                 string? op = Console.ReadLine();
 
                 switch (op)
                 {
                     case "1":
                     {
-                        var expManager = DriverBenchExperimentManager.BuildDriverBenchExperimentManager(new CustomHttpClientFactory(), config, null);
+                        connection = ConsoleUtility.GenerateData(config);
+                        break;
+                    }
+                    case "2":
+                    {
+                        if (connection is null)
+                        {
+                            if (config.connectionString.SequenceEqual("DataSource=:memory:"))
+                            {
+                                Console.WriteLine("Please generate some data first by selecting option 1.");
+                                break;
+                            }
+                            else
+                            {
+                                connection = new DuckDBConnection(config.connectionString);
+                                connection.Open();
+                            }
+                        }
+                        var expManager = DriverBenchExperimentManager.BuildDriverBenchExperimentManager(new CustomHttpClientFactory(), config, connection);
                         await expManager.RunSimpleExperiment();
                         break;
                     }

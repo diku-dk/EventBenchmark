@@ -45,7 +45,5 @@ public sealed class DriverBenchExperimentManager : AbstractExperimentManager
         return this.metricManager;
     }
 
-
-
 }
 

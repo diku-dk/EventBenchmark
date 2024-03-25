@@ -28,7 +28,7 @@ public class Program
         {
             case "1":
             {
-                connection = GenerateData(config);
+                connection = ConsoleUtility.GenerateData(config);
                 break;
             }
             case "2":
@@ -113,26 +113,6 @@ public class Program
         {
             Console.WriteLine("Exception catched. Source: {0}; Message: {0}", e.Source, e.StackTrace );
         }
-    }
-
-    private static DuckDBConnection GenerateData(ExperimentConfig config)
-    {
-        // "Data Source=file.db"; // "DataSource=:memory:"
-        var connection = new DuckDBConnection(config.connectionString);
-        connection.Open();
-        SyntheticDataSourceConfig previousData = new SyntheticDataSourceConfig()
-        {
-            numCustomers = config.numCustomers,
-            numProducts = config.runs[0].numProducts,
-            numProdPerSeller = config.numProdPerSeller,
-            qtyPerProduct = config.qtyPerProduct // fix bug, ohterwise it will be 0
-        };
-        var dataGen = new SyntheticDataGenerator(previousData);
-        dataGen.CreateSchema(connection);
-        // dont need to generate customers on every run. only once
-        dataGen.Generate(connection, true);
-        GC.Collect();
-        return connection;
     }
 
 }

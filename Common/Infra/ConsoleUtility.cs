@@ -1,4 +1,6 @@
-﻿using Common.Experiment;
+﻿using Common.DataGeneration;
+using Common.Experiment;
+using DuckDB.NET.Data;
 using Newtonsoft.Json;
 
 namespace Common.Infra;
@@ -35,6 +37,26 @@ public sealed class ConsoleUtility
         if (update)
             Console.Write("\b");
         Console.Write(_twirl[progress % _twirl.Length]);
+    }
+
+    public static DuckDBConnection GenerateData(ExperimentConfig config)
+    {
+        // "Data Source=file.db"; // "DataSource=:memory:"
+        var connection = new DuckDBConnection(config.connectionString);
+        connection.Open();
+        SyntheticDataSourceConfig previousData = new SyntheticDataSourceConfig()
+        {
+            numCustomers = config.numCustomers,
+            numProducts = config.runs[0].numProducts,
+            numProdPerSeller = config.numProdPerSeller,
+            qtyPerProduct = config.qtyPerProduct // fix bug, ohterwise it will be 0
+        };
+        var dataGen = new SyntheticDataGenerator(previousData);
+        dataGen.CreateSchema(connection);
+        // dont need to generate customers on every run. only once
+        dataGen.Generate(connection, true);
+        GC.Collect();
+        return connection;
     }
 
     public static ExperimentConfig BuildExperimentConfig(string[] args)

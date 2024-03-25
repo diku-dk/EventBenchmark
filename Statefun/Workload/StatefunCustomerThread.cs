@@ -26,7 +26,7 @@ public sealed class StatefunCustomerThread : DefaultCustomerWorker
         this.partitionID = this.customer.id.ToString();
     }
 
-    public static new StatefunCustomerThread BuildCustomerThread(IHttpClientFactory httpClientFactory, ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer)
+    public static StatefunCustomerThread BuildCustomerThread(IHttpClientFactory httpClientFactory, ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer)
     {
         var logger = LoggerProxy.GetInstance("Customer" + customer.id.ToString());
         return new StatefunCustomerThread(sellerService, numberOfProducts, config, customer, httpClientFactory.CreateClient(), logger);

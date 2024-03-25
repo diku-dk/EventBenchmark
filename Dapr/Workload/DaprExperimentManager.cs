@@ -91,13 +91,13 @@ public class DaprExperimentManager : AbstractExperimentManager
 
     }
 
-    protected override async void PostRunTasks(int runIdx, int lastRunIdx)
+    protected override async void PostRunTasks(int runIdx)
     {
         // trim first to avoid receiving events after the post run task
         await RedisUtils.TrimStreams(redisConnection, channelsToTrim);
 
         // reset data in microservices - post run
-        if (runIdx < lastRunIdx)
+        if (runIdx < this.config.runs.Count - 1)
         {
             logger.LogInformation("Post run tasks started");
             var responses = new List<Task<HttpResponseMessage>>();

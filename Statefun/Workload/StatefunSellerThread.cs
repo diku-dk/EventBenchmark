@@ -14,7 +14,7 @@ namespace Statefun.Workers;
 
 public sealed class StatefunSellerThread : AbstractSellerWorker
 {
-    protected readonly HttpClient httpClient;
+    private readonly HttpClient httpClient;
 
     private StatefunSellerThread(int sellerId, HttpClient httpClient, SellerWorkerConfig workerConfig, ILogger logger) : base(sellerId, workerConfig, logger)
     {
