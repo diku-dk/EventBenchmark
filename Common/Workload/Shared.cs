@@ -7,6 +7,8 @@ namespace Common.Workload
 	public sealed class Shared
 	{
 
+        public static readonly byte ITEM = 0;
+
         public static readonly Channel<TransactionOutput> ProductUpdateOutputs = Channel.CreateUnbounded<TransactionOutput>(new UnboundedChannelOptions()
         {
             SingleWriter = false,

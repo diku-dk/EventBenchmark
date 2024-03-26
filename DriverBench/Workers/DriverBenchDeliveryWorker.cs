@@ -1,5 +1,6 @@
 ﻿using Common.Infra;
 using Common.Workers.Delivery;
+using Common.Workload;
 using Common.Workload.Delivery;
 using Common.Workload.Metrics;
 using Microsoft.Extensions.Logging;
@@ -26,6 +27,7 @@ public sealed class DriverBenchDeliveryWorker : DefaultDeliveryWorker
         var end = new TransactionOutput(tid, DateTime.UtcNow);
         this.submittedTransactions.Add(init);
         this.finishedTransactions.Add(end);
+        while (!Shared.ResultQueue.Writer.TryWrite(Shared.ITEM));
     }
 
     public override void AddFinishedTransaction(TransactionOutput transactionOutput)

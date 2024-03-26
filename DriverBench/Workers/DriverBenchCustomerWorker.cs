@@ -3,6 +3,7 @@ using Common.Http;
 using Common.Infra;
 using Common.Services;
 using Common.Workers.Customer;
+using Common.Workload;
 using Common.Workload.CustomerWorker;
 using Common.Workload.Metrics;
 using Microsoft.Extensions.Logging;
@@ -50,5 +51,6 @@ public sealed class DriverBenchCustomerWorker : DefaultCustomerWorker
         // fixed delay
         Thread.Sleep(100);
         this.finishedTransactions.Add(new TransactionOutput(tid, DateTime.UtcNow));
+        while(!Shared.ResultQueue.Writer.TryWrite(Shared.ITEM) );
     }
 }

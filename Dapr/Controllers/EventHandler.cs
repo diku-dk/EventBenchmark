@@ -26,7 +26,7 @@ public class EventHandler : ControllerBase
     public async Task<ActionResult> ProcessProductUpdateMark([FromBody] TransactionMark productUpdateMark)
     {
         var ts = DateTime.UtcNow;
-        await Shared.ResultQueue.Writer.WriteAsync(WorkloadManager.ITEM);
+        await Shared.ResultQueue.Writer.WriteAsync(Shared.ITEM);
         if (productUpdateMark.status == MarkStatus.SUCCESS)
         {
             await Shared.ProductUpdateOutputs.Writer.WriteAsync(new(productUpdateMark.tid, ts));
@@ -42,7 +42,7 @@ public class EventHandler : ControllerBase
     public async Task<ActionResult> ProcessPriceUpdateMark([FromBody] TransactionMark priceUpdateMark)
     {
         var ts = DateTime.UtcNow;
-        await Shared.ResultQueue.Writer.WriteAsync(WorkloadManager.ITEM);
+        await Shared.ResultQueue.Writer.WriteAsync(Shared.ITEM);
         if (priceUpdateMark.status == MarkStatus.SUCCESS)
         {
             await Shared.PriceUpdateOutputs.Writer.WriteAsync(new(priceUpdateMark.tid, ts));
@@ -59,7 +59,7 @@ public class EventHandler : ControllerBase
     public async Task<ActionResult> ProcessCheckoutMark([FromBody] TransactionMark checkoutMark)
     {
         var ts = DateTime.UtcNow;
-        await Shared.ResultQueue.Writer.WriteAsync(WorkloadManager.ITEM);
+        await Shared.ResultQueue.Writer.WriteAsync(Shared.ITEM);
         if (checkoutMark.status == MarkStatus.SUCCESS)
         {
             await Shared.CheckoutOutputs.Writer.WriteAsync(new(checkoutMark.tid, ts));

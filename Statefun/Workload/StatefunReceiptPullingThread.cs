@@ -41,7 +41,7 @@ public sealed class StatefunReceiptPullingThread
                         JObject jsonObject = JObject.Parse(responseBody);
                         TransactionMark transactionMark = JsonConvert.DeserializeObject<TransactionMark>(jsonObject.ToString());
 
-                        await Shared.ResultQueue.Writer.WriteAsync(WorkloadManager.ITEM);
+                        await Shared.ResultQueue.Writer.WriteAsync(Shared.ITEM);
 
                         TransactionOutput transactionOutput = new TransactionOutput(transactionMark.tid, endTime);
                         int actorId = transactionMark.actorId;                                                

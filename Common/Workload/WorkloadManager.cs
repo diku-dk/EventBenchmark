@@ -21,8 +21,6 @@ public class WorkloadManager
                 int executionTime,
                 int delayBetweenRequests);
 
-    public static readonly byte ITEM = 0;
-
     protected readonly ISellerService sellerService;
     protected readonly ICustomerService customerService;
     protected readonly IDeliveryService deliveryService;

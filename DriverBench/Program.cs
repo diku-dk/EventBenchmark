@@ -21,7 +21,7 @@ public sealed class Program
             while (true)
             {
 
-                Console.WriteLine("\n Select an option: \n 1 - Generate Data 2 - Run Scalability Experiment \n q - Exit");
+                Console.WriteLine("\n Select an option: \n 1 - Generate Data \n 2 - Run Scalability Experiment \n q - Exit");
                 string? op = Console.ReadLine();
 
                 switch (op)
@@ -42,6 +42,7 @@ public sealed class Program
                             }
                             else
                             {
+                                Console.WriteLine("Assuming data exists in "+ config.connectionString);
                                 connection = new DuckDBConnection(config.connectionString);
                                 connection.Open();
                             }
