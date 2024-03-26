@@ -8,8 +8,6 @@ public interface IDeliveryService
 
     void Run(string tid);
 
-    List<(TransactionIdentifier, TransactionOutput)> GetResults();
-
     List<TransactionMark> GetAbortedTransactions();
 
     void AddFinishedTransaction(TransactionOutput transactionOutput);

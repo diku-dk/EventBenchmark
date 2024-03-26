@@ -14,7 +14,6 @@
     <None Remove="Infra\" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="Metric\" />
     <Folder Include="Infra\" />
   </ItemGroup>
 </Project>

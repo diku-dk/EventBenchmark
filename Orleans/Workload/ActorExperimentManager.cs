@@ -2,21 +2,20 @@
 using Common.Experiment;
 using Common.Infra;
 using Orleans.Workers;
-using Orleans.Metric;
 using DuckDB.NET.Data;
 using Common.Workers.Delivery;
 using Common.Metric;
+using Common.Workload;
 using static Common.Services.CustomerService;
 using static Common.Services.DeliveryService;
 using static Common.Services.SellerService;
-using Common.Workload;
 
 namespace Orleans.Workload;
 
 public sealed class ActorExperimentManager : AbstractExperimentManager
 {
     private readonly ActorWorkloadManager myWorkloadManager;
-    private readonly ActorMetricManager metricManager;
+    private readonly MetricManager metricManager;
 
     public static ActorExperimentManager BuildActorExperimentManager(IHttpClientFactory httpClientFactory, ExperimentConfig config, DuckDBConnection connection)
     {
@@ -27,7 +26,7 @@ public sealed class ActorExperimentManager : AbstractExperimentManager
         base(httpClientFactory, ActorWorkloadManager.BuildWorkloadManager, sellerWorkerDelegate, customerWorkerDelegate, deliveryWorkerDelegate, config, connection)
     {
         this.myWorkloadManager = (ActorWorkloadManager)this.workloadManager;
-        this.metricManager = new ActorMetricManager(this.sellerService, this.customerService, this.deliveryService);
+        this.metricManager = new MetricManager(this.sellerService, this.customerService, this.deliveryService);
     }
 
     public async Task RunSimpleExperiment(int type)

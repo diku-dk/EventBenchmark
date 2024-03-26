@@ -20,11 +20,17 @@ public sealed class DriverBenchDeliveryWorker : DefaultDeliveryWorker
 
     public new void Run(string tid)
     {
-        var start = new TransactionIdentifier(tid, Common.Workload.TransactionType.CUSTOMER_SESSION, DateTime.UtcNow);
+        var init = new TransactionIdentifier(tid, Common.Workload.TransactionType.CUSTOMER_SESSION, DateTime.UtcNow);
         // fixed delay
         Thread.Sleep(100);
         var end = new TransactionOutput(tid, DateTime.UtcNow);
-        this.resultQueue.Add((start,end));
+        this.submittedTransactions.Add(init);
+        this.finishedTransactions.Add(end);
+    }
+
+    public override void AddFinishedTransaction(TransactionOutput transactionOutput)
+    {
+        throw new NotImplementedException("Should not call this method for DriverBench implementation");
     }
 
 }

@@ -9,8 +9,6 @@ public interface IDeliveryWorker
 
 	List<TransactionMark> GetAbortedTransactions();
 
-	List<(TransactionIdentifier, TransactionOutput)> GetResults();
-
 	void AddFinishedTransaction(TransactionOutput transactionOutput);
 
 	List<TransactionIdentifier> GetSubmittedTransactions();

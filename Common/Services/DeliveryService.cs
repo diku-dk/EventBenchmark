@@ -21,11 +21,6 @@ public class DeliveryService : IDeliveryService
         this.deliveryThread.Run(tid);
     }
 
-    public List<(TransactionIdentifier, TransactionOutput)> GetResults()
-    {
-        return this.deliveryThread.GetResults();
-    }
-
     public List<TransactionMark> GetAbortedTransactions()
     {
         return this.deliveryThread.GetAbortedTransactions();
