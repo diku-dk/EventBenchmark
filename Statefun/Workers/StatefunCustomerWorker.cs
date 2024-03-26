@@ -13,23 +13,23 @@ using Statefun.Infra;
 
 namespace Statefun.Workers;
 
-public sealed class StatefunCustomerThread : DefaultCustomerWorker
+public sealed class StatefunCustomerWorker : DefaultCustomerWorker
 {
     private readonly string partitionID;
 
     // concurrent data structure is necessary because results are received asynchronously, possibly via concurrent pulling thread    
     private readonly ConcurrentBag<TransactionOutput> finishedTransactions;
 
-    private StatefunCustomerThread(ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer, HttpClient httpClient, ILogger logger) : base(sellerService, numberOfProducts, config, customer, httpClient, logger)
+    private StatefunCustomerWorker(ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer, HttpClient httpClient, ILogger logger) : base(sellerService, numberOfProducts, config, customer, httpClient, logger)
     {
         this.finishedTransactions = new();
         this.partitionID = this.customer.id.ToString();
     }
 
-    public static StatefunCustomerThread BuildCustomerThread(IHttpClientFactory httpClientFactory, ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer)
+    public static new StatefunCustomerWorker BuildCustomerWorker(IHttpClientFactory httpClientFactory, ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer)
     {
         var logger = LoggerProxy.GetInstance("Customer" + customer.id.ToString());
-        return new StatefunCustomerThread(sellerService, numberOfProducts, config, customer, httpClientFactory.CreateClient(), logger);
+        return new StatefunCustomerWorker(sellerService, numberOfProducts, config, customer, httpClientFactory.CreateClient(), logger);
     }
 
     public override List<TransactionOutput> GetFinishedTransactions()

@@ -8,16 +8,16 @@ using Microsoft.Extensions.Logging;
 
 namespace DriverBench.Workers;
 
-public sealed class SellerWorker : AbstractSellerWorker
+public sealed class DriverBenchSellerWorker : AbstractSellerWorker
 {
-    private SellerWorker(int sellerId, SellerWorkerConfig workerConfig, ILogger logger) : base(sellerId, workerConfig, logger)
+    private DriverBenchSellerWorker(int sellerId, SellerWorkerConfig workerConfig, ILogger logger) : base(sellerId, workerConfig, logger)
     {
     }
 
-    public static SellerWorker BuildSellerWorker(int sellerId, IHttpClientFactory httpClientFactory, SellerWorkerConfig workerConfig)
+    public static DriverBenchSellerWorker BuildSellerWorker(int sellerId, IHttpClientFactory httpClientFactory, SellerWorkerConfig workerConfig)
     {
         var logger = LoggerProxy.GetInstance("SellerThread_" + sellerId);
-        return new SellerWorker(sellerId, workerConfig, logger);
+        return new DriverBenchSellerWorker(sellerId, workerConfig, logger);
     }
 
     public override void BrowseDashboard(string tid)

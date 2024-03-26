@@ -15,7 +15,6 @@ public sealed class StatefunExperimentManager : AbstractExperimentManager
 
     private CancellationTokenSource cancellationTokenSource;
 
-    private readonly WorkloadManager workloadManager;
     private readonly MetricManager metricManager;
 
     // define a pulling thread list which contains 3 pulling threads
@@ -25,19 +24,11 @@ public sealed class StatefunExperimentManager : AbstractExperimentManager
 
     public static StatefunExperimentManager BuildStatefunExperimentManager(IHttpClientFactory httpClientFactory, ExperimentConfig config, DuckDBConnection connection)
     {
-        return new StatefunExperimentManager(httpClientFactory, StatefunSellerThread.BuildSellerThread, StatefunCustomerThread.BuildCustomerThread, StatefunDeliveryThread.BuildDeliveryThread, config, connection);
+        return new StatefunExperimentManager(httpClientFactory, StatefunSellerWorker.BuildSellerWorker, StatefunCustomerWorker.BuildCustomerWorker, StatefunDeliveryWorker.BuildDeliveryWorker, config, connection);
     }
 
-    private StatefunExperimentManager(IHttpClientFactory httpClientFactory, BuildSellerWorkerDelegate sellerWorkerDelegate, BuildCustomerWorkerDelegate customerWorkerDelegate, BuildDeliveryWorkerDelegate deliveryWorkerDelegate, ExperimentConfig config, DuckDBConnection connection = null) : base(httpClientFactory, sellerWorkerDelegate, customerWorkerDelegate, deliveryWorkerDelegate, config, connection)
+    private StatefunExperimentManager(IHttpClientFactory httpClientFactory, BuildSellerWorkerDelegate sellerWorkerDelegate, BuildCustomerWorkerDelegate customerWorkerDelegate, BuildDeliveryWorkerDelegate deliveryWorkerDelegate, ExperimentConfig config, DuckDBConnection connection = null) : base(httpClientFactory, WorkloadManager.BuildWorkloadManager, sellerWorkerDelegate, customerWorkerDelegate, deliveryWorkerDelegate, config, connection)
     {
-        this.workloadManager = new WorkloadManager(
-            this.sellerService, this.customerService, this.deliveryService,
-            config.transactionDistribution,
-            this.customerRange,
-            config.concurrencyLevel,
-            config.executionTime,
-            config.delayBetweenRequests);
-
         this.metricManager = new MetricManager(this.sellerService, this.customerService, this.deliveryService);
         this.receiptPullingThreads = new List<StatefunReceiptPullingThread>();
     }
@@ -57,12 +48,6 @@ public sealed class StatefunExperimentManager : AbstractExperimentManager
             Task.Factory.StartNew(() => thread.Run(cancellationTokenSource.Token), TaskCreationOptions.LongRunning);
         }
         Console.WriteLine("=== Starting receipt pulling thread ===");
-    }
-
-    protected override WorkloadManager SetUpWorkloadManager(int runIdx)
-    {
-        this.workloadManager.SetUp(config.runs[runIdx].sellerDistribution, new Interval(1, this.numSellers));
-        return this.workloadManager;
     }
 
     protected override MetricManager SetUpMetricManager(int runIdx)

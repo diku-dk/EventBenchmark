@@ -225,7 +225,7 @@ b - Contended workload
 c - The target platform itself
 
 "a" can be mitigated with more CPUs and memory (to hold data in memory if necessary)
-"b" does not occur if uniform distribution is used. However, when using non-uniform distribution, the task is tricky because there could be some level of synchronization in the driver to make sure a seller's updates are linearizable. Adjusting the zipfian constant can alleviate the problem in case non-uniform distribution is really necessary.
+"b" does not occur if uniform distribution is used. However, when using non-uniform distribution, the task is tricky because there could be some level of synchronization in the driver to make sure updates to a product are linearizable. Adjusting the zipfian constant can alleviate the problem in case non-uniform distribution is really necessary.
 "c" can be mitigated by (i) tuning the target data platform, (ii) increasing computational resources in the target platform, (iii) co-locating the driver with the data platform (remove network latency)
 
 

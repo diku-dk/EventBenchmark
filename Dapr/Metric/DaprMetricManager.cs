@@ -1,8 +1,9 @@
 ﻿using Common.Workload;
 using Common.Workload.Metrics;
 using Common.Services;
+using Common.Metric;
 
-namespace Common.Metric;
+namespace Daprr.Metric;
 
 public sealed class DaprMetricManager : MetricManager
 {

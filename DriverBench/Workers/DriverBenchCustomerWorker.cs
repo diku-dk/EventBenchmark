@@ -9,19 +9,19 @@ using Microsoft.Extensions.Logging;
 
 namespace DriverBench.Workers;
 
-public sealed class CustomerWorker : DefaultCustomerWorker
+public sealed class DriverBenchCustomerWorker : DefaultCustomerWorker
 {
     private readonly List<TransactionOutput> finishedTransactions;
 
-    private CustomerWorker(ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer, HttpClient httpClient, ILogger logger) : base(sellerService, numberOfProducts, config, customer, httpClient, logger)
+    private DriverBenchCustomerWorker(ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer, HttpClient httpClient, ILogger logger) : base(sellerService, numberOfProducts, config, customer, httpClient, logger)
     {
         this.finishedTransactions = new();
     }
 
-    public static new CustomerWorker BuildCustomerWorker(IHttpClientFactory httpClientFactory, ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer)
+    public static new DriverBenchCustomerWorker BuildCustomerWorker(IHttpClientFactory httpClientFactory, ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer)
     {
         var logger = LoggerProxy.GetInstance("Customer" + customer.id.ToString());
-        return new CustomerWorker(sellerService, numberOfProducts, config, customer, httpClientFactory.CreateClient(), logger);
+        return new DriverBenchCustomerWorker(sellerService, numberOfProducts, config, customer, httpClientFactory.CreateClient(), logger);
     }
 
     protected override void BuildAddCartPayloadAndSend(string objStr)

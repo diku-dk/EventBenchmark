@@ -12,19 +12,19 @@ using Statefun.Infra;
 
 namespace Statefun.Workers;
 
-public sealed class StatefunSellerThread : AbstractSellerWorker
+public sealed class StatefunSellerWorker : AbstractSellerWorker
 {
     private readonly HttpClient httpClient;
 
-    private StatefunSellerThread(int sellerId, HttpClient httpClient, SellerWorkerConfig workerConfig, ILogger logger) : base(sellerId, workerConfig, logger)
+    private StatefunSellerWorker(int sellerId, HttpClient httpClient, SellerWorkerConfig workerConfig, ILogger logger) : base(sellerId, workerConfig, logger)
     {
         this.httpClient = httpClient;
     }
 
-    public static StatefunSellerThread BuildSellerThread(int sellerId, IHttpClientFactory httpClientFactory, SellerWorkerConfig workerConfig)
+    public static StatefunSellerWorker BuildSellerWorker(int sellerId, IHttpClientFactory httpClientFactory, SellerWorkerConfig workerConfig)
     {
         var logger = LoggerProxy.GetInstance("SellerThread_" + sellerId);
-        return new StatefunSellerThread(sellerId, httpClientFactory.CreateClient(), workerConfig, logger);
+        return new StatefunSellerWorker(sellerId, httpClientFactory.CreateClient(), workerConfig, logger);
     }
 
     protected override void SendUpdatePriceRequest(Product product, string tid)

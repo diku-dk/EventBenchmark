@@ -6,16 +6,16 @@ using Microsoft.Extensions.Logging;
 
 namespace DriverBench.Workers;
 
-public sealed class DeliveryWorker : DefaultDeliveryWorker
+public sealed class DriverBenchDeliveryWorker : DefaultDeliveryWorker
 {
-    private DeliveryWorker(DeliveryWorkerConfig config, HttpClient httpClient, ILogger logger) : base(config, httpClient, logger)
+    private DriverBenchDeliveryWorker(DeliveryWorkerConfig config, HttpClient httpClient, ILogger logger) : base(config, httpClient, logger)
     {
     }
 
-    public static new DeliveryWorker BuildDeliveryWorker(IHttpClientFactory httpClientFactory, DeliveryWorkerConfig config)
+    public static new DriverBenchDeliveryWorker BuildDeliveryWorker(IHttpClientFactory httpClientFactory, DeliveryWorkerConfig config)
     {
         var logger = LoggerProxy.GetInstance("Delivery");
-        return new DeliveryWorker(config, httpClientFactory.CreateClient(), logger);
+        return new DriverBenchDeliveryWorker(config, httpClientFactory.CreateClient(), logger);
     }
 
     public new void Run(string tid)

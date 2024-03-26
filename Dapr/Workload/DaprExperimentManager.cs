@@ -2,6 +2,7 @@ using Common.Experiment;
 using Common.Streaming;
 using Common.Metric;
 using System.Text;
+using Daprr.Metric;
 using Daprr.Streaming.Redis;
 using Common.Http;
 using Common.Workers.Seller;
@@ -13,7 +14,7 @@ using static Common.Services.CustomerService;
 using static Common.Services.DeliveryService;
 using static Common.Services.SellerService;
 
-namespace Dapr.Workload;
+namespace Daprr.Workload;
 
 public class DaprExperimentManager : AbstractExperimentManager
 {
@@ -21,7 +22,6 @@ public class DaprExperimentManager : AbstractExperimentManager
     private readonly string redisConnection;
     private readonly List<string> channelsToTrim;
 
-    private readonly DaprWorkloadManager workflowManager;
     private readonly DaprMetricManager metricManager;
 
     protected static readonly List<TransactionType> eventualCompletionTransactions = new() { TransactionType.CUSTOMER_SESSION, TransactionType.PRICE_UPDATE, TransactionType.UPDATE_PRODUCT };
@@ -31,26 +31,12 @@ public class DaprExperimentManager : AbstractExperimentManager
         return new DaprExperimentManager(httpClientFactory, DefaultSellerWorker.BuildSellerWorker, DefaultCustomerWorker.BuildCustomerWorker, DefaultDeliveryWorker.BuildDeliveryWorker, config, connection);
     }
 
-    private DaprExperimentManager(IHttpClientFactory httpClientFactory, BuildSellerWorkerDelegate sellerWorkerDelegate, BuildCustomerWorkerDelegate customerWorkerDelegate, BuildDeliveryWorkerDelegate deliveryWorkerDelegate, ExperimentConfig config, DuckDBConnection connection) : base(httpClientFactory, sellerWorkerDelegate, customerWorkerDelegate, deliveryWorkerDelegate, config, connection)
+    private DaprExperimentManager(IHttpClientFactory httpClientFactory, BuildSellerWorkerDelegate sellerWorkerDelegate, BuildCustomerWorkerDelegate customerWorkerDelegate, BuildDeliveryWorkerDelegate deliveryWorkerDelegate, ExperimentConfig config, DuckDBConnection connection) :
+        base(httpClientFactory, WorkloadManager.BuildWorkloadManager, sellerWorkerDelegate, customerWorkerDelegate, deliveryWorkerDelegate, config, connection)
     {
         this.redisConnection = string.Format("{0}:{1}", config.streamingConfig.host, config.streamingConfig.port);
         this.channelsToTrim = new();
-
-        this.workflowManager = new DaprWorkloadManager(
-            sellerService, customerService, deliveryService,
-            config.transactionDistribution,
-            this.customerRange,
-            config.concurrencyLevel,
-            config.executionTime,
-            config.delayBetweenRequests);
-
         this.metricManager = new DaprMetricManager(sellerService, customerService, deliveryService);
-    }
-
-    protected override WorkloadManager SetUpWorkloadManager(int runIdx)
-    {
-        this.workflowManager.SetUp(config.runs[runIdx].sellerDistribution, new Interval(1, this.numSellers));
-        return workflowManager;
     }
 
     protected override async void PostExperiment()

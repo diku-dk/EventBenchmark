@@ -5,11 +5,22 @@ using Common.Infra;
 using Microsoft.Extensions.Logging;
 using MathNet.Numerics.Distributions;
 using Common.Services;
+using Common.Workers.Delivery;
+using Common.Workload.Delivery;
 
 namespace Common.Workload;
 
 public class WorkloadManager
 {
+    public delegate WorkloadManager BuildWorkloadManagerDelegate(ISellerService sellerService,
+                ICustomerService customerService,
+                IDeliveryService deliveryService,
+                IDictionary<TransactionType, int> transactionDistribution,
+                Interval customerRange,
+                int concurrencyLevel,
+                int executionTime,
+                int delayBetweenRequests);
+
     public static readonly byte ITEM = 0;
 
     protected readonly ISellerService sellerService;
@@ -34,7 +45,7 @@ public class WorkloadManager
 
     private readonly Interval customerRange;
 
-    public WorkloadManager(
+    protected WorkloadManager(
                 ISellerService sellerService,
                 ICustomerService customerService,
                 IDeliveryService deliveryService,
@@ -56,6 +67,19 @@ public class WorkloadManager
         this.histogram = new Dictionary<TransactionType, int>();
         this.customerIdleQueue = new BlockingCollection<int>(new ConcurrentQueue<int>());
         this.logger = LoggerProxy.GetInstance("WorkloadManager");
+    }
+
+    public static WorkloadManager BuildWorkloadManager(
+                ISellerService sellerService,
+                ICustomerService customerService,
+                IDeliveryService deliveryService,
+                IDictionary<TransactionType, int> transactionDistribution,
+                Interval customerRange,
+                int concurrencyLevel,
+                int executionTime,
+                int delayBetweenRequests)
+    {
+        return new WorkloadManager(sellerService, customerService, deliveryService, transactionDistribution, customerRange, concurrencyLevel, executionTime, delayBetweenRequests);
     }
 
     // can differ across runs
@@ -90,7 +114,7 @@ public class WorkloadManager
         var execTime = TimeSpan.FromMilliseconds(this.executionTime);
         int currentTid = 1;
         var startTime = DateTime.UtcNow;
-        this.logger.LogInformation("Started sending batch of transactions with concurrency level {0}  at {0}.", this.concurrencyLevel, startTime);
+        this.logger.LogInformation("Started sending batch of transactions with concurrency level {0} at {0}.", this.concurrencyLevel, startTime);
         s.Start();
         while (currentTid < this.concurrencyLevel)
         {
@@ -154,6 +178,7 @@ public class WorkloadManager
         {
             switch (type)
             {
+                // customer worker
                 case TransactionType.CUSTOMER_SESSION:
                     {
                         int customerId = this.customerIdleQueue.Take();

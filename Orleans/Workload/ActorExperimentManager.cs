@@ -1,7 +1,6 @@
 ﻿using Common.Entities;
 using Common.Experiment;
 using Common.Infra;
-using Common.Workload;
 using Orleans.Workers;
 using Orleans.Metric;
 using DuckDB.NET.Data;
@@ -10,12 +9,13 @@ using Common.Metric;
 using static Common.Services.CustomerService;
 using static Common.Services.DeliveryService;
 using static Common.Services.SellerService;
+using Common.Workload;
 
 namespace Orleans.Workload;
 
 public sealed class ActorExperimentManager : AbstractExperimentManager
 {
-    private readonly ActorWorkloadManager workloadManager;
+    private readonly ActorWorkloadManager myWorkloadManager;
     private readonly ActorMetricManager metricManager;
 
     public static ActorExperimentManager BuildActorExperimentManager(IHttpClientFactory httpClientFactory, ExperimentConfig config, DuckDBConnection connection)
@@ -24,17 +24,9 @@ public sealed class ActorExperimentManager : AbstractExperimentManager
     }
 
     private ActorExperimentManager(IHttpClientFactory httpClientFactory, BuildSellerWorkerDelegate sellerWorkerDelegate, BuildCustomerWorkerDelegate customerWorkerDelegate, BuildDeliveryWorkerDelegate deliveryWorkerDelegate, ExperimentConfig config, DuckDBConnection connection) :
-        base(httpClientFactory, sellerWorkerDelegate, customerWorkerDelegate, deliveryWorkerDelegate, config, connection)
+        base(httpClientFactory, ActorWorkloadManager.BuildWorkloadManager, sellerWorkerDelegate, customerWorkerDelegate, deliveryWorkerDelegate, config, connection)
     {
-        this.workloadManager = new ActorWorkloadManager(
-            this.sellerService, this.customerService, this.deliveryService,
-            config.transactionDistribution,
-            // set in the base class
-            this.customerRange,
-            config.concurrencyLevel,
-            config.executionTime,
-            config.delayBetweenRequests);
-
+        this.myWorkloadManager = (ActorWorkloadManager)this.workloadManager;
         this.metricManager = new ActorMetricManager(this.sellerService, this.customerService, this.deliveryService);
     }
 
@@ -43,31 +35,25 @@ public sealed class ActorExperimentManager : AbstractExperimentManager
         this.customers = DuckDbUtils.SelectAll<Customer>(this.connection, "customers");
         this.PreExperiment();
         this.PreWorkload(0);
-        this.SetUpWorkloadManager(0);
+        this.myWorkloadManager.SetUp(this.config.runs[0].sellerDistribution, new Interval(1, this.numSellers));
         (DateTime startTime, DateTime finishTime) res;
         if(type == 0){
             Console.WriteLine("Thread mode selected.");
-            res = this.workloadManager.RunThreads();
+            res = this.myWorkloadManager.RunThreads();
         }
         else if(type == 1) {
             Console.WriteLine("Task mode selected.");
-            res = this.workloadManager.RunTasks();
+            res = this.myWorkloadManager.RunTasks();
         }
         else {
             Console.WriteLine("Task per Tx mode selected.");
-            res = await this.workloadManager.RunTaskPerTx();
+            res = await this.myWorkloadManager.RunTaskPerTx();
         }
         DateTime startTime = res.startTime;
         DateTime finishTime = res.finishTime;
         this.Collect(0, startTime, finishTime);
         this.PostExperiment();
         this.CollectGarbage();
-    }
-
-    protected override WorkloadManager SetUpWorkloadManager(int runIdx)
-    {
-        this.workloadManager.SetUp(this.config.runs[runIdx].sellerDistribution, new Interval(1, this.numSellers));
-        return this.workloadManager;
     }
 
     protected override MetricManager SetUpMetricManager(int runIdx)

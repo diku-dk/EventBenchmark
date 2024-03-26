@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging;
 using static Common.Services.CustomerService;
 using static Common.Services.DeliveryService;
 using static Common.Services.SellerService;
+using static Common.Workload.WorkloadManager;
 
 namespace Common.Experiment;
 
@@ -41,7 +42,9 @@ public abstract class AbstractExperimentManager
     private readonly Dictionary<int, ISellerWorker> sellerThreads;
     protected int numSellers;
 
-    public AbstractExperimentManager(IHttpClientFactory httpClientFactory, BuildSellerWorkerDelegate buildSellerWorkerDelegate, BuildCustomerWorkerDelegate customerWorkerDelegate, BuildDeliveryWorkerDelegate deliveryWorkerDelegate, ExperimentConfig config, DuckDBConnection duckDBConnection)
+    protected readonly WorkloadManager workloadManager;
+
+    public AbstractExperimentManager(IHttpClientFactory httpClientFactory, BuildWorkloadManagerDelegate workloadManagerDelegate, BuildSellerWorkerDelegate sellerWorkerDelegate, BuildCustomerWorkerDelegate customerWorkerDelegate, BuildDeliveryWorkerDelegate deliveryWorkerDelegate, ExperimentConfig config, DuckDBConnection duckDBConnection)
     {
         this.httpClientFactory = httpClientFactory;
         this.config = config;
@@ -50,12 +53,20 @@ public abstract class AbstractExperimentManager
         this.deliveryService = new DeliveryService(deliveryWorkerDelegate(httpClientFactory, config.deliveryWorkerConfig));
 
         this.sellerThreads = new Dictionary<int, ISellerWorker>();
-        this.sellerService = new SellerService(this.sellerThreads, buildSellerWorkerDelegate);
+        this.sellerService = new SellerService(this.sellerThreads, sellerWorkerDelegate);
         this.numSellers = 0;
 
         this.customerThreads = new Dictionary<int, AbstractCustomerWorker>();
         this.customerService = new CustomerService(this.customerThreads, customerWorkerDelegate);
         this.customerRange = new Interval(1, config.numCustomers);
+
+        this.workloadManager = workloadManagerDelegate(
+                                this.sellerService, this.customerService, this.deliveryService,
+                                config.transactionDistribution,
+                                this.customerRange,
+                                config.concurrencyLevel,
+                                config.executionTime,
+                                config.delayBetweenRequests);
     }
 
     protected virtual void PreExperiment()
@@ -119,8 +130,6 @@ public abstract class AbstractExperimentManager
     {
         await this.TriggerPostExperimentTasks();
     }
-
-    protected abstract WorkloadManager SetUpWorkloadManager(int runIdx);
 
     protected abstract MetricManager SetUpMetricManager(int runIdx);
 
@@ -187,11 +196,11 @@ public abstract class AbstractExperimentManager
 
             this.PreWorkload(runIdx);
 
-            WorkloadManager workloadManager = this.SetUpWorkloadManager(runIdx);
+            this.workloadManager.SetUp(this.config.runs[runIdx].sellerDistribution, new Interval(1, this.numSellers));
 
             logger.LogInformation("Run #{0} started at {1}", runIdx, DateTime.UtcNow);
 
-            var workloadTask = await workloadManager.Run();
+            var workloadTask = await this.workloadManager.Run();
 
             DateTime startTime = workloadTask.startTime;
             DateTime finishTime = workloadTask.finishTime;
@@ -224,8 +233,8 @@ public abstract class AbstractExperimentManager
         this.customers = DuckDbUtils.SelectAll<Customer>(this.connection, "customers");
         this.PreExperiment();
         this.PreWorkload(0);
-        var workloadManager = this.SetUpWorkloadManager(0);
-        (DateTime startTime, DateTime finishTime) res = await workloadManager.Run();
+        this.workloadManager.SetUp(this.config.runs[0].sellerDistribution, new Interval(1, this.numSellers));
+        (DateTime startTime, DateTime finishTime) res = await this.workloadManager.Run();
         DateTime startTime = res.startTime;
         DateTime finishTime = res.finishTime;
         this.Collect(0, startTime, finishTime);

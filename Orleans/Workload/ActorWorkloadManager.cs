@@ -7,7 +7,7 @@ namespace Orleans.Workload;
 
 public sealed class ActorWorkloadManager : WorkloadManager
 {
-    public ActorWorkloadManager(
+    private ActorWorkloadManager(
         ISellerService sellerService,
         ICustomerService customerService,
         IDeliveryService deliveryService,
@@ -16,6 +16,19 @@ public sealed class ActorWorkloadManager : WorkloadManager
         int concurrencyLevel, int executionTime, int delayBetweenRequests) :
         base(sellerService, customerService, deliveryService, transactionDistribution, customerRange, concurrencyLevel, executionTime, delayBetweenRequests)
     {
+    }
+
+    public static new ActorWorkloadManager BuildWorkloadManager(
+            ISellerService sellerService,
+            ICustomerService customerService,
+            IDeliveryService deliveryService,
+            IDictionary<TransactionType, int> transactionDistribution,
+            Interval customerRange,
+            int concurrencyLevel,
+            int executionTime,
+            int delayBetweenRequests)
+    {
+        return new ActorWorkloadManager(sellerService, customerService, deliveryService, transactionDistribution, customerRange, concurrencyLevel, executionTime, delayBetweenRequests);
     }
 
     public (DateTime startTime, DateTime finishTime) RunTasks()
@@ -47,17 +60,13 @@ public sealed class ActorWorkloadManager : WorkloadManager
 
     public async Task<(DateTime startTime, DateTime finishTime)> RunTaskPerTx()
 	{
-        // logger.LogInformation("Started sending batch of transactions with concurrency level {0}", this.concurrencyLevel);
-
         Stopwatch s = new Stopwatch();
-        var execTime = TimeSpan.FromMilliseconds(this.executionTime);
-        int currentTid = 0;
-        var startTime = DateTime.UtcNow;
-        this.logger.LogInformation("Run started at {0}.", startTime);
-        s.Start();
-
         var tasks = new List<Task>(this.concurrencyLevel);
-
+        var execTime = TimeSpan.FromMilliseconds(this.executionTime);
+        int currentTid = 1;
+        var startTime = DateTime.UtcNow;
+        this.logger.LogInformation("Started sending batch of transactions with concurrency level {0} at {0}.", this.concurrencyLevel, startTime);
+        s.Start();
         while (currentTid < this.concurrencyLevel)
         {
             TransactionType tx = this.PickTransactionFromDistribution();
@@ -66,8 +75,6 @@ public sealed class ActorWorkloadManager : WorkloadManager
             tasks.Add( Task.Run(()=> SubmitTransaction(toPass.ToString(), tx)) );
             currentTid++;
         }
-
-        // logger.LogInformation("{0} transactions emitted. Waiting for results to send remaining transactions.", this.concurrencyLevel);
 
         while (s.Elapsed < execTime)
         {
@@ -83,23 +90,11 @@ public sealed class ActorWorkloadManager : WorkloadManager
                 tasks.Remove(t);
             }
             catch (TimeoutException) { }
-
-            //var t = await Task.WhenAny( tasks );
-            //tasks.Remove(t);
-
         }
 
         var finishTime = DateTime.UtcNow;
         s.Stop();
         this.logger.LogInformation("Run finished at {0}.", finishTime);
-
-        //logger.LogInformation("[Workload emitter] Finished at {0}. Last TID submitted was {1}", finishTime, currentTid);
-        //logger.LogInformation("[Workload emitter] Histogram:");
-        //foreach(var entry in histogram)
-        //{
-        //    logger.LogInformation("{0}: {1}", entry.Key, entry.Value);
-        //}
-
         return (startTime, finishTime);
     }
 
@@ -126,30 +121,12 @@ public sealed class ActorWorkloadManager : WorkloadManager
         var finishTime = DateTime.UtcNow;
         this.barrier.Dispose();
         this.logger.LogInformation("Run finished at {0}.", finishTime);
-
-        //Thread.Sleep(2000);
-
-        //logger.LogInformation("Histogram (#{0} entries):", histograms.Count);
-        //while(histograms.TryTake(out var threadEntry))
-        //{
-        //    foreach(var entry in threadEntry)
-        //    {
-        //        histogram[entry.Key] =+ entry.Value;
-        //    }
-        //}
-        //foreach(var entry in histogram)
-        //{
-        //    logger.LogInformation("{0}: {1}", entry.Key, entry.Value);
-        //}
-
         return (startTime, finishTime);
     }
 
     // signal when all threads have started
     private Barrier barrier;
     private CountdownEvent countdown;
-
-    //private readonly BlockingCollection<Dictionary<TransactionType, int>> histograms = new BlockingCollection<Dictionary<TransactionType, int>>();
 
     private void TaskWorker()
     {
@@ -171,11 +148,6 @@ public sealed class ActorWorkloadManager : WorkloadManager
     {
         long threadId = Environment.CurrentManagedThreadId;
         Console.WriteLine("Thread {0} started", threadId);
-        //var histogram = new Dictionary<TransactionType, int>();
-        //foreach (TransactionType tx in Enum.GetValues(typeof(TransactionType)))
-        //{
-        //    histogram.Add(tx, 0);
-        //}
         
         int currentTid = 0;
 
@@ -184,11 +156,9 @@ public sealed class ActorWorkloadManager : WorkloadManager
         while(!countdown.IsSet)
         {
             TransactionType tx = this.PickTransactionFromDistribution();
-            //histogram[tx]++;
             this.SubmitTransaction(threadId+"-"+currentTid++.ToString(), tx);
         }
 
-        //histograms.Add(histogram);
         Console.WriteLine("Thread {0} finished", threadId);
     }
 

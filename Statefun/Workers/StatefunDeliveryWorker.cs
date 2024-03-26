@@ -10,7 +10,7 @@ using Common.Workers.Delivery;
 
 namespace Statefun.Workers;
 
-public sealed class StatefunDeliveryThread : IDeliveryWorker
+public sealed class StatefunDeliveryWorker : IDeliveryWorker
 {
     private readonly HttpClient httpClient;
 
@@ -24,13 +24,13 @@ public sealed class StatefunDeliveryThread : IDeliveryWorker
 
     private readonly ConcurrentBag<TransactionOutput> finishedTransactions;
 
-    public static StatefunDeliveryThread BuildDeliveryThread(IHttpClientFactory httpClientFactory, DeliveryWorkerConfig config)
+    public static StatefunDeliveryWorker BuildDeliveryWorker(IHttpClientFactory httpClientFactory, DeliveryWorkerConfig config)
     {
         var logger = LoggerProxy.GetInstance("Delivery");
-        return new StatefunDeliveryThread(config, httpClientFactory.CreateClient(), logger);
+        return new StatefunDeliveryWorker(config, httpClientFactory.CreateClient(), logger);
     }
 
-    private StatefunDeliveryThread(DeliveryWorkerConfig config, HttpClient httpClient, ILogger logger) 
+    private StatefunDeliveryWorker(DeliveryWorkerConfig config, HttpClient httpClient, ILogger logger) 
     {       
         this.config = config;
         this.httpClient = httpClient;

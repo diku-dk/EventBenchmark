@@ -1,10 +1,10 @@
 ﻿using System.Net;
 using Common.Experiment;
-using Dapr.Workload;
+using Daprr.Workload;
 using DuckDB.NET.Data;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Common.Controllers;
+namespace Daprr.Controllers;
 
 [ApiController]
 public class DaprController : ControllerBase
