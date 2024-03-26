@@ -15,11 +15,11 @@ public sealed class DriverBenchDeliveryWorker : DefaultDeliveryWorker
 
     public static new DriverBenchDeliveryWorker BuildDeliveryWorker(IHttpClientFactory httpClientFactory, DeliveryWorkerConfig config)
     {
-        var logger = LoggerProxy.GetInstance("Delivery");
+        var logger = LoggerProxy.GetInstance("DriverBenchDeliveryWorker");
         return new DriverBenchDeliveryWorker(config, httpClientFactory.CreateClient(), logger);
     }
 
-    public new void Run(string tid)
+    public override void Run(string tid)
     {
         var init = new TransactionIdentifier(tid, Common.Workload.TransactionType.CUSTOMER_SESSION, DateTime.UtcNow);
         // fixed delay

@@ -16,7 +16,7 @@ public sealed class DriverBenchSellerWorker : AbstractSellerWorker
 
     public static DriverBenchSellerWorker BuildSellerWorker(int sellerId, IHttpClientFactory httpClientFactory, SellerWorkerConfig workerConfig)
     {
-        var logger = LoggerProxy.GetInstance("SellerThread_" + sellerId);
+        var logger = LoggerProxy.GetInstance("DriverBenchSellerThread_" + sellerId);
         return new DriverBenchSellerWorker(sellerId, workerConfig, logger);
     }
 

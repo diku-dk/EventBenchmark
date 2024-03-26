@@ -212,8 +212,7 @@ public class DefaultCustomerWorker : AbstractCustomerWorker
                 product.version
         );
 
-        return JsonConvert.SerializeObject(cartItem);
-        
+        return JsonConvert.SerializeObject(cartItem); 
     }
 
 }

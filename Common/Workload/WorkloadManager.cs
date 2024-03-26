@@ -5,8 +5,6 @@ using Common.Infra;
 using Microsoft.Extensions.Logging;
 using MathNet.Numerics.Distributions;
 using Common.Services;
-using Common.Workers.Delivery;
-using Common.Workload.Delivery;
 
 namespace Common.Workload;
 
@@ -210,7 +208,7 @@ public class WorkloadManager
         catch (Exception e)
         {
             long threadId = Environment.CurrentManagedThreadId;
-            this.logger.LogError("Thread ID {0} Error caught in SubmitTransaction: {1}", threadId, e.Message);
+            this.logger.LogError("Thread ID {0} - Error caught in SubmitTransaction. StackTrace: \n {1}", threadId, e.StackTrace);
         }
     }
 

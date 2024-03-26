@@ -37,9 +37,11 @@ public class DefaultDeliveryWorker : IDeliveryWorker
         this.httpClient = httpClient;
         this.logger = logger;
         this.abortedTransactions = new();
+        this.submittedTransactions = new();
+        this.finishedTransactions = new();
     }
 
-    public void Run(string tid)
+    public virtual void Run(string tid)
     {
         HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, this.config.shipmentUrl + "/" + tid);
         var initTime = DateTime.UtcNow;

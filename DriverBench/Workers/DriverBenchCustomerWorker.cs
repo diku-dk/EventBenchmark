@@ -21,7 +21,7 @@ public sealed class DriverBenchCustomerWorker : DefaultCustomerWorker
 
     public static new DriverBenchCustomerWorker BuildCustomerWorker(IHttpClientFactory httpClientFactory, ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer)
     {
-        var logger = LoggerProxy.GetInstance("Customer" + customer.id.ToString());
+        var logger = LoggerProxy.GetInstance("DriverBenchCustomer" + customer.id.ToString());
         return new DriverBenchCustomerWorker(sellerService, numberOfProducts, config, customer, httpClientFactory.CreateClient(), logger);
     }
 
@@ -32,7 +32,8 @@ public sealed class DriverBenchCustomerWorker : DefaultCustomerWorker
         {
             Content = payload
         };
-        Thread.Sleep(100);
+        // adding this delay may lead to substantial delay that is not associated with the driver
+        // Thread.Sleep(100);
     }
 
     public override List<TransactionOutput> GetFinishedTransactions()

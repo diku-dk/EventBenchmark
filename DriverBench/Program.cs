@@ -65,7 +65,7 @@ public sealed class Program
         }
         catch (Exception e)
         {
-            Console.WriteLine("Exception catched. Source: {0}; Message: {0}", e.Source, e.StackTrace);
+            Console.WriteLine("Exception catched. Source: {0}; StackTrace: \n {1}", e.Source, e.StackTrace);
         }
     }
 

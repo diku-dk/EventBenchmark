@@ -57,7 +57,6 @@ public class MetricManager
 
     public void Collect(DateTime startTime, DateTime finishTime, int epochPeriod = 0, string runName = null)
     {
-
         logger.LogInformation("Starting collecting metrics for run between {0} and {1}", startTime, finishTime);
 
         StreamWriter sw;
@@ -174,7 +173,6 @@ public class MetricManager
         int blockIdx = 1;
         foreach (var block in breakdown)
         {
-
             logger.LogInformation("Block {0} results:", blockIdx);
             sw.WriteLine("Block {0} results:", blockIdx);
 
@@ -192,7 +190,7 @@ public class MetricManager
                 sw.WriteLine("Transaction: {0} - #{1} - Average end-to-end latency: {2}", entry.Key, entry.Value.Count, avg.ToString());
             }
 
-            double blockTxPerSecond = blockCountTid / (epochPeriod / 1000);
+            double blockTxPerSecond = blockCountTid / (epochPeriod / 1000d);
 
             logger.LogInformation("Number of completed transactions: {0}", blockCountTid);
             sw.WriteLine("Number of completed transactions: {0}", blockCountTid);
@@ -201,7 +199,6 @@ public class MetricManager
 
             blockIdx++;
             sw.WriteLine("===========================================");
-
         }
 
         end_metric:

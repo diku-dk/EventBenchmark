@@ -22,7 +22,7 @@ public sealed class StatefunDeliveryWorker : DefaultDeliveryWorker
         return new StatefunDeliveryWorker(config, httpClientFactory.CreateClient(), logger);
     }
 
-    public new void Run(string tid)
+    public override void Run(string tid)
 	{
         string payLoad = "{ \"tid\" : " + tid + " }";
         string partitionID = tid;
