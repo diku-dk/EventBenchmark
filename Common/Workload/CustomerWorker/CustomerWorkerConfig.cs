@@ -5,8 +5,6 @@
      */
     public sealed class CustomerWorkerConfig
     {
-        public int maxNumberKeysToBrowse { get; set; }
-
         public int maxNumberKeysToAddToCart { get; set; }
 
         // probability of a customer to checkout the cart
@@ -28,10 +26,9 @@
 
         public CustomerWorkerConfig(){}
 
-        public CustomerWorkerConfig(int maxNumberKeysToBrowse, int maxNumberKeysToAddToCart, int checkoutProbability, string productUrl, string cartUrl,
+        public CustomerWorkerConfig(int maxNumberKeysToAddToCart, int checkoutProbability, string productUrl, string cartUrl,
             Interval minMaxQtyRange, Interval delayBetweenRequestsRange, int voucherProbability, bool trackTids)
         {
-            this.maxNumberKeysToBrowse = maxNumberKeysToBrowse;
             this.maxNumberKeysToAddToCart = maxNumberKeysToAddToCart;
             this.checkoutProbability = checkoutProbability;
             this.productUrl = productUrl;

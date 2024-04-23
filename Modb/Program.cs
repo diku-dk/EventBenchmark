@@ -1,10 +1,10 @@
-﻿using Common.Experiment;
+﻿using System.Runtime.InteropServices;
+using Common.Experiment;
 using Common.Http;
 using Common.Infra;
 using DuckDB.NET.Data;
-using Orleans.Workload;
 
-namespace Orleans;
+namespace Modb;
 
 public class Program
 {
@@ -14,13 +14,15 @@ public class Program
         Console.WriteLine("Initializing benchmark driver...");
         ExperimentConfig config = ConsoleUtility.BuildExperimentConfig(args);
         Console.WriteLine("Configuration parsed. Starting program...");
-        DuckDBConnection connection = null;
+        DuckDBConnection? connection = null;
+        bool serverRunning = false;
+        var server = new BatchCompletionReceiver();
 
         try{
         while(true){
 
         Console.WriteLine("\n Select an option: \n 1 - Generate Data \n 2 - Ingest Data \n 3 - Run Experiment \n 4 - Ingest and Run (2 and 3) \n 5 - Parse New Configuration \n q - Exit");
-        string op = Console.ReadLine();
+        string? op = Console.ReadLine();
 
         switch (op)
         {
@@ -61,8 +63,17 @@ public class Program
                         connection.Open();
                     }
                 }
-                var expManager = ActorExperimentManager.BuildActorExperimentManager(new CustomHttpClientFactory(), config, connection);
-                await expManager.RunSimpleExperiment(2);
+
+                if (!serverRunning)
+                {
+                    _ = Task.Run(server.Run);
+                    serverRunning = true;
+                    Console.WriteLine("Wait to set up batch completion receiver server...");
+                    Thread.Sleep(2000);
+                }
+
+                var expManager = ModbExperimentManager.BuildModbExperimentManager(new CustomHttpClientFactory(), config, connection);
+                await expManager.RunSimpleExperiment();
                 break;
             }
             case "4":
@@ -81,12 +92,18 @@ public class Program
                 }
                 // ingest data
                 await CustomIngestionOrchestrator.Run(connection, config.ingestionConfig);
-                var expManager = ActorExperimentManager.BuildActorExperimentManager(new CustomHttpClientFactory(), config, connection);
-                // could be a config param: delay after ingest
-                Console.WriteLine("Delay after ingest...");
-                await Task.Delay(10000);
+                var expManager = ModbExperimentManager.BuildModbExperimentManager(new CustomHttpClientFactory(), config, connection);
+
+                if (!serverRunning)
+                {
+                    _ = Task.Run(server.Run);
+                    serverRunning = true;
+                    Console.WriteLine("Wait to set up batch completion receiver server...");
+                    Thread.Sleep(2000);
+                }
+
                 // run
-                await expManager.RunSimpleExperiment(2);
+                await expManager.RunSimpleExperiment();
                 Console.WriteLine("Experiment finished.");
                 break;
             }
@@ -98,6 +115,7 @@ public class Program
             }
             case "q":
             {
+                Console.WriteLine("Closing driver...");
                 return;
             }
             default:
@@ -109,9 +127,8 @@ public class Program
         }
         } catch(Exception e)
         {
-            Console.WriteLine("Exception catched. Source: {0}; StackTrace: \n {1}", e.Source, e.StackTrace );
+            Console.WriteLine("Exception catched. Source: {0}; StackTrace: \n {1}", e.Source, e.StackTrace);
         }
+
     }
-
 }
-

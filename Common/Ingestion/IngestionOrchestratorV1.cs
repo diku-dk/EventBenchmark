@@ -9,7 +9,7 @@ using Newtonsoft.Json.Linq;
 
 namespace Common.Ingestion;
 
-public sealed class IngestionOrchestrator
+public sealed class IngestionOrchestratorV1
 {
 
 	public static async Task Run(DuckDBConnection connection, IngestionConfig config)
@@ -79,9 +79,6 @@ public sealed class IngestionOrchestrator
                 await tcs.Task;
                 Console.WriteLine("Finished loading table {0}", table);
             }
-
-            
-
         }
 
         if(tasksToWait.Count > 0)

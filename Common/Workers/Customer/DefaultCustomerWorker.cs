@@ -13,7 +13,7 @@ using Newtonsoft.Json;
 namespace Common.Workers.Customer;
 
 /*
- * Contains default customer functionality
+ * Contains default customer worker functionality
  */
 public class DefaultCustomerWorker : AbstractCustomerWorker
 {
@@ -213,6 +213,11 @@ public class DefaultCustomerWorker : AbstractCustomerWorker
         );
 
         return JsonConvert.SerializeObject(cartItem); 
+    }
+
+    public override List<TransactionOutput> GetFinishedTransactions()
+    {
+        return new List<TransactionOutput>(0);
     }
 
 }

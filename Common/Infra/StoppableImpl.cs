@@ -1,6 +1,6 @@
 ﻿namespace Common.Infra
 {
-    public class StoppableImpl : IStoppable, System.IDisposable
+    public class StoppableImpl : IStoppable, IDisposable
     {
 
         private readonly CountdownEvent cde;

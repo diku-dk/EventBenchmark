@@ -1,7 +1,6 @@
 ﻿using Common.Entities;
 using Common.Metric;
 using Common.Services;
-using Common.Workload.Metrics;
 
 namespace Tests.Anomaly;
 

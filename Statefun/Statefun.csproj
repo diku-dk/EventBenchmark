@@ -6,7 +6,9 @@
 	<OutputType>Exe</OutputType>
   </PropertyGroup>
 
-  <PropertyGroup Condition=" '$(RunConfiguration)' == 'http' " />
+  <PropertyGroup Condition=" '$(RunConfiguration)' == 'http' ">
+    <ExternalConsole>true</ExternalConsole>
+  </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Common\Common.csproj">

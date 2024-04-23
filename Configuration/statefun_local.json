@@ -39,8 +39,7 @@
     "postExperimentTasks": [
     ],
     "customerWorkerConfig": {
-      "maxNumberKeysToBrowse": 10,
-      "maxNumberKeysToAddToCart": 2,
+      "maxNumberKeysToAddToCart": 10,
       "minMaxQtyRange": {
         "min": 1,
         "max": 10

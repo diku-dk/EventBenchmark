@@ -184,7 +184,7 @@ public abstract class AbstractExperimentManager
 
                 syntheticDataGenerator.Generate(connection);
 
-                await IngestionOrchestrator.Run(connection, config.ingestionConfig);
+                await IngestionOrchestratorV1.Run(connection, config.ingestionConfig);
     
                 if (runIdx == 0)
                 {

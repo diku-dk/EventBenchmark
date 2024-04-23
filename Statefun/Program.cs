@@ -1,5 +1,4 @@
-﻿using Common.DataGeneration;
-using Common.Experiment;
+﻿using Common.Experiment;
 using Common.Http;
 using Common.Infra;
 using DuckDB.NET.Data;
@@ -48,7 +47,7 @@ public class Program
                                 connection.Open();
                             }
                         }
-                        await CustomIngestionOrchestrator.Run(connection, config.ingestionConfig);
+                        await StatefunIngestionOrchestrator.Run(connection, config.ingestionConfig);
                         GC.Collect();
                         break;
                         }

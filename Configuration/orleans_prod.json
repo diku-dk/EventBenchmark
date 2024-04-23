@@ -41,7 +41,6 @@
         }
     ],
     "customerWorkerConfig": {
-        "maxNumberKeysToBrowse": 10,
         "maxNumberKeysToAddToCart": 10,
         "minMaxQtyRange": {
             "min": 1,

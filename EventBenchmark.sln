@@ -21,6 +21,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Statefun", "Statefun\Statef
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DriverBench", "DriverBench\DriverBench.csproj", "{50F6882F-D05B-4EB9-9F76-9EFFF83FCB72}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Modb", "Modb\Modb.csproj", "{5B1AA504-03EA-4ED5-92C4-6C9C0532D55F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -51,6 +53,10 @@ Global
 		{50F6882F-D05B-4EB9-9F76-9EFFF83FCB72}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{50F6882F-D05B-4EB9-9F76-9EFFF83FCB72}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{50F6882F-D05B-4EB9-9F76-9EFFF83FCB72}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5B1AA504-03EA-4ED5-92C4-6C9C0532D55F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5B1AA504-03EA-4ED5-92C4-6C9C0532D55F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5B1AA504-03EA-4ED5-92C4-6C9C0532D55F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5B1AA504-03EA-4ED5-92C4-6C9C0532D55F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

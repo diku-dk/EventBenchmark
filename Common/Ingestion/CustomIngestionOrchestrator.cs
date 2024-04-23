@@ -1,12 +1,11 @@
 ﻿using System.Collections.Concurrent;
 using Common.Ingestion.Config;
 using Common.Http;
-using Common.Infra;
 using DuckDB.NET.Data;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace Orleans.Infra;
+namespace Common.Infra;
 
 public sealed class CustomIngestionOrchestrator
 {
@@ -15,7 +14,7 @@ public sealed class CustomIngestionOrchestrator
 	{
         var startTime = DateTime.UtcNow;
         var numThreads = config.concurrencyLevel <= 0 ? Environment.ProcessorCount : config.concurrencyLevel;
-        Console.WriteLine("Ingestion process starting at {0} with strategy {1} and numWorkers {2}", startTime, config.strategy.ToString(),numThreads);
+        Console.WriteLine("Ingestion process starting at {0} with strategy {1} and numWorkers {2}", startTime, config.strategy.ToString(), numThreads);
 
         var command = connection.CreateCommand();
 
@@ -109,7 +108,7 @@ public sealed class CustomIngestionOrchestrator
         {
             try
             {
-                ConvertAndSend(item.Tuple, item.Url);
+                ConvertAndSend(item.Tuple, item.Url, errors);
             }
             catch (Exception e)
             {
@@ -118,13 +117,17 @@ public sealed class CustomIngestionOrchestrator
         }
     }
 
-    private static void ConvertAndSend(JObject obj, string url)
+    private static void ConvertAndSend(JObject obj, string url, BlockingCollection<(string,string)> errors)
     {
         HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, url)
         {
             Content = HttpUtils.BuildPayload(JsonConvert.SerializeObject(obj))
         };
-        HttpUtils.client.Send(message, HttpCompletionOption.ResponseHeadersRead);
+        var response = HttpUtils.client.Send(message, HttpCompletionOption.ResponseHeadersRead);
+        if (!response.IsSuccessStatusCode)
+        {
+            errors.Add((url,response.StatusCode+" : "+response.ReasonPhrase));
+        }
     }
 
 }

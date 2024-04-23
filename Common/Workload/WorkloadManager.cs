@@ -145,7 +145,7 @@ public class WorkloadManager
         var finishTime = DateTime.UtcNow;
         s.Stop();
 
-        this.logger.LogInformation("Finished at {0}. Last TID submitted was {1}", finishTime, currentTid);
+        this.logger.LogInformation("Finished at {0}. Last TID submitted was {1}", finishTime, currentTid-1);
         this.logger.LogInformation("Histogram:");
         foreach(var entry in this.histogram)
         {

@@ -48,7 +48,7 @@ public sealed class DriverBenchCustomerWorker : DefaultCustomerWorker
 
     protected override void SendCheckoutRequest(string tid)
     {
-        this.submittedTransactions.Add(new TransactionIdentifier(tid, Common.Workload.TransactionType.CUSTOMER_SESSION, DateTime.UtcNow));
+        this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, DateTime.UtcNow));
         // fixed delay
         Thread.Sleep(100);
         this.finishedTransactions.Add(new TransactionOutput(tid, DateTime.UtcNow));

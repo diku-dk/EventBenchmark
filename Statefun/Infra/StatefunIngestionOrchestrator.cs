@@ -8,7 +8,7 @@ using Common.Http;
 
 namespace Statefun.Infra;
 
-public sealed class CustomIngestionOrchestrator
+public sealed class StatefunIngestionOrchestrator
 {
 
 	public static async Task Run(DuckDBConnection connection, IngestionConfig config)

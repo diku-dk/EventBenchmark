@@ -49,7 +49,7 @@ public class IngestionTest
             }
         };
 
-        await IngestionOrchestrator.Run(connection, ingestionConfig);
+        await IngestionOrchestratorV1.Run(connection, ingestionConfig);
 
         // retrieve some random and see if they match
 
