@@ -1,7 +1,9 @@
 ﻿using Common.Entities;
 using Common.Infra;
 using Common.Services;
+using Common.Workers.Customer;
 using Common.Workload;
+using Common.Workload.CustomerWorker;
 using Common.Workload.Metrics;
 using Microsoft.Extensions.Logging;
 
@@ -9,6 +11,9 @@ namespace Common.Metric;
 
 public class MetricManager
 {
+
+    public delegate MetricManager BuildMetricManagerDelegate(ISellerService sellerService, ICustomerService customerService, IDeliveryService deliveryService);
+
     protected static readonly ILogger logger = LoggerProxy.GetInstance("MetricManager");
 
     protected readonly ISellerService sellerService;
@@ -18,12 +23,17 @@ public class MetricManager
     protected int numSellers;
     protected int numCustomers;
 
-    public MetricManager(ISellerService sellerService, ICustomerService customerService, IDeliveryService deliveryService)
+    protected MetricManager(ISellerService sellerService, ICustomerService customerService, IDeliveryService deliveryService)
 	{
         this.sellerService = sellerService;
         this.customerService = customerService;
         this.deliveryService = deliveryService;
 	}
+
+    public static MetricManager BuildMetricManager(ISellerService sellerService, ICustomerService customerService, IDeliveryService deliveryService)
+    {
+        return new MetricManager(sellerService, customerService, deliveryService);
+    }
 
     public void SetUp(int numSellers, int numCustomers)
     {

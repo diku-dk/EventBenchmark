@@ -15,7 +15,6 @@ namespace Orleans.Workload;
 public sealed class ActorExperimentManager : AbstractExperimentManager
 {
     private readonly ActorWorkloadManager myWorkloadManager;
-    private readonly MetricManager metricManager;
 
     public static ActorExperimentManager BuildActorExperimentManager(IHttpClientFactory httpClientFactory, ExperimentConfig config, DuckDBConnection connection)
     {
@@ -23,10 +22,9 @@ public sealed class ActorExperimentManager : AbstractExperimentManager
     }
 
     private ActorExperimentManager(IHttpClientFactory httpClientFactory, BuildSellerWorkerDelegate sellerWorkerDelegate, BuildCustomerWorkerDelegate customerWorkerDelegate, BuildDeliveryWorkerDelegate deliveryWorkerDelegate, ExperimentConfig config, DuckDBConnection connection) :
-        base(httpClientFactory, ActorWorkloadManager.BuildWorkloadManager, sellerWorkerDelegate, customerWorkerDelegate, deliveryWorkerDelegate, config, connection)
+        base(httpClientFactory, ActorWorkloadManager.BuildWorkloadManager, MetricManager.BuildMetricManager, sellerWorkerDelegate, customerWorkerDelegate, deliveryWorkerDelegate, config, connection)
     {
         this.myWorkloadManager = (ActorWorkloadManager)this.workloadManager;
-        this.metricManager = new MetricManager(this.sellerService, this.customerService, this.deliveryService);
     }
 
     public async Task RunSimpleExperiment(int type)
@@ -53,12 +51,6 @@ public sealed class ActorExperimentManager : AbstractExperimentManager
         this.Collect(0, startTime, finishTime);
         this.PostExperiment();
         this.CollectGarbage();
-    }
-
-    protected override MetricManager SetUpMetricManager(int runIdx)
-    {
-        this.metricManager.SetUp(this.numSellers, this.config.numCustomers);
-        return this.metricManager;
     }
 
 }

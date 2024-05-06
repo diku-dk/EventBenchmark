@@ -1,12 +1,11 @@
-﻿using System.Runtime.InteropServices;
-using Common.Experiment;
+﻿using Common.Experiment;
 using Common.Http;
 using Common.Infra;
 using DuckDB.NET.Data;
 
 namespace Modb;
 
-public class Program
+public sealed class Program
 {
 
     public static async Task Main(string[] args)

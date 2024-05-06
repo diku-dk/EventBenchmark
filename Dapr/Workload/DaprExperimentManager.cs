@@ -32,7 +32,7 @@ public class DaprExperimentManager : AbstractExperimentManager
     }
 
     private DaprExperimentManager(IHttpClientFactory httpClientFactory, BuildSellerWorkerDelegate sellerWorkerDelegate, BuildCustomerWorkerDelegate customerWorkerDelegate, BuildDeliveryWorkerDelegate deliveryWorkerDelegate, ExperimentConfig config, DuckDBConnection connection) :
-        base(httpClientFactory, WorkloadManager.BuildWorkloadManager, sellerWorkerDelegate, customerWorkerDelegate, deliveryWorkerDelegate, config, connection)
+        base(httpClientFactory, WorkloadManager.BuildWorkloadManager, MetricManager.BuildMetricManager, sellerWorkerDelegate, customerWorkerDelegate, deliveryWorkerDelegate, config, connection)
     {
         this.redisConnection = string.Format("{0}:{1}", config.streamingConfig.host, config.streamingConfig.port);
         this.channelsToTrim = new();
@@ -111,9 +111,4 @@ public class DaprExperimentManager : AbstractExperimentManager
 
     }
 
-    protected override MetricManager SetUpMetricManager(int runIdx)
-    {
-        this.metricManager.SetUp(this.numSellers, this.config.numCustomers);
-        return this.metricManager;
-    }
 }

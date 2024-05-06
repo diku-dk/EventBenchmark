@@ -10,6 +10,7 @@ using Common.Workers.Seller;
 using Common.Workload;
 using DuckDB.NET.Data;
 using Microsoft.Extensions.Logging;
+using static Common.Metric.MetricManager;
 using static Common.Services.CustomerService;
 using static Common.Services.DeliveryService;
 using static Common.Services.SellerService;
@@ -41,10 +42,10 @@ public abstract class AbstractExperimentManager
     protected readonly SellerService sellerService;
     private readonly Dictionary<int, ISellerWorker> sellerThreads;
     protected int numSellers;
-
+    private readonly MetricManager metricManager;
     protected readonly WorkloadManager workloadManager;
 
-    public AbstractExperimentManager(IHttpClientFactory httpClientFactory, BuildWorkloadManagerDelegate workloadManagerDelegate, BuildSellerWorkerDelegate sellerWorkerDelegate, BuildCustomerWorkerDelegate customerWorkerDelegate, BuildDeliveryWorkerDelegate deliveryWorkerDelegate, ExperimentConfig config, DuckDBConnection duckDBConnection)
+    public AbstractExperimentManager(IHttpClientFactory httpClientFactory, BuildWorkloadManagerDelegate workloadManagerDelegate, BuildMetricManagerDelegate buildMetricManagerDelegate, BuildSellerWorkerDelegate sellerWorkerDelegate, BuildCustomerWorkerDelegate customerWorkerDelegate, BuildDeliveryWorkerDelegate deliveryWorkerDelegate, ExperimentConfig config, DuckDBConnection duckDBConnection)
     {
         this.httpClientFactory = httpClientFactory;
         this.config = config;
@@ -67,6 +68,8 @@ public abstract class AbstractExperimentManager
                                 config.concurrencyLevel,
                                 config.executionTime,
                                 config.delayBetweenRequests);
+
+        this.metricManager = buildMetricManagerDelegate(sellerService, customerService, deliveryService);
     }
 
     protected virtual void PreExperiment()
@@ -131,13 +134,11 @@ public abstract class AbstractExperimentManager
         await this.TriggerPostExperimentTasks();
     }
 
-    protected abstract MetricManager SetUpMetricManager(int runIdx);
-
     protected virtual void Collect(int runIdx, DateTime startTime, DateTime finishTime)
     {
-        var metricManager = this.SetUpMetricManager(runIdx);
+        this.metricManager.SetUp(this.numSellers, this.config.numCustomers);
         string ts = new DateTimeOffset(startTime).ToUnixTimeMilliseconds().ToString();
-        metricManager.Collect(startTime, finishTime, config.epoch, string.Format("{0}#{1}_{2}_{3}_{4}_{5}_{6}", ts, runIdx, this.config.numCustomers, this.config.concurrencyLevel, this.config.runs[runIdx].numProducts, this.config.runs[runIdx].sellerDistribution, this.config.runs[runIdx].keyDistribution));
+        this.metricManager.Collect(startTime, finishTime, config.epoch, string.Format("{0}#{1}_{2}_{3}_{4}_{5}_{6}", ts, runIdx, this.config.numCustomers, this.config.concurrencyLevel, this.config.runs[runIdx].numProducts, this.config.runs[runIdx].sellerDistribution, this.config.runs[runIdx].keyDistribution));
     }
 
     public virtual async Task Run()

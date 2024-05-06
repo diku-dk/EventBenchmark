@@ -8,10 +8,10 @@
     "delayBetweenRequests": 0,
     "delayBetweenRuns": 0,
     "transactionDistribution": {
-        //"CUSTOMER_SESSION": 30,
+        "CUSTOMER_SESSION": 100
         //"QUERY_DASHBOARD": 35,
         //"PRICE_UPDATE": 50,
-        "UPDATE_PRODUCT": 100
+        //"UPDATE_PRODUCT": 100
         //"UPDATE_DELIVERY": 100
     },
     "concurrencyLevel": 1,
@@ -21,8 +21,8 @@
         "mapTableToUrl": {
             //"sellers": "http://localhost:8001/seller",
             //"customers": "http://localhost:8001/customer",
-            "stock_items": "http://localhost:8002/stock",
-            "products": "http://localhost:8001/product"
+            "stock_items": "http://localhost:8002/stock"
+            // "products": "http://localhost:8001/product"
         }
     },
     "runs": [
@@ -50,8 +50,8 @@
         },
         "checkoutProbability": 100,
         "voucherProbability": 5,
-        "productUrl": "http://localhost:8090/product",
-        "cartUrl": "http://localhost:8090/cart",
+        "productUrl": "http://localhost:8001/product",
+        "cartUrl": "http://localhost:8000/cart",
         "trackTids": false
     },
     "sellerWorkerConfig": {
@@ -64,10 +64,10 @@
             "min": 1,
             "max": 10
         },
-        "sellerUrl": "http://localhost:8090/seller",
-        "productUrl": "http://localhost:8090/product"
+        "sellerUrl": "http://localhost:8006/seller",
+        "productUrl": "http://localhost:8002/product"
     },
     "deliveryWorkerConfig": {
-        "shipmentUrl": "http://localhost:8090/shipment"
+        "shipmentUrl": "http://localhost:8005/shipment"
     }
 }

@@ -21,7 +21,7 @@ public sealed class DriverBenchDeliveryWorker : DefaultDeliveryWorker
 
     public override void Run(string tid)
     {
-        var init = new TransactionIdentifier(tid, Common.Workload.TransactionType.CUSTOMER_SESSION, DateTime.UtcNow);
+        var init = new TransactionIdentifier(tid, TransactionType.CUSTOMER_SESSION, DateTime.UtcNow);
         // fixed delay
         Thread.Sleep(100);
         var end = new TransactionOutput(tid, DateTime.UtcNow);

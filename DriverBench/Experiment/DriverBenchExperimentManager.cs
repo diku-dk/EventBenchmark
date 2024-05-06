@@ -11,22 +11,15 @@ namespace DriverBench.Experiment;
 
 public sealed class DriverBenchExperimentManager : AbstractExperimentManager
 {
-    private readonly MetricManager metricManager;
 
     public static DriverBenchExperimentManager BuildDriverBenchExperimentManager(IHttpClientFactory httpClientFactory, ExperimentConfig config, DuckDBConnection duckDBConnection)
     {
         return new DriverBenchExperimentManager(httpClientFactory, DriverBenchSellerWorker.BuildSellerWorker, DriverBenchCustomerWorker.BuildCustomerWorker, DriverBenchDeliveryWorker.BuildDeliveryWorker, config, duckDBConnection);
     }
 
-    public DriverBenchExperimentManager(IHttpClientFactory httpClientFactory, BuildSellerWorkerDelegate sellerWorkerDelegate, BuildCustomerWorkerDelegate customerWorkerDelegate, BuildDeliveryWorkerDelegate deliveryWorkerDelegate, ExperimentConfig config, DuckDBConnection duckDBConnection) : base(httpClientFactory, WorkloadManager.BuildWorkloadManager, sellerWorkerDelegate, customerWorkerDelegate, deliveryWorkerDelegate, config, duckDBConnection)
+    private DriverBenchExperimentManager(IHttpClientFactory httpClientFactory, BuildSellerWorkerDelegate sellerWorkerDelegate, BuildCustomerWorkerDelegate customerWorkerDelegate, BuildDeliveryWorkerDelegate deliveryWorkerDelegate, ExperimentConfig config, DuckDBConnection duckDBConnection) : base(httpClientFactory, WorkloadManager.BuildWorkloadManager, MetricManager.BuildMetricManager, sellerWorkerDelegate, customerWorkerDelegate, deliveryWorkerDelegate, config, duckDBConnection)
     {
-        this.metricManager = new MetricManager(this.sellerService, this.customerService, this.deliveryService);
-    }
-
-    protected override MetricManager SetUpMetricManager(int runIdx)
-    {
-        this.metricManager.SetUp(this.numSellers, this.config.numCustomers);
-        return this.metricManager;
+        
     }
 
 }

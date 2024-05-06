@@ -58,7 +58,7 @@ public class DefaultCustomerWorker : AbstractCustomerWorker
             }
             catch (Exception e)
             {
-                this.logger.LogError("Customer {0} Url {1} Seller {2} Key {3}: Exception Message: {5} ", customer.id, this.config.productUrl, product.seller_id, product.product_id, e.Message);
+                this.logger.LogError("Customer {0} Url {1} Seller {2} Key {3}: Exception Message: {5} ", customer.id, this.config.cartUrl, product.seller_id, product.product_id, e.Message);
             }
         }
     }
@@ -84,11 +84,19 @@ public class DefaultCustomerWorker : AbstractCustomerWorker
     // and thus avoid having to restart a customer session, i.e., having to add cart items again from scratch
     private static readonly int maxAttempts = 3;
 
+    protected virtual string BuildCheckoutUrl()
+    {
+        return this.config.cartUrl + "/" + this.customer.id + "/checkout";
+    }
+
     protected override void SendCheckoutRequest(string tid)
     {
         var objStr = this.BuildCheckoutPayload(tid);
         var payload = HttpUtils.BuildPayload(objStr);
-        string url = this.config.cartUrl + "/" + this.customer.id + "/checkout";
+        string url = this.BuildCheckoutUrl();
+
+        // Console.WriteLine("URL to send checkout request: "+url);
+
         DateTime sentTs;
         int attempt = 0;
         try
