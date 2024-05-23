@@ -14,8 +14,9 @@ public sealed class Program
         ExperimentConfig config = ConsoleUtility.BuildExperimentConfig(args);
         Console.WriteLine("Configuration parsed. Starting program...");
         DuckDBConnection? connection = null;
-        bool serverRunning = false;
-        var server = new BatchCompletionReceiver();
+        BatchCompletionReceiver server = new(9000);
+        Task serverTask = Task.Factory.StartNew(server.Run, TaskCreationOptions.LongRunning);
+        Func<int> func = server.LastTID;
 
         try{
         while(true){
@@ -63,16 +64,11 @@ public sealed class Program
                     }
                 }
 
-                if (!serverRunning)
-                {
-                    _ = Task.Run(server.Run);
-                    serverRunning = true;
-                    Console.WriteLine("Wait to set up batch completion receiver server...");
-                    Thread.Sleep(2000);
-                }
-
-                var expManager = ModbExperimentManager.BuildModbExperimentManager(new CustomHttpClientFactory(), config, connection);
-                await expManager.RunSimpleExperiment();
+                server.RestartTID();
+                var expManager = ModbExperimentManager
+                                .BuildModbExperimentManager(new CustomHttpClientFactory(), config, connection);
+                await expManager.RunSimpleExperiment(func);
+                Console.WriteLine("Experiment finished.");
                 break;
             }
             case "4":
@@ -91,18 +87,12 @@ public sealed class Program
                 }
                 // ingest data
                 await CustomIngestionOrchestrator.Run(connection, config.ingestionConfig);
-                var expManager = ModbExperimentManager.BuildModbExperimentManager(new CustomHttpClientFactory(), config, connection);
-
-                if (!serverRunning)
-                {
-                    _ = Task.Run(server.Run);
-                    serverRunning = true;
-                    Console.WriteLine("Wait to set up batch completion receiver server...");
-                    Thread.Sleep(2000);
-                }
+                var expManager = ModbExperimentManager
+                                .BuildModbExperimentManager(new CustomHttpClientFactory(), config, connection);
 
                 // run
-                await expManager.RunSimpleExperiment();
+                server.RestartTID();
+                await expManager.RunSimpleExperiment( func );
                 Console.WriteLine("Experiment finished.");
                 break;
             }

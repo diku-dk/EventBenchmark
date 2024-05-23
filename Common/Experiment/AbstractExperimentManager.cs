@@ -42,7 +42,7 @@ public abstract class AbstractExperimentManager
     protected readonly SellerService sellerService;
     private readonly Dictionary<int, ISellerWorker> sellerThreads;
     protected int numSellers;
-    private readonly MetricManager metricManager;
+    protected readonly MetricManager metricManager;
     protected readonly WorkloadManager workloadManager;
 
     public AbstractExperimentManager(IHttpClientFactory httpClientFactory, BuildWorkloadManagerDelegate workloadManagerDelegate, BuildMetricManagerDelegate buildMetricManagerDelegate, BuildSellerWorkerDelegate sellerWorkerDelegate, BuildCustomerWorkerDelegate customerWorkerDelegate, BuildDeliveryWorkerDelegate deliveryWorkerDelegate, ExperimentConfig config, DuckDBConnection duckDBConnection)
@@ -235,9 +235,7 @@ public abstract class AbstractExperimentManager
         this.PreExperiment();
         this.PreWorkload(0);
         this.workloadManager.SetUp(this.config.runs[0].sellerDistribution, new Interval(1, this.numSellers));
-        (DateTime startTime, DateTime finishTime) res = await this.workloadManager.Run();
-        DateTime startTime = res.startTime;
-        DateTime finishTime = res.finishTime;
+        (DateTime startTime, DateTime finishTime) = await this.workloadManager.Run();
         this.Collect(0, startTime, finishTime);
         this.PostRunTasks(0);
         this.PostExperiment();

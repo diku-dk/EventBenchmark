@@ -22,7 +22,7 @@ public class DaprExperimentManager : AbstractExperimentManager
     private readonly string redisConnection;
     private readonly List<string> channelsToTrim;
 
-    private readonly DaprMetricManager metricManager;
+    new private readonly DaprMetricManager metricManager;
 
     protected static readonly List<TransactionType> eventualCompletionTransactions = new() { TransactionType.CUSTOMER_SESSION, TransactionType.PRICE_UPDATE, TransactionType.UPDATE_PRODUCT };
 

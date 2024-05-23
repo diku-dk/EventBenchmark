@@ -1,9 +1,7 @@
 ﻿using Common.Entities;
 using Common.Infra;
 using Common.Services;
-using Common.Workers.Customer;
 using Common.Workload;
-using Common.Workload.CustomerWorker;
 using Common.Workload.Metrics;
 using Microsoft.Extensions.Logging;
 
@@ -41,7 +39,7 @@ public class MetricManager
         this.numCustomers = numCustomers;
     }
 
-    protected List<Latency> BuildLatencyList(Dictionary<object, TransactionIdentifier> submitted, Dictionary<object, TransactionOutput> finished, DateTime finishTime, string workerType = "")
+    protected static List<Latency> BuildLatencyList(Dictionary<object, TransactionIdentifier> submitted, Dictionary<object, TransactionOutput> finished, DateTime finishTime, string workerType = "")
     {
         var targetValues = finished.Values.Where(e => e.timestamp.CompareTo(finishTime) <= 0);
         var latencyList = new List<Latency>(targetValues.Count());
@@ -65,10 +63,100 @@ public class MetricManager
         return latencyList;
     }
 
+    public static void SimpleCollect(DateTime startTime, DateTime finishTime, Func<int> callback, string runName = null)
+    {
+        StreamWriter sw = BuildStreamWriter(startTime, finishTime, runName);
+        
+        TimeSpan executionTime = finishTime - startTime;
+        CalculateOverallThroughput(sw, callback(), executionTime);
+
+        CloseStreamWriter(sw);
+    }
+
     public void Collect(DateTime startTime, DateTime finishTime, int epochPeriod = 0, string runName = null)
     {
         logger.LogInformation("Starting collecting metrics for run between {0} and {1}", startTime, finishTime);
 
+        StreamWriter sw = BuildStreamWriter(startTime, finishTime, runName);
+
+        List<TransactionType> txTypeValues = Enum.GetValues(typeof(TransactionType)).Cast<TransactionType>().ToList();
+        List<List<Latency>> latencyGatherResults = this.CalculateLatency(finishTime, sw, txTypeValues);
+
+        int countTid = 0;
+        foreach (var list in latencyGatherResults)
+        {
+            countTid += list.Count;
+        }
+
+        // transactions per second
+        TimeSpan executionTime = finishTime - startTime;
+        CalculateOverallThroughput(sw, countTid, executionTime);
+
+        if (epochPeriod <= 0 || epochPeriod >= executionTime.Milliseconds)
+        {
+            logger.LogWarning("Skipping breakdown calculation");
+            BreakdownCalculation(startTime, finishTime, epochPeriod, sw, latencyGatherResults, txTypeValues, executionTime);
+        }
+
+        CalculateAborts(finishTime, sw);
+
+        CalculateReplicationAnomalies(finishTime, sw);
+
+        CloseStreamWriter(sw);
+
+        logger.LogInformation("Finished collecting metrics.");
+    }
+
+    private void CalculateReplicationAnomalies(DateTime finishTime, StreamWriter sw)
+    {
+        // collect anomalies caused by replication
+        int anomalies = this.CollectReplicationAnomalies(finishTime);
+        if (anomalies > 0)
+        {
+            logger.LogInformation("================== Anomalies ==================");
+            sw.WriteLine("================== Anomalies ==================");
+            logger.LogInformation("Number of collected anomalies: {0}", anomalies);
+            sw.WriteLine("Number of collected anomalies: {0}", anomalies);
+        }
+    }
+
+    private void CalculateAborts(DateTime finishTime, StreamWriter sw)
+    {
+        logger.LogInformation("================== Aborts ==================");
+        sw.WriteLine("================== Aborts ==================");
+        Dictionary<TransactionType, int> dictCount = this.CollectAborts(finishTime);
+        foreach (var entry in dictCount)
+        {
+            logger.LogInformation("Transaction: {0}: {1}", entry.Key, entry.Value);
+            sw.WriteLine("Transaction: {0}: {1}", entry.Key, entry.Value);
+        }
+        logger.LogInformation("===========================================");
+        sw.WriteLine("===========================================");
+    }
+
+    private static void CloseStreamWriter(StreamWriter sw)
+    {
+        logger.LogInformation("=================    THE END   ================");
+        sw.WriteLine("=================    THE END   ================");
+        sw.Flush();
+        sw.Close();
+    }
+
+    private static void CalculateOverallThroughput(StreamWriter sw, int countTid, TimeSpan executionTime)
+    {
+        double txPerSecond = countTid / executionTime.TotalSeconds;
+
+        logger.LogInformation("Number of seconds: {0}", executionTime.TotalSeconds);
+        sw.WriteLine("Number of seconds: {0}", executionTime.TotalSeconds);
+        logger.LogInformation("Number of completed transactions: {0}", countTid);
+        sw.WriteLine("Number of completed transactions: {0}", countTid);
+        logger.LogInformation("Transactions per second: {0}", txPerSecond);
+        sw.WriteLine("Transactions per second: {0}", txPerSecond);
+        sw.WriteLine("=====================================================");
+    }
+
+    private static StreamWriter BuildStreamWriter(DateTime startTime, DateTime finishTime, string runName)
+    {
         StreamWriter sw;
         if (runName is not null)
         {
@@ -82,7 +170,11 @@ public class MetricManager
 
         sw.WriteLine("Run from {0} to {1}", startTime, finishTime);
         sw.WriteLine("===========================================");
+        return sw;
+    }
 
+    private List<List<Latency>> CalculateLatency(DateTime finishTime, StreamWriter sw, List<TransactionType> txTypeValues)
+    {
         // seller workers
         List<Latency> sellerLatencyList = this.CollectFromSeller(finishTime);
         // customer workers
@@ -90,29 +182,25 @@ public class MetricManager
         // delivery worker
         List<Latency> deliveryLatencyList = this.CollectFromDelivery(finishTime);
 
-        var latencyGatherResults = new List<List<Latency>>
+        List<List<Latency>> latencyGatherResults = new List<List<Latency>>
         {
             sellerLatencyList,
             customerLatencyList,
             deliveryLatencyList
         };
-
         Dictionary<TransactionType, List<double>> latencyCollPerTxType = new();
 
-        var txTypeValues = Enum.GetValues(typeof(TransactionType)).Cast<TransactionType>().ToList();
         foreach (var txType in txTypeValues)
         {
             latencyCollPerTxType.Add(txType, new List<double>());
         }
 
-        int countTid = 0;
         foreach (var list in latencyGatherResults)
         {
             foreach (var entry in list)
             {
                 latencyCollPerTxType[entry.type].Add(entry.totalMilliseconds);
             }
-            countTid += list.Count;
         }
 
         foreach (var entry in latencyCollPerTxType)
@@ -126,37 +214,24 @@ public class MetricManager
             sw.WriteLine("Transaction: {0} - #{1} - Average end-to-end latency: {2}", entry.Key, entry.Value.Count, avg.ToString());
         }
 
-        // transactions per second
-        TimeSpan executionTime = finishTime - startTime;
-        double txPerSecond = countTid / executionTime.TotalSeconds;
+        return latencyGatherResults;
+    }
 
-        logger.LogInformation("Number of seconds: {0}", executionTime.TotalSeconds);
-        sw.WriteLine("Number of seconds: {0}", executionTime.TotalSeconds);
-        logger.LogInformation("Number of completed transactions: {0}", countTid);
-        sw.WriteLine("Number of completed transactions: {0}", countTid);
-        logger.LogInformation("Transactions per second: {0}", txPerSecond);
-        sw.WriteLine("Transactions per second: {0}", txPerSecond);
-        sw.WriteLine("=====================================================");
-
-        if (epochPeriod <= 0)
-        {
-            logger.LogWarning("Epoch period <= 0. No breakdown will be calculated!");
-            goto end_metric;
-        }
-
+    private static void BreakdownCalculation(DateTime startTime, DateTime finishTime, int epochPeriod, StreamWriter sw, List<List<Latency>> latencyGatherResults, List<TransactionType> txTypeValues, TimeSpan executionTime)
+    {
         // TODO calculate percentiles
         // break down latencies by end timestamp
-        int blocks = (int)executionTime.TotalMilliseconds / epochPeriod;
-        logger.LogInformation("{0} blocks for epoch {1}", blocks, epochPeriod);
-        sw.WriteLine("{0} blocks for epoch {1}", blocks, epochPeriod);
+        int numEpochs = (int)executionTime.TotalMilliseconds / epochPeriod;
+        logger.LogInformation("{0} blocks for epoch {1}", numEpochs, epochPeriod);
+        sw.WriteLine("{0} blocks for epoch {1}", numEpochs, epochPeriod);
 
-        List<Dictionary<TransactionType, List<double>>> breakdown = new(blocks);
-        for (int i = 0; i < blocks; i++)
+        List<Dictionary<TransactionType, List<double>>> epochs = new(numEpochs);
+        for (int i = 0; i < numEpochs; i++)
         {
-            breakdown.Add(new());
+            epochs.Add(new());
             foreach (var txType in txTypeValues)
             {
-                breakdown[i].Add(txType, new List<double>());
+                epochs[i].Add(txType, new List<double>());
             }
         }
         // iterate over all results and 
@@ -168,77 +243,48 @@ public class MetricManager
                 var span = entry.endTimestamp.Subtract(startTime);
                 int idx = (int)(span.TotalMilliseconds / epochPeriod);
 
-                if (idx >= breakdown.Count)
+                if (idx >= epochs.Count)
                 {
-                    idx = breakdown.Count - 1; 
+                    idx = epochs.Count - 1;
                 }
-        
+
                 if (idx >= 0 && entry.endTimestamp <= finishTime)
                 {
-                    breakdown[idx][entry.type].Add(entry.totalMilliseconds);
+                    epochs[idx][entry.type].Add(entry.totalMilliseconds);
                 }
             }
         }
 
-        int blockIdx = 1;
-        foreach (var block in breakdown)
+        int epochIdx = 1;
+        foreach (var epoch in epochs)
         {
-            logger.LogInformation("Block {0} results:", blockIdx);
-            sw.WriteLine("Block {0} results:", blockIdx);
+            logger.LogInformation("Block {0} results:", epochIdx);
+            sw.WriteLine("Block {0} results:", epochIdx);
 
             // iterating over each transaction type in block
-            int blockCountTid = 0;
-            foreach (var entry in block)
+            int epochCountTid = 0;
+            foreach (var entry in epoch)
             {
                 double avg = 0;
                 if (entry.Value.Count > 0)
                 {
                     avg = entry.Value.Average();
                 }
-                blockCountTid += entry.Value.Count;
+                epochCountTid += entry.Value.Count;
                 logger.LogInformation("Transaction: {0} - #{1} - Average end-to-end latency: {2}", entry.Key, entry.Value.Count, avg.ToString());
                 sw.WriteLine("Transaction: {0} - #{1} - Average end-to-end latency: {2}", entry.Key, entry.Value.Count, avg.ToString());
             }
 
-            double blockTxPerSecond = blockCountTid / (epochPeriod / 1000d);
+            double epochTxPerSecond = epochCountTid / (epochPeriod / 1000d);
 
-            logger.LogInformation("Number of completed transactions: {0}", blockCountTid);
-            sw.WriteLine("Number of completed transactions: {0}", blockCountTid);
-            logger.LogInformation("Transactions per second: {0}", blockTxPerSecond);
-            sw.WriteLine("Transactions per second: {0}", blockTxPerSecond);
+            logger.LogInformation("Number of completed transactions: {0}", epochCountTid);
+            sw.WriteLine("Number of completed transactions: {0}", epochCountTid);
+            logger.LogInformation("Transactions per second: {0}", epochTxPerSecond);
+            sw.WriteLine("Transactions per second: {0}", epochTxPerSecond);
 
-            blockIdx++;
+            epochIdx++;
             sw.WriteLine("===========================================");
         }
-
-        end_metric:
-
-        logger.LogInformation("================== Aborts ==================");
-        sw.WriteLine("================== Aborts ==================");
-        Dictionary<TransactionType, int> dictCount = this.CollectAborts(finishTime);
-        foreach (var entry in dictCount)
-        {
-              logger.LogInformation("Transaction: {0}: {1}", entry.Key, entry.Value);
-              sw.WriteLine("Transaction: {0}: {1}", entry.Key, entry.Value);
-        }
-        logger.LogInformation("===========================================");
-        sw.WriteLine("===========================================");
-
-        // collect anomalies caused by replication
-        int anomalies = this.CollectReplicationAnomalies(finishTime);
-        if(anomalies > 0){
-            logger.LogInformation("================== Anomalies ==================");
-            sw.WriteLine("================== Anomalies ==================");
-            logger.LogInformation("Number of collected anomalies: {0}", anomalies);
-            sw.WriteLine("Number of collected anomalies: {0}", anomalies);
-        }
-
-        logger.LogInformation("=================    THE END   ================");
-        sw.WriteLine("=================    THE END   ================");
-        sw.Flush();
-        sw.Close();
-
-        logger.LogInformation("Finished collecting metrics.");
     }
 
     protected virtual Dictionary<TransactionType, int> CollectAborts(DateTime finishTime)
@@ -302,7 +348,7 @@ public class MetricManager
         if (dupFin > 0)
             logger.LogWarning("[Seller] Number of duplicated finished transactions found: {0}", dupFin);
 
-         return this.BuildLatencyList(sellerSubmitted, sellerFinished, finishTime, "seller");
+        return BuildLatencyList(sellerSubmitted, sellerFinished, finishTime, "seller");
     }
 
     protected virtual List<Latency> CollectFromCustomer(DateTime finishTime)
@@ -342,7 +388,7 @@ public class MetricManager
         if (dupFin > 0)
             logger.LogWarning("[Customer] Number of duplicated finished transactions found: {0}", dupFin);
 
-        return this.BuildLatencyList(customerSubmitted, customerFinished, finishTime, "customer");
+        return BuildLatencyList(customerSubmitted, customerFinished, finishTime, "customer");
     }
 
     public virtual List<Latency> CollectFromDelivery(DateTime finishTime)
