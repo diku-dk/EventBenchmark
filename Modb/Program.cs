@@ -1,4 +1,7 @@
-﻿using Common.Experiment;
+﻿using System;
+using System.Linq;
+using System.Threading.Tasks;
+using Common.Experiment;
 using Common.Http;
 using Common.Infra;
 using DuckDB.NET.Data;
@@ -7,22 +10,18 @@ namespace Modb;
 
 public sealed class Program
 {
-
     public static async Task Main(string[] args)
     {
         Console.WriteLine("Initializing benchmark driver...");
         ExperimentConfig config = ConsoleUtility.BuildExperimentConfig(args);
         Console.WriteLine("Configuration parsed. Starting program...");
-        DuckDBConnection? connection = null;
-        BatchCompletionReceiver server = new(9000);
-        Task serverTask = Task.Factory.StartNew(server.Run, TaskCreationOptions.LongRunning);
-        Func<int> func = server.LastTID;
+        DuckDBConnection connection = null;
 
         try{
         while(true){
 
         Console.WriteLine("\n Select an option: \n 1 - Generate Data \n 2 - Ingest Data \n 3 - Run Experiment \n 4 - Ingest and Run (2 and 3) \n 5 - Parse New Configuration \n q - Exit");
-        string? op = Console.ReadLine();
+        string op = Console.ReadLine();
 
         switch (op)
         {
@@ -64,10 +63,9 @@ public sealed class Program
                     }
                 }
 
-                server.RestartTID();
                 var expManager = ModbExperimentManager
                                 .BuildModbExperimentManager(new CustomHttpClientFactory(), config, connection);
-                await expManager.RunSimpleExperiment(func);
+                expManager.RunSimpleExperiment();
                 Console.WriteLine("Experiment finished.");
                 break;
             }
@@ -90,9 +88,7 @@ public sealed class Program
                 var expManager = ModbExperimentManager
                                 .BuildModbExperimentManager(new CustomHttpClientFactory(), config, connection);
 
-                // run
-                server.RestartTID();
-                await expManager.RunSimpleExperiment( func );
+                expManager.RunSimpleExperiment();
                 Console.WriteLine("Experiment finished.");
                 break;
             }

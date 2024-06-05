@@ -201,13 +201,13 @@ public abstract class AbstractExperimentManager
 
             logger.LogInformation("Run #{0} started at {1}", runIdx, DateTime.UtcNow);
 
-            var workloadTask = await this.workloadManager.Run();
+            var workloadTask = this.workloadManager.Run();
 
             DateTime startTime = workloadTask.startTime;
             DateTime finishTime = workloadTask.finishTime;
 
             logger.LogInformation("Wait for microservices to converge (i.e., finish receiving events) for {0} seconds...", this.config.delayBetweenRuns / 1000);
-            await Task.Delay(this.config.delayBetweenRuns);
+            Thread.Sleep(this.config.delayBetweenRuns);
 
             // set up data collection for metrics
             this.Collect(runIdx, startTime, finishTime);
@@ -229,13 +229,13 @@ public abstract class AbstractExperimentManager
         logger.LogInformation("Experiment finished");
     }
 
-    public async Task RunSimpleExperiment()
+    public void RunSimpleExperiment()
     {
         this.customers = DuckDbUtils.SelectAll<Customer>(this.connection, "customers");
         this.PreExperiment();
         this.PreWorkload(0);
         this.workloadManager.SetUp(this.config.runs[0].sellerDistribution, new Interval(1, this.numSellers));
-        (DateTime startTime, DateTime finishTime) = await this.workloadManager.Run();
+        (DateTime startTime, DateTime finishTime) = this.workloadManager.Run();
         this.Collect(0, startTime, finishTime);
         this.PostRunTasks(0);
         this.PostExperiment();

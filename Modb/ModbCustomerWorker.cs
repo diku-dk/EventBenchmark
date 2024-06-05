@@ -1,4 +1,5 @@
-﻿using Common.Entities;
+﻿using System.Net.Http;
+using Common.Entities;
 using Common.Infra;
 using Common.Services;
 using Common.Workers.Customer;

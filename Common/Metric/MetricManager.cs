@@ -63,12 +63,12 @@ public class MetricManager
         return latencyList;
     }
 
-    public static void SimpleCollect(DateTime startTime, DateTime finishTime, Func<int> callback, string runName = null)
+    public static void SimpleCollect(DateTime startTime, DateTime finishTime, int numberTIDs, string runName = null)
     {
         StreamWriter sw = BuildStreamWriter(startTime, finishTime, runName);
         
         TimeSpan executionTime = finishTime - startTime;
-        CalculateOverallThroughput(sw, callback(), executionTime);
+        CalculateOverallThroughput(sw, numberTIDs, executionTime);
 
         CloseStreamWriter(sw);
     }

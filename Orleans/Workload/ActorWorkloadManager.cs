@@ -1,12 +1,16 @@
 ﻿using System.Diagnostics;
 using Common.Services;
 using Common.Workload;
-using Microsoft.Extensions.Logging;
 
 namespace Orleans.Workload;
 
 public sealed class ActorWorkloadManager : WorkloadManager
 {
+
+    // signal when all threads have started
+    private Barrier barrier;
+    private CountdownEvent countdown;
+
     private ActorWorkloadManager(
         ISellerService sellerService,
         ICustomerService customerService,
@@ -42,18 +46,18 @@ public sealed class ActorWorkloadManager : WorkloadManager
         while(i < numCpus)
         {
             //Console.WriteLine("Init thread {0}", i);
-            tasks.Add(Task.Run(TaskWorker));
+            tasks.Add(Task.Run(Worker));
             i++;
         }
 
         this.barrier.SignalAndWait();
         var startTime = DateTime.UtcNow;
-        this.logger.LogInformation("Run started at {0}.", startTime);
+        Console.WriteLine("Run started at {0}.", startTime);
         Thread.Sleep(this.executionTime);
         this.countdown.Signal();
         var finishTime = DateTime.UtcNow;
         this.barrier.Dispose();
-        this.logger.LogInformation("Run finished at {0}.", finishTime);
+        Console.WriteLine("Run finished at {0}.", finishTime);
 
         return (startTime, finishTime);
     }
@@ -65,7 +69,7 @@ public sealed class ActorWorkloadManager : WorkloadManager
         var execTime = TimeSpan.FromMilliseconds(this.executionTime);
         int currentTid = 1;
         var startTime = DateTime.UtcNow;
-        this.logger.LogInformation("Started sending batch of transactions with concurrency level {0} at {0}.", this.concurrencyLevel, startTime);
+        Console.WriteLine("Started sending batch of transactions with concurrency level {0} at {0}.", this.concurrencyLevel, startTime);
         s.Start();
         while (currentTid < this.concurrencyLevel)
         {
@@ -94,7 +98,7 @@ public sealed class ActorWorkloadManager : WorkloadManager
 
         var finishTime = DateTime.UtcNow;
         s.Stop();
-        this.logger.LogInformation("Run finished at {0}.", finishTime);
+        Console.WriteLine("Run finished at {0}.", finishTime);
         return (startTime, finishTime);
     }
 
@@ -108,57 +112,33 @@ public sealed class ActorWorkloadManager : WorkloadManager
 
         while(i < numCpus)
         {
-            var thread = new Thread(ThreadWorker);
+            var thread = new Thread(Worker);
             thread.Start();
             i++;
         }
 
         this.barrier.SignalAndWait();
         var startTime = DateTime.UtcNow;
-        this.logger.LogInformation("Run started at {0}.", startTime);
+        Console.WriteLine("Run started at {0}.", startTime);
         Thread.Sleep(this.executionTime);
         this.countdown.Signal();
         var finishTime = DateTime.UtcNow;
         this.barrier.Dispose();
-        this.logger.LogInformation("Run finished at {0}.", finishTime);
+        Console.WriteLine("Run finished at {0}.", finishTime);
         return (startTime, finishTime);
     }
 
-    // signal when all threads have started
-    private Barrier barrier;
-    private CountdownEvent countdown;
-
-    private void TaskWorker()
+    private void Worker()
     {
         long threadId = Environment.CurrentManagedThreadId;
-        Console.WriteLine("Thread {0} started", threadId);
+        Console.WriteLine("Thread {0} started", threadId); 
         int currentTid = 0;
-
         this.barrier.SignalAndWait();
-
-        while (!countdown.IsSet)
-        {
-            TransactionType tx = this.PickTransactionFromDistribution();
-            this.SubmitTransaction(threadId+"-"+currentTid++.ToString(), tx);
-        }
-        Console.WriteLine("Thread {0} finished", threadId);
-    }
-
-    private void ThreadWorker()
-    {
-        long threadId = Environment.CurrentManagedThreadId;
-        Console.WriteLine("Thread {0} started", threadId);
-        
-        int currentTid = 0;
-
-        this.barrier.SignalAndWait();
-
         while(!countdown.IsSet)
         {
             TransactionType tx = this.PickTransactionFromDistribution();
             this.SubmitTransaction(threadId+"-"+currentTid++.ToString(), tx);
         }
-
         Console.WriteLine("Thread {0} finished", threadId);
     }
 

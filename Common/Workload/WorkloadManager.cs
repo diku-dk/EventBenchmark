@@ -1,8 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using Common.Distribution;
-using Common.Infra;
-using Microsoft.Extensions.Logging;
 using MathNet.Numerics.Distributions;
 using Common.Services;
 
@@ -33,8 +31,6 @@ public class WorkloadManager
 
     private readonly int delayBetweenRequests;
 
-    protected readonly ILogger logger;
-
     protected readonly IDictionary<TransactionType, int> histogram;
 
     protected IDiscreteDistribution sellerIdGenerator;
@@ -62,7 +58,6 @@ public class WorkloadManager
         this.delayBetweenRequests = delayBetweenRequests;
         this.histogram = new Dictionary<TransactionType, int>();
         this.customerIdleQueue = new BlockingCollection<int>(new ConcurrentQueue<int>());
-        this.logger = LoggerProxy.GetInstance("WorkloadManager");
     }
 
     public static WorkloadManager BuildWorkloadManager(
@@ -104,13 +99,13 @@ public class WorkloadManager
     // b. complete on response received
     // for b it is easy, upon completion we know we can submit another transaction
     // for a is tricky, we never know when it completes
-    public virtual async Task<(DateTime startTime, DateTime finishTime)> Run()
+    public virtual (DateTime startTime, DateTime finishTime) Run()
 	{
         Stopwatch s = new Stopwatch();
         var execTime = TimeSpan.FromMilliseconds(this.executionTime);
         int currentTid = 1;
         var startTime = DateTime.UtcNow;
-        this.logger.LogInformation("Started sending batch of transactions with concurrency level {0} at {0}.", this.concurrencyLevel, startTime);
+        Console.WriteLine("Started sending batch of transactions with concurrency level {0} at {0}.", this.concurrencyLevel, startTime);
         s.Start();
         while (currentTid < this.concurrencyLevel)
         {
@@ -119,8 +114,15 @@ public class WorkloadManager
             var toPass = currentTid;
             _ = Task.Run(() => this.SubmitTransaction(toPass.ToString(), tx));
             currentTid++;
+
+            // throttle
+            if (this.delayBetweenRequests > 0)
+            {
+                Thread.Sleep(this.delayBetweenRequests);
+            }
         }
 
+        
         while (s.Elapsed < execTime)
         {
             TransactionType tx = this.PickTransactionFromDistribution();
@@ -137,19 +139,18 @@ public class WorkloadManager
             // throttle
             if (this.delayBetweenRequests > 0)
             {
-                await Task.Delay(this.delayBetweenRequests).ConfigureAwait(true);
+                Thread.Sleep(this.delayBetweenRequests);
             }
-                
         }
 
         var finishTime = DateTime.UtcNow;
         s.Stop();
 
-        this.logger.LogInformation("Finished at {0}. Last TID submitted was {1}", finishTime, currentTid-1);
-        this.logger.LogInformation("Histogram:");
+        Console.WriteLine("Finished at {0}. Last TID submitted was {1}", finishTime, currentTid-1);
+        Console.WriteLine("Histogram:");
         foreach(var entry in this.histogram)
         {
-            this.logger.LogInformation("{0}: {1}", entry.Key, entry.Value);
+            Console.WriteLine("{0}: {1}", entry.Key, entry.Value);
         }
 
         return (startTime, finishTime);
@@ -176,39 +177,52 @@ public class WorkloadManager
             {
                 // customer worker
                 case TransactionType.CUSTOMER_SESSION:
-                    {
-                        int customerId = this.customerIdleQueue.Take();
-                        this.customerService.Run(customerId, tid);
-                        this.customerIdleQueue.Add(customerId);
-                        break;
-                    }
+                {
+                    int customerId = this.customerIdleQueue.Take();
+                    this.customerService.Run(customerId, tid);
+                    this.customerIdleQueue.Add(customerId);
+                    break;
+                }
                 // delivery worker
                 case TransactionType.UPDATE_DELIVERY:
-                    {
-                        this.deliveryService.Run(tid);
-                        break;
-                    }
+                {
+                    this.deliveryService.Run(tid);
+                    break;
+                }
                 // seller worker
                 case TransactionType.PRICE_UPDATE:
                 case TransactionType.UPDATE_PRODUCT:
                 case TransactionType.QUERY_DASHBOARD:
-                    {
-                        int sellerId = this.sellerIdGenerator.Sample();
-                        this.sellerService.Run(sellerId, tid, type);
-                        break;
-                    }
+                {
+                    int sellerId = this.sellerIdGenerator.Sample();
+                    this.sellerService.Run(sellerId, tid, type);
+                    break;
+                }
                 default:
-                    {
-                        long threadId = Environment.CurrentManagedThreadId;
-                        this.logger.LogError("Thread ID " + threadId + " Unknown transaction type defined!");
-                        break;
-                    }
+                {
+                    long threadId = Environment.CurrentManagedThreadId;
+                    Console.WriteLine("Thread ID " + threadId + " Unknown transaction type defined!");
+                    break;
+                }
             }
         }
         catch (Exception e)
         {
-            long threadId = Environment.CurrentManagedThreadId;
-            this.logger.LogError("Thread ID {0} - Error caught in SubmitTransaction. StackTrace: \n {1}", threadId, e.StackTrace);
+            if(e is HttpRequestException)
+            {
+                /*
+                var current = e;
+                while( current != null )
+                {
+                    Console.WriteLine( current.ToString( ) );
+                    Console.WriteLine( );
+                    current = current.InnerException;
+                }
+                */
+                e = e.GetBaseException();
+            }
+            Console.WriteLine("Thread ID {0} - Error caught in SubmitTransaction. Type: {1}\n Source: {2}\n Message: {3}\n StackTrace: \n{4}", Environment.CurrentManagedThreadId, e.GetType().Name, e.Source, e.Message, e.StackTrace);
+           
         }
     }
 

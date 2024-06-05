@@ -9,7 +9,7 @@ namespace DriverBench;
 public sealed class Program
 {
 
-    public static async Task Main(string[] args)
+    public static void Main(string[] args)
     {
         Console.WriteLine("Initializing benchmark driver...");
         ExperimentConfig config = ConsoleUtility.BuildExperimentConfig(args);
@@ -20,7 +20,6 @@ public sealed class Program
         {
             while (true)
             {
-
                 Console.WriteLine("\n Select an option: \n 1 - Generate Data \n 2 - Run Scalability Experiment \n q - Exit");
                 string? op = Console.ReadLine();
 
@@ -48,7 +47,7 @@ public sealed class Program
                             }
                         }
                         var expManager = DriverBenchExperimentManager.BuildDriverBenchExperimentManager(new CustomHttpClientFactory(), config, connection);
-                        await expManager.RunSimpleExperiment();
+                        expManager.RunSimpleExperiment();
                         break;
                     }
                     case "q":

@@ -5,69 +5,71 @@
     "qtyPerProduct": 10000,
     "executionTime": 60000,
     "epoch": 10000,
+    "pollingUrl": "http://statefunhost:8091/receipts",
+    "pollingRate": 0,
     "delayBetweenRequests": 0,
     "delayBetweenRuns": 0,
     "transactionDistribution": {
-      "CUSTOMER_SESSION": 30,
-      "QUERY_DASHBOARD": 35,
-      "PRICE_UPDATE": 38,
-      "UPDATE_PRODUCT": 40,
-      "UPDATE_DELIVERY": 100
+        "CUSTOMER_SESSION": 30,
+        "QUERY_DASHBOARD": 35,
+        "PRICE_UPDATE": 38,
+        "UPDATE_PRODUCT": 40,
+        "UPDATE_DELIVERY": 100
     },
     "concurrencyLevel": 10,
     "ingestionConfig": {
-      "strategy": "WORKER_PER_CPU",
-      "concurrencyLevel": 12,      
-      "mapTableToUrl": {
-          "sellers": "http://statefunhost:8090/marketplace/seller",
-          "customers": "http://statefunhost:8090/marketplace/customer",
-          "stock_items": "http://statefunhost:8090/marketplace/stock",
-          "products": "http://statefunhost:8090/marketplace/product"
-      }
+        "strategy": "WORKER_PER_CPU",
+        "concurrencyLevel": 12,
+        "mapTableToUrl": {
+            "sellers": "http://statefunhost:8090/marketplace/seller",
+            "customers": "http://statefunhost:8090/marketplace/customer",
+            "stock_items": "http://statefunhost:8090/marketplace/stock",
+            "products": "http://statefunhost:8090/marketplace/product"
+        }
     },
     "runs": [
-      {
-          "numProducts": 100000,
-          "sellerDistribution": "UNIFORM",
-          "keyDistribution": "UNIFORM"
-          //"sellerDistribution": "ZIPFIAN",
-          //"keyDistribution": "ZIPFIAN"
-      }
+        {
+            "numProducts": 100000,
+            "sellerDistribution": "UNIFORM",
+            "keyDistribution": "UNIFORM"
+            //"sellerDistribution": "ZIPFIAN",
+            //"keyDistribution": "ZIPFIAN"
+        }
     ],
     "postRunTasks": [
     ],
     "postExperimentTasks": [
     ],
     "customerWorkerConfig": {
-      "maxNumberKeysToAddToCart": 10,
-      "minMaxQtyRange": {
-        "min": 1,
-        "max": 10
-      },
-      "delayBetweenRequestsRange": {
-        "min": 1,
-        "max": 1000
-      },
-      "checkoutProbability": 100,
-      "voucherProbability": 5,
-      "productUrl": "http://statefunhost:8090/marketplace/product",
-      "cartUrl": "http://statefunhost:8090/marketplace/cart",
-      "trackReplication": false
+        "maxNumberKeysToAddToCart": 10,
+        "minMaxQtyRange": {
+            "min": 1,
+            "max": 10
+        },
+        "delayBetweenRequestsRange": {
+            "min": 1,
+            "max": 1000
+        },
+        "checkoutProbability": 100,
+        "voucherProbability": 5,
+        "productUrl": "http://statefunhost:8090/marketplace/product",
+        "cartUrl": "http://statefunhost:8090/marketplace/cart",
+        "trackReplication": false
     },
     "sellerWorkerConfig": {
-      "delayBetweenRequestsRange": {
-        "min": 1,
-        "max": 1000
-      },
-      "adjustRange": {
-        "min": 1,
-        "max": 10
-      },
-      "sellerUrl": "http://statefunhost:8090/marketplace/seller",
-      "productUrl": "http://statefunhost:8090/marketplace/product"
+        "delayBetweenRequestsRange": {
+            "min": 1,
+            "max": 1000
+        },
+        "adjustRange": {
+            "min": 1,
+            "max": 10
+        },
+        "sellerUrl": "http://statefunhost:8090/marketplace/seller",
+        "productUrl": "http://statefunhost:8090/marketplace/product"
     },
     "deliveryWorkerConfig": {
-      "shipmentUrl": "http://statefunhost:8090/marketplace/shipmentProxy"
+        "shipmentUrl": "http://statefunhost:8090/marketplace/shipmentProxy"
     }
-  }
+}
   

@@ -10,13 +10,11 @@ using static Common.Services.SellerService;
 namespace Statefun.Workload;
 
 public sealed class StatefunExperimentManager : AbstractExperimentManager
-{        
-    private static readonly string RECEIPT_URL = "http://statefunhost:8091/receipts";
-
+{
     private CancellationTokenSource cancellationTokenSource;
 
     // define a pulling thread list which contains 3 pulling threads
-    private readonly List<StatefunReceiptPullingThread> receiptPullingThreads;
+    private readonly List<StatefunPollingThread> receiptPullingThreads;
 
     private static readonly int NUM_PULLING_THREADS = 3;
 
@@ -27,7 +25,7 @@ public sealed class StatefunExperimentManager : AbstractExperimentManager
 
     private StatefunExperimentManager(IHttpClientFactory httpClientFactory, BuildSellerWorkerDelegate sellerWorkerDelegate, BuildCustomerWorkerDelegate customerWorkerDelegate, BuildDeliveryWorkerDelegate deliveryWorkerDelegate, ExperimentConfig config, DuckDBConnection connection = null) : base(httpClientFactory, WorkloadManager.BuildWorkloadManager, MetricManager.BuildMetricManager, sellerWorkerDelegate, customerWorkerDelegate, deliveryWorkerDelegate, config, connection)
     {
-        this.receiptPullingThreads = new List<StatefunReceiptPullingThread>();
+        this.receiptPullingThreads = new List<StatefunPollingThread>();
     }
 
     protected override void PreExperiment()
@@ -35,7 +33,7 @@ public sealed class StatefunExperimentManager : AbstractExperimentManager
         base.PreExperiment();
         for (int i = 0; i < NUM_PULLING_THREADS; i++)
         {
-            this.receiptPullingThreads.Add(new StatefunReceiptPullingThread(RECEIPT_URL, this.customerService, this.sellerService, this.deliveryService));
+            this.receiptPullingThreads.Add(new StatefunPollingThread(this.config.pollingUrl, this.config.pollingRate, this.customerService, this.sellerService, this.deliveryService));
         }
 
         // start pulling threads to collect receipts

@@ -6,15 +6,20 @@ public sealed class CustomHttpClientFactory : IHttpClientFactory
 	{
 	}
 
-    static SocketsHttpHandler handler = new SocketsHttpHandler
+    static readonly SocketsHttpHandler handler = new SocketsHttpHandler
     {
         UseProxy = false,
         Proxy = null,
-        UseCookies = false,
-        AllowAutoRedirect = false,
-        PreAuthenticate = false,
+        UseCookies = false
     };
-    static HttpClient sharedClient = new HttpClient(handler);
+
+    static readonly HttpClient sharedClient;
+
+    static CustomHttpClientFactory() {
+        sharedClient = new HttpClient(handler);
+        sharedClient.Timeout = TimeSpan.FromSeconds(10);
+        sharedClient.DefaultRequestHeaders.ConnectionClose = false;
+    }
 
     public HttpClient CreateClient(string name)
     {

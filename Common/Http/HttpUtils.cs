@@ -7,13 +7,19 @@ namespace Common.Http
 
         // https://www.stevejgordon.co.uk/using-httpcompletionoption-responseheadersread-to-improve-httpclient-performance-dotnet
         // https://www.stevejgordon.co.uk/httpclient-connection-pooling-in-dotnet-core
-        public static readonly HttpClient client = new HttpClient(new SocketsHttpHandler()
+        public static readonly HttpClient client; 
+
+        static HttpUtils()
         {
-            PooledConnectionIdleTimeout = TimeSpan.FromMinutes(10),
-            PooledConnectionLifetime = TimeSpan.FromMinutes(10),
-            UseProxy = false,
-            Proxy = null
-        });
+            client = new HttpClient(new SocketsHttpHandler()
+            {
+                UseProxy = false,
+                Proxy = null,
+                UseCookies = false,
+            });
+            client.Timeout = TimeSpan.FromSeconds(10);
+            client.DefaultRequestHeaders.ConnectionClose = false;
+        }
 
         private static readonly string JsonContentType = "application/json";
 
