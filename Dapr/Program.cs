@@ -1,14 +1,14 @@
 ﻿var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container
 builder.Services.AddDaprClient();
 
 builder.Services.AddControllers().AddNewtonsoftJson();
 
+builder.Services.AddHealthChecks();
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Add functionality to inject IOptions<T>
 builder.Services.AddOptions();
 
 builder.Services.AddHttpClient("default").ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
@@ -23,8 +23,6 @@ builder.Services.AddHttpClient("default").ConfigurePrimaryHttpMessageHandler(() 
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -35,7 +33,8 @@ app.UseCloudEvents();
 
 app.MapControllers();
 
-// not needed unless using pub/sub
+app.MapHealthChecks("/health");
+
 app.MapSubscribeHandler();
 
 app.Run();

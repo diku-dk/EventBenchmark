@@ -1,6 +1,6 @@
-﻿
+﻿# Online Marketplace - Dapr Benchmark Driver
 
 To run:
 
-dapr run --app-port 8081 --app-id dapr --app-protocol http --dapr-http-port 8082 -- dotnet run --project Dapr.csproj
+dapr run --app-port 8081 --app-id driver --app-protocol http --dapr-http-port 8082 -- dotnet run --project Dapr.csproj
 

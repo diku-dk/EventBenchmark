@@ -20,6 +20,7 @@
     <None Remove="Services\" />
     <None Remove="Metric\" />
     <None Remove="Streaming\" />
+    <None Remove="Controllers\" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Common\Common.csproj" />
@@ -36,5 +37,6 @@
   <ItemGroup>
     <Folder Include="Metric\" />
     <Folder Include="Streaming\" />
+    <Folder Include="Controllers\" />
   </ItemGroup>
 </Project>

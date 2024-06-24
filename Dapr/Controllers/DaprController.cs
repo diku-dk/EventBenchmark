@@ -1,5 +1,7 @@
 ﻿using System.Net;
 using Common.Experiment;
+using Common.Http;
+using Common.Infra;
 using Daprr.Workload;
 using DuckDB.NET.Data;
 using Microsoft.AspNetCore.Mvc;
@@ -12,10 +14,8 @@ public class DaprController : ControllerBase
     private readonly IHttpClientFactory httpClientFactory;
     private readonly ILogger<DaprController> logger;
 
+    private ExperimentConfig config;
     private DuckDBConnection connection;
-
-    // 0 for false, 1 for true.
-    private static int usingResource = 0;
 
     public DaprController(IHttpClientFactory httpClientFactory, ILogger<DaprController> logger)
     {
@@ -23,25 +23,98 @@ public class DaprController : ControllerBase
         this.logger = logger;
     }
 
-    [Route("/runExperiment")]
-    [HttpPost]
-    [ProducesResponseType((int)HttpStatusCode.Accepted)]
-    public async Task<ActionResult> RunExperiment([FromBody] ExperimentConfig config)
+    [Route("/test")]
+    [HttpGet]
+    [ProducesResponseType((int)HttpStatusCode.OK)]
+    public ActionResult Test()
     {
-        // 0 indicates that the method is not in use.
-        if (0 == Interlocked.Exchange(ref usingResource, 1))
-        {
-            logger.LogInformation("Request for experiment run accepted.");
-            connection = new DuckDBConnection(config.connectionString);
-            connection.Open();
-            DaprExperimentManager experimentManager = DaprExperimentManager.BuildDaprExperimentManager(httpClientFactory, config, connection);
-            await experimentManager.Run();
-            Interlocked.Exchange(ref usingResource, 0);
-            return Ok();
-        }
-        return StatusCode((int)HttpStatusCode.MethodNotAllowed, "An experiment is in progress already");
+        return Ok("OK");
     }
-    // https://learn.microsoft.com/en-us/dotnet/api/system.threading.interlocked?view=net-7.0
 
+    [Route("/1")]
+    [HttpPost]
+    [ProducesResponseType((int)HttpStatusCode.OK)]
+    public ActionResult GenerateData()
+    {
+        this.connection = ConsoleUtility.GenerateData(config);
+        return Ok("Data generated");
+    }
+
+    [Route("/2")]
+    [HttpPost]
+    [ProducesResponseType((int)HttpStatusCode.OK)]
+    [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+    public async Task<ActionResult> IngestData()
+    {
+        if(this.connection is null){
+            if(config.connectionString.SequenceEqual("DataSource=:memory:"))
+            {
+                return BadRequest("Please generate some data first by selecting option 1.");
+            }
+            else
+            {
+                this.connection = new DuckDBConnection(this.config.connectionString);
+                this.connection.Open();
+            }
+        }
+        await CustomIngestionOrchestrator.Run(this.connection, this.config.ingestionConfig);
+        return Ok("Data ingested");
+    }
+
+    [Route("/3")]
+    [HttpPost]
+    [ProducesResponseType((int)HttpStatusCode.OK)]
+    public async Task<ActionResult> RunExperiment()
+    {
+        if (this.connection is null)
+        {
+            if (this.config.connectionString.SequenceEqual("DataSource=:memory:"))
+            {
+                return BadRequest("Please generate some data first by selecting option 1.");
+            }
+            else
+            {
+                this.connection = new DuckDBConnection(this.config.connectionString);
+                this.connection.Open();
+            }
+        }
+        DaprExperimentManager experimentManager = DaprExperimentManager.BuildDaprExperimentManager(this.httpClientFactory, this.config, this.connection);
+        await experimentManager.Run();
+        return Ok("Experiment finished");
+    }
+
+    [Route("/4")]
+    [HttpPost]
+    [ProducesResponseType((int)HttpStatusCode.OK)]
+    [ProducesResponseType((int)HttpStatusCode.BadRequest)]
+    public async Task<ActionResult> IngestDataAndRunExperiment()
+    {
+        if(this.connection is null){
+            if(this.config.connectionString.SequenceEqual("DataSource=:memory:"))
+            {
+                return BadRequest("Please generate some data first by selecting option 1.");
+            }
+            else
+            {
+                this.connection = new DuckDBConnection(config.connectionString);
+                this.connection.Open();
+            }
+        }
+        await CustomIngestionOrchestrator.Run(connection, config.ingestionConfig);
+        var expManager = DaprExperimentManager
+                        .BuildDaprExperimentManager(new CustomHttpClientFactory(), config, connection);
+        expManager.RunSimpleExperiment();
+        return Ok("Experiment finished");
+    }
+
+    [Route("/5")]
+    [HttpPost]
+    [ProducesResponseType((int)HttpStatusCode.OK)]
+    public ActionResult ParseNewConfiguration([FromBody] ExperimentConfig config)
+    {
+        this.logger.LogInformation("Parse new configurarion requested.");
+        this.config = config;
+        return Ok();
+    }
 
 }

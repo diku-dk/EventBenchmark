@@ -16,7 +16,7 @@ using static Common.Services.SellerService;
 
 namespace Daprr.Workload;
 
-public class DaprExperimentManager : AbstractExperimentManager
+public sealed class DaprExperimentManager : AbstractExperimentManager
 {
 
     private readonly string redisConnection;
@@ -24,7 +24,7 @@ public class DaprExperimentManager : AbstractExperimentManager
 
     new private readonly DaprMetricManager metricManager;
 
-    protected static readonly List<TransactionType> eventualCompletionTransactions = new() { TransactionType.CUSTOMER_SESSION, TransactionType.PRICE_UPDATE, TransactionType.UPDATE_PRODUCT };
+    static readonly List<TransactionType> TX_SET = new() { TransactionType.CUSTOMER_SESSION, TransactionType.PRICE_UPDATE, TransactionType.UPDATE_PRODUCT };
 
     public static DaprExperimentManager BuildDaprExperimentManager(IHttpClientFactory httpClientFactory, ExperimentConfig config, DuckDBConnection connection)
     {
@@ -65,7 +65,7 @@ public class DaprExperimentManager : AbstractExperimentManager
         this.channelsToTrim.AddRange(config.streamingConfig.streams);
 
         // should also iterate over all transaction mark streams and trim them
-        foreach (var type in eventualCompletionTransactions)
+        foreach (var type in TX_SET)
         {
             var channel = new StringBuilder(nameof(TransactionMark)).Append('_').Append(type.ToString()).ToString();
             this.channelsToTrim.Add(channel);

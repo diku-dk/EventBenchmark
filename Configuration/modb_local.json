@@ -5,7 +5,7 @@
     "qtyPerProduct": 10000,
     "executionTime": 10000,
     "epoch": 0,
-    "pollingRate": 500,
+    "pollingRate": 250,
     "pollingUrl": "http://localhost:8090/status",
     "delayBetweenRequests": 0,
     "delayBetweenRuns": 0,
@@ -16,14 +16,14 @@
         "UPDATE_PRODUCT": 100
         //"UPDATE_DELIVERY": 100
     },
-    "concurrencyLevel": 1,
+    "concurrencyLevel": 4,
     "ingestionConfig": {
         "strategy": "WORKER_PER_CPU",
         "concurrencyLevel": 4,
         "mapTableToUrl": {
             //"sellers": "http://localhost:8001/seller",
             //"customers": "http://localhost:8001/customer",
-            //"stock_items": "http://localhost:8002/stock",
+            "stock_items": "http://localhost:8002/stock",
             "products": "http://localhost:8001/product"
         }
     },
