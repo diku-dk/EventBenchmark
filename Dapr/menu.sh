@@ -1,0 +1,38 @@
+﻿#!/bin/bash
+
+while :
+do
+    clear
+    cat<<EOF
+    ==============================
+    Dapr driver
+    ------------------------------
+    Please enter your choice:
+
+    (1) Generate Data
+    (2) Ingest Data
+    (3) Run Experiment
+    (4) Ingest and Run
+    (5) Refresh Configuration
+    (q) Quit
+    ------------------------------
+EOF
+    read -n1 -s
+    case "$REPLY" in
+    "1")  curl -X POST localhost:8081/1 ;;
+    "2")  curl -X POST localhost:8081/2 ;;
+    "3")  curl -X POST localhost:8081/3 ;;
+    "4")  curl -X POST localhost:8081/4 ;;
+    "5") #echo "Not supported option"     ;;
+            echo "Enter the path of the configuration file. Remeber to switch / by %2F"
+            read json
+            curl -X POST localhost:8081/6/$json
+            ;;
+    "Q")  exit  ;;
+    "q")  exit  ;; 
+     * )  echo "invalid option"     ;;
+    esac
+    REPLY=
+    sleep 1
+done
+

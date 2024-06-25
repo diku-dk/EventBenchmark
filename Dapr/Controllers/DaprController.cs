@@ -120,7 +120,19 @@ public class DaprController : ControllerBase
     [ProducesResponseType((int)HttpStatusCode.OK)]
     public ActionResult ParseNewConfiguration([FromBody] ExperimentConfig newConfig)
     {
-        Console.WriteLine("Parse new configurarion requested. Is null? "+config is null);
+        // Console.WriteLine("Parse new configuration from body requested. Is null? "+config is null);
+        Interlocked.Exchange(ref config, newConfig);
+        return Ok("New configuration parsed.");
+    }
+
+    [Route("/6/{path}")]
+    [HttpPost]
+    [ProducesResponseType((int)HttpStatusCode.OK)]
+    public ActionResult ParseNewConfigurationFromPath(string path)
+    {
+        // Console.WriteLine("Parse new configuration from path requested. Is null? "+config is null);
+        path = path.Replace("%2F","/");
+        ExperimentConfig newConfig = ConsoleUtility.BuildExperimentConfig_(path);
         Interlocked.Exchange(ref config, newConfig);
         return Ok("New configuration parsed.");
     }

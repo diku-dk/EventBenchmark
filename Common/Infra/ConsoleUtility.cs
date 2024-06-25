@@ -59,29 +59,36 @@ public sealed class ConsoleUtility
         return connection;
     }
 
-    public static ExperimentConfig BuildExperimentConfig(string[] args)
+    public static ExperimentConfig BuildExperimentConfig_(string arg)
     {
-        if (args is not null && args.Length > 0 && File.Exists(args[0]))
+        if (!File.Exists(arg))
         {
-            Console.WriteLine("Directory of configuration files passsed as parameter: {0}", args[0]);
-        }
-        else
-        {
+            Console.WriteLine("Configuration file passsed as parameter ({0}) does not exist", arg);
             throw new Exception("No file passed as parameter!");
         }
 
         Console.WriteLine("Init reading experiment configuration file...");
         ExperimentConfig experimentConfig;
-        using (StreamReader r = new StreamReader(args[0]))
+        using (StreamReader r = new StreamReader(arg))
         {
             string json = r.ReadToEnd();
             Console.WriteLine("Configuration file contents:\n {0}", json);
             experimentConfig = JsonConvert.DeserializeObject<ExperimentConfig>(json);
         }
         Console.WriteLine("Experiment configuration read succesfully");
-
         return experimentConfig;
+    }
 
+    public static ExperimentConfig BuildExperimentConfig(string[] args)
+    {
+        if (args is not null && args.Length > 0)
+        {
+            Console.WriteLine("Directory of configuration files passsed as parameter: {0}", args[0]);
+        } else
+        {
+            throw new Exception("No file passed as parameter!");
+        }
+        return BuildExperimentConfig_(args[0]);
     }
 
 }
