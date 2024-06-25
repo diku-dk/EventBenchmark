@@ -18,7 +18,6 @@ builder.Services.AddHttpClient("default").ConfigurePrimaryHttpMessageHandler(() 
     UseCookies = false,
     AllowAutoRedirect = false,
     PreAuthenticate = false,
-
 });
 
 var app = builder.Build();

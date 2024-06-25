@@ -7,7 +7,7 @@ using Common.Workload.Seller;
 
 namespace Common.Experiment;
 
-public sealed class ExperimentConfig
+public class ExperimentConfig
 {
     // whether ingestion data is going to in disk or memory
     // use disk for experiments involving substantial amount of data
