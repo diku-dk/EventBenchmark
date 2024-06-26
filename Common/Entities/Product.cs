@@ -2,7 +2,6 @@
 {
     public sealed class Product
     {
-
         public int seller_id { get; set; }
 
         public int product_id { get; set; }

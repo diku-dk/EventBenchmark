@@ -112,7 +112,6 @@ public abstract class AbstractSellerWorker : ISellerWorker
             idx = this.productIdGenerator.Sample() - 1;
             locked = this.productLocks[idx];
         }
-
         try
         {
             Product product = new(this.products[idx], tid);

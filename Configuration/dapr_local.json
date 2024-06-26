@@ -7,9 +7,9 @@
     "epoch": 0,
     "delayBetweenRequests": 0,
     "delayBetweenRuns": 0,
-    "concurrencyLevel": 1,
+    "concurrencyLevel": 2,
     "transactionDistribution": {
-        // "PRICE_UPDATE": 99,
+        "PRICE_UPDATE": 50,
         "UPDATE_PRODUCT": 100
     },
     "ingestionConfig": {

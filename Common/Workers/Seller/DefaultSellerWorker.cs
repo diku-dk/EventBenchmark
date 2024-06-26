@@ -32,7 +32,9 @@ public class DefaultSellerWorker : AbstractSellerWorker
     protected override void SendUpdatePriceRequest(Product product, string tid)
     {
         HttpRequestMessage request = new(HttpMethod.Patch, this.config.productUrl);
-        string serializedObject = JsonConvert.SerializeObject(new PriceUpdate(this.sellerId, product.product_id, product.price, tid));
+        string serializedObject = JsonConvert.SerializeObject(new PriceUpdate(
+            this.sellerId, product.product_id, product.price, product.version, tid));
+        // Console.WriteLine(serializedObject);
         request.Content = HttpUtils.BuildPayload(serializedObject);
 
         var initTime = DateTime.UtcNow;

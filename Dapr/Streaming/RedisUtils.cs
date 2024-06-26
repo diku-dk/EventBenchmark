@@ -25,9 +25,9 @@ namespace Daprr.Streaming.Redis
             }
         }
 
-        public static async Task TrimStreams(string connection, List<string> streams)
+        public static async Task TrimStreams(ConfigurationOptions config, List<string> streams)
         {
-            using (var conn = ConnectionMultiplexer.Connect(connection))
+            using (var conn = ConnectionMultiplexer.Connect(config))
             {
                 List<Task> tasks = new(streams.Count);
                 var db = conn.GetDatabase();

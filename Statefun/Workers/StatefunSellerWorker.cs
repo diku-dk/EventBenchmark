@@ -29,7 +29,8 @@ public sealed class StatefunSellerWorker : AbstractSellerWorker
 
     protected override void SendUpdatePriceRequest(Product product, string tid)
     {
-        string payLoad = JsonConvert.SerializeObject(new PriceUpdate(this.sellerId, product.product_id, product.price, tid));
+        string payLoad = JsonConvert.SerializeObject(new PriceUpdate(
+            this.sellerId, product.product_id, product.price, product.version, tid));
         string partitionID = this.sellerId + "-" + product.product_id;
         string apiUrl = string.Concat(this.config.productUrl, "/", partitionID);        
         string eventType = "UpdatePrice";

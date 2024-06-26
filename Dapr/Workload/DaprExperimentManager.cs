@@ -12,13 +12,14 @@ using DuckDB.NET.Data;
 using static Common.Services.CustomerService;
 using static Common.Services.DeliveryService;
 using static Common.Services.SellerService;
+using StackExchange.Redis;
 
 namespace Daprr.Workload;
 
 public sealed class DaprExperimentManager : AbstractExperimentManager
 {
 
-    private readonly string redisConnection;
+    private readonly ConfigurationOptions redisConfig;
     private readonly List<string> channelsToTrim;
 
     static readonly List<TransactionType> TX_SET = new() { TransactionType.CUSTOMER_SESSION, TransactionType.PRICE_UPDATE, TransactionType.UPDATE_PRODUCT };
@@ -31,13 +32,21 @@ public sealed class DaprExperimentManager : AbstractExperimentManager
     private DaprExperimentManager(IHttpClientFactory httpClientFactory, BuildSellerWorkerDelegate sellerWorkerDelegate, BuildCustomerWorkerDelegate customerWorkerDelegate, BuildDeliveryWorkerDelegate deliveryWorkerDelegate, ExperimentConfig config, DuckDBConnection connection) :
         base(httpClientFactory, WorkloadManager.BuildWorkloadManager, DaprMetricManager.BuildDaprMetricManager, sellerWorkerDelegate, customerWorkerDelegate, deliveryWorkerDelegate, config, connection)
     {
-        this.redisConnection = string.Format("{0}:{1}", config.streamingConfig.host, config.streamingConfig.port);
+        this.redisConfig = new ConfigurationOptions()
+        {
+            SyncTimeout = 500000,
+            EndPoints =
+            {
+                {config.streamingConfig.host, config.streamingConfig.port }
+            },
+            AbortOnConnectFail = false
+        };
         this.channelsToTrim = new();
     }
 
     protected override async void PostExperiment()
     {
-        await RedisUtils.TrimStreams(redisConnection, channelsToTrim);
+        await RedisUtils.TrimStreams(this.redisConfig, channelsToTrim);
         base.PostExperiment();
     }
 
@@ -67,7 +76,7 @@ public sealed class DaprExperimentManager : AbstractExperimentManager
             this.channelsToTrim.Add(channel);
         }
 
-        await RedisUtils.TrimStreams(redisConnection, channelsToTrim);
+        await RedisUtils.TrimStreams(redisConfig, channelsToTrim);
 
         base.PreExperiment();
 
@@ -76,7 +85,7 @@ public sealed class DaprExperimentManager : AbstractExperimentManager
     protected override async void PostRunTasks(int runIdx)
     {
         // trim first to avoid receiving events after the post run task
-        await RedisUtils.TrimStreams(redisConnection, channelsToTrim);
+        await RedisUtils.TrimStreams(redisConfig, channelsToTrim);
 
         // reset data in microservices - post run
         if (runIdx < this.config.runs.Count - 1)

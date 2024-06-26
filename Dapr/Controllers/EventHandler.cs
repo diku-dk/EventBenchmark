@@ -25,7 +25,7 @@ public class EventHandler : ControllerBase
     [Topic(PUBSUB_NAME, productUpdateMark)]
     public async Task<ActionResult> ProcessProductUpdateMark([FromBody] TransactionMark productUpdateMark)
     {
-        logger.LogWarning("Received a TransactionMark_UPDATE_PRODUCT");
+        // logger.LogWarning("Received a TransactionMark_UPDATE_PRODUCT");
         var ts = DateTime.UtcNow;
         await Shared.ResultQueue.Writer.WriteAsync(Shared.ITEM);
         if (productUpdateMark.status == MarkStatus.SUCCESS)
