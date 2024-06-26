@@ -51,15 +51,15 @@ public class DefaultSellerWorker : AbstractSellerWorker
 
     protected override void SendProductUpdateRequest(Product product, string tid)
     {
-        var obj = JsonConvert.SerializeObject(product);
+        string productJson = JsonConvert.SerializeObject(product);
+        // Console.WriteLine(productJson);
         HttpRequestMessage message = new(HttpMethod.Put, this.config.productUrl)
         {
-            Content = HttpUtils.BuildPayload(obj)
+            Content = HttpUtils.BuildPayload(productJson)
         };
 
         var now = DateTime.UtcNow;
         var resp = this.httpClient.Send(message, HttpCompletionOption.ResponseHeadersRead);
-
         if (resp.IsSuccessStatusCode)
         {
             this.DoAfterSuccessUpdate(tid);
@@ -70,7 +70,6 @@ public class DefaultSellerWorker : AbstractSellerWorker
             this.abortedTransactions.Add(new TransactionMark(tid, TransactionType.UPDATE_PRODUCT, this.sellerId, MarkStatus.ABORT, "product"));
             this.logger.LogDebug("Seller {0} failed to update product {1} version: {2}", this.sellerId, product.product_id, resp.ReasonPhrase);
         }
-       
     }
 
     protected virtual void DoAfterSuccessUpdate(string tid)

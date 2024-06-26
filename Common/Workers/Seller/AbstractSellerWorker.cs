@@ -87,7 +87,7 @@ public abstract class AbstractSellerWorker : ISellerWorker
         var newPrice = currPrice + ((currPrice * percToAdjust) / 100);
 
         try {
-            Product product = new Product(this.products[idx], newPrice);
+            Product product = new(this.products[idx], newPrice);
             this.SendUpdatePriceRequest(product, tid);
             // update instance after successful request
             this.products[idx] = product;
@@ -115,7 +115,7 @@ public abstract class AbstractSellerWorker : ISellerWorker
 
         try
         {
-            Product product = new Product(this.products[idx], tid);
+            Product product = new(this.products[idx], tid);
             this.SendProductUpdateRequest(product, tid);
             // trick so customer do not need to synchronize to get a product
             // (concurrent thread may refer to an older reference, i.e., version, though)

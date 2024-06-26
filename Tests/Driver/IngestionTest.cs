@@ -7,8 +7,43 @@ namespace Tests.Driver;
 
 public class IngestionTest
 {
+    [Fact]
+	public async void TestDiskIngestion()
+	{
+        var connection = new DuckDBConnection("Data Source=file.db");
+        connection.Open();
+
+		SyntheticDataSourceConfig dataSourceConfig = new()
+        {
+            numCustomers = 10000,
+            numProducts = 10000,
+            numProdPerSeller = 10
+        };
+
+        var dataGen = new SyntheticDataGenerator(dataSourceConfig);
+        dataGen.CreateSchema(connection);
+        dataGen.Generate(connection, true);
+
+        IngestionConfig ingestionConfig = new()
+        {
+            connectionString = "Data Source=file.db",
+            strategy = IngestionStrategy.WORKER_PER_CPU,
+            concurrencyLevel = 4,
+            mapTableToUrl = new Dictionary<string, string>()
+            {
+                { "sellers", "http://localhost:5006" },
+                { "customers", "http://localhost:5007" },
+                { "stock_items", "http://localhost:8080/stock" },
+                { "products", "http://localhost:8080/product"}
+            }
+        };
+
+        await IngestionOrchestratorV1.Run(connection, ingestionConfig, true);
+
+    }
+
 	[Fact]
-	public async void TestIngestion()
+	public async void TestInMemoryIngestion()
 	{
 
         if(OperatingSystem.IsWindows())
@@ -22,7 +57,7 @@ public class IngestionTest
 
         connection.Open();
 
-		SyntheticDataSourceConfig dataSourceConfig = new SyntheticDataSourceConfig()
+		SyntheticDataSourceConfig dataSourceConfig = new()
         {
             numCustomers = 10,
             numProducts = 10,
@@ -35,7 +70,7 @@ public class IngestionTest
         // dataGen.GenerateCustomers(connection);
         dataGen.Generate(connection, true);
 
-        IngestionConfig ingestionConfig = new IngestionConfig()
+        IngestionConfig ingestionConfig = new()
         {
             connectionString = "DataSource=:memory:",
             strategy = IngestionStrategy.WORKER_PER_CPU,
@@ -49,7 +84,7 @@ public class IngestionTest
             }
         };
 
-        await IngestionOrchestratorV1.Run(connection, ingestionConfig);
+        await IngestionOrchestratorV1.Run(connection, ingestionConfig, true);
 
         // retrieve some random and see if they match
 

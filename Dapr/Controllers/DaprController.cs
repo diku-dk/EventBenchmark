@@ -2,6 +2,7 @@
 using Common.Experiment;
 using Common.Http;
 using Common.Infra;
+using Common.Ingestion;
 using Daprr.Workload;
 using DuckDB.NET.Data;
 using Microsoft.AspNetCore.Mvc;
@@ -14,8 +15,10 @@ public class DaprController : ControllerBase
     private readonly IHttpClientFactory httpClientFactory;
     private readonly ILogger<DaprController> logger;
 
+    // requests are served by different threads
+    // to ensure visibility after updates, need interlocked
     private static ExperimentConfig config;
-    private DuckDBConnection connection;
+    private static DuckDBConnection connection;
 
     public DaprController(IHttpClientFactory httpClientFactory, ILogger<DaprController> logger)
     {
@@ -32,8 +35,25 @@ public class DaprController : ControllerBase
         {
             return BadRequest("Please register a configuration first.");
         }
-        this.connection = ConsoleUtility.GenerateData(config);
+        Interlocked.Exchange(ref connection, ConsoleUtility.GenerateData(config));
         return Ok("Data generated");
+    }
+
+    private static bool ConnectionIsSet()
+    {
+        if(connection is null){
+            if(config.connectionString.SequenceEqual("DataSource=:memory:"))
+            {
+                return false;
+            }
+            else
+            {
+                Interlocked.Exchange(ref connection, new DuckDBConnection(config.connectionString));
+                connection.Open();
+                return true;
+            }
+        }
+        return true;
     }
 
     [Route("/2")]
@@ -46,44 +66,29 @@ public class DaprController : ControllerBase
         {
             return BadRequest("Please register a configuration first.");
         }
-        if(this.connection is null){
-            if(config.connectionString.SequenceEqual("DataSource=:memory:"))
-            {
-                return BadRequest("Please generate some data first by selecting option 1.");
-            }
-            else
-            {
-                this.connection = new DuckDBConnection(config.connectionString);
-                this.connection.Open();
-            }
+        if (!ConnectionIsSet())
+        {
+            return BadRequest("Please generate some data first by selecting option 1.");
         }
-        await CustomIngestionOrchestrator.Run(this.connection, config.ingestionConfig);
+        await IngestionOrchestratorV1.Run(connection, config.ingestionConfig);
         return Ok("Data ingested");
     }
 
     [Route("/3")]
     [HttpPost]
     [ProducesResponseType((int)HttpStatusCode.OK)]
-    public async Task<ActionResult> RunExperiment()
+    public ActionResult RunExperiment()
     {
         if(config is null)
         {
             return BadRequest("Please register a configuration first.");
         }
-        if (this.connection is null)
+        if (!ConnectionIsSet())
         {
-            if (config.connectionString.SequenceEqual("DataSource=:memory:"))
-            {
-                return BadRequest("Please generate some data first by selecting option 1.");
-            }
-            else
-            {
-                this.connection = new DuckDBConnection(config.connectionString);
-                this.connection.Open();
-            }
+            return BadRequest("Please generate some data first by selecting option 1.");
         }
-        DaprExperimentManager experimentManager = DaprExperimentManager.BuildDaprExperimentManager(this.httpClientFactory, config, this.connection);
-        await experimentManager.Run();
+        DaprExperimentManager experimentManager = DaprExperimentManager.BuildDaprExperimentManager(this.httpClientFactory, config, connection);
+        experimentManager.RunSimpleExperiment();
         return Ok("Experiment finished");
     }
 
@@ -97,20 +102,13 @@ public class DaprController : ControllerBase
         {
             return BadRequest("Please register a configuration first.");
         }
-        if(this.connection is null){
-            if(config.connectionString.SequenceEqual("DataSource=:memory:"))
-            {
-                return BadRequest("Please generate some data first by selecting option 1.");
-            }
-            else
-            {
-                this.connection = new DuckDBConnection(config.connectionString);
-                this.connection.Open();
-            }
+        if (!ConnectionIsSet())
+        {
+            return BadRequest("Please generate some data first by selecting option 1.");
         }
-        await CustomIngestionOrchestrator.Run(this.connection, config.ingestionConfig);
+        await CustomIngestionOrchestrator.Run(connection, config.ingestionConfig);
         var expManager = DaprExperimentManager
-                        .BuildDaprExperimentManager(new CustomHttpClientFactory(), config, this.connection);
+                        .BuildDaprExperimentManager(new CustomHttpClientFactory(), config, connection);
         expManager.RunSimpleExperiment();
         return Ok("Experiment finished");
     }

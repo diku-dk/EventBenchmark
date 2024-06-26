@@ -143,7 +143,13 @@ public abstract class AbstractExperimentManager
 
     public virtual async Task Run()
     {
-        this.connection.Open();
+        try{
+            this.connection.Open();
+        } catch(InvalidOperationException e)
+        {
+            // ignore if exception is related to connection being opened already
+            logger.LogWarning("Perhaps connection is already opened? Message="+e.Message);
+        }
         SyntheticDataSourceConfig previousData = new SyntheticDataSourceConfig()
         {
             numCustomers = this.config.numCustomers,

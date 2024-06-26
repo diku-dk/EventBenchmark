@@ -1,5 +1,9 @@
 ﻿# Online Marketplace - Dapr Benchmark Driver
 
+Example of input:
+
+%2FUsers%2F<user>%2Fworkspace%2Fbenchmark%2FEventBenchmark%2FConfiguration%2Fdapr_local.json
+
 To run:
 
 # Inside the folder

@@ -1,15 +1,14 @@
-using Common.Experiment;
-using Common.Streaming;
-using Common.Metric;
 using System.Text;
 using Daprr.Metric;
 using Daprr.Streaming.Redis;
+using Common.Experiment;
+using Common.Streaming;
 using Common.Http;
 using Common.Workers.Seller;
 using Common.Workload;
 using Common.Workers.Customer;
-using DuckDB.NET.Data;
 using Common.Workers.Delivery;
+using DuckDB.NET.Data;
 using static Common.Services.CustomerService;
 using static Common.Services.DeliveryService;
 using static Common.Services.SellerService;
@@ -22,8 +21,6 @@ public sealed class DaprExperimentManager : AbstractExperimentManager
     private readonly string redisConnection;
     private readonly List<string> channelsToTrim;
 
-    new private readonly DaprMetricManager metricManager;
-
     static readonly List<TransactionType> TX_SET = new() { TransactionType.CUSTOMER_SESSION, TransactionType.PRICE_UPDATE, TransactionType.UPDATE_PRODUCT };
 
     public static DaprExperimentManager BuildDaprExperimentManager(IHttpClientFactory httpClientFactory, ExperimentConfig config, DuckDBConnection connection)
@@ -32,11 +29,10 @@ public sealed class DaprExperimentManager : AbstractExperimentManager
     }
 
     private DaprExperimentManager(IHttpClientFactory httpClientFactory, BuildSellerWorkerDelegate sellerWorkerDelegate, BuildCustomerWorkerDelegate customerWorkerDelegate, BuildDeliveryWorkerDelegate deliveryWorkerDelegate, ExperimentConfig config, DuckDBConnection connection) :
-        base(httpClientFactory, WorkloadManager.BuildWorkloadManager, MetricManager.BuildMetricManager, sellerWorkerDelegate, customerWorkerDelegate, deliveryWorkerDelegate, config, connection)
+        base(httpClientFactory, WorkloadManager.BuildWorkloadManager, DaprMetricManager.BuildDaprMetricManager, sellerWorkerDelegate, customerWorkerDelegate, deliveryWorkerDelegate, config, connection)
     {
         this.redisConnection = string.Format("{0}:{1}", config.streamingConfig.host, config.streamingConfig.port);
         this.channelsToTrim = new();
-        this.metricManager = new DaprMetricManager(sellerService, customerService, deliveryService);
     }
 
     protected override async void PostExperiment()

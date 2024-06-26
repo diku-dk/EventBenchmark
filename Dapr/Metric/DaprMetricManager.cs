@@ -8,9 +8,14 @@ namespace Daprr.Metric;
 public sealed class DaprMetricManager : MetricManager
 {
 
-    public DaprMetricManager(ISellerService sellerService, ICustomerService customerService, IDeliveryService deliveryService) : base(sellerService, customerService, deliveryService)
+    DaprMetricManager(ISellerService sellerService, ICustomerService customerService, IDeliveryService deliveryService) : base(sellerService, customerService, deliveryService)
 	{
 	}
+
+    public static DaprMetricManager BuildDaprMetricManager(ISellerService sellerService, ICustomerService customerService, IDeliveryService deliveryService)
+    {
+        return new DaprMetricManager(sellerService, customerService, deliveryService);
+    }
 
     protected override Dictionary<TransactionType, int> CollectAborts(DateTime finishTime)
     {
@@ -92,16 +97,6 @@ public sealed class DaprMetricManager : MetricManager
                 {
                     dupSub++;
                     logger.LogDebug("[Seller] Duplicate submitted transaction entry found. Existing {0} New {1} ", sellerSubmitted[tx.tid], tx);
-                }
-            }
-
-            var finished = this.sellerService.GetFinishedTransactions(i);
-            foreach (var tx in finished)
-            {
-                if (!sellerFinished.TryAdd(tx.tid, tx))
-                {
-                    dupFin++;
-                    logger.LogDebug("[Seller] Duplicate finished transaction entry found. Existing {0} New {1} ", sellerFinished[tx.tid], finished);
                 }
             }
         }

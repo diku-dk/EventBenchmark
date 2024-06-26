@@ -32,6 +32,7 @@ public sealed class CustomIngestionOrchestrator
 
         foreach (var entry in config.mapTableToUrl)
         {
+            Console.WriteLine("Spawning table {0} load task at {1}", entry.Key, DateTime.UtcNow);
             command.CommandText = "select * from "+entry.Key+";";
             var queryResult = command.ExecuteReader();
             string table = entry.Value;

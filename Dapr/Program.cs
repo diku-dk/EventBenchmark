@@ -2,6 +2,7 @@
 
 builder.Services.AddDaprClient();
 
+// newton to parse config object as body param
 builder.Services.AddControllers().AddNewtonsoftJson();
 
 builder.Services.AddHealthChecks();

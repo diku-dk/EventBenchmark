@@ -1,6 +1,6 @@
 ﻿{
     "connectionString": "Data Source=file.db",
-    "numCustomers": 1000,
+    "numCustomers": 10000,
     "numProdPerSeller": 10,
     "qtyPerProduct": 10000,
     "executionTime": 10000,

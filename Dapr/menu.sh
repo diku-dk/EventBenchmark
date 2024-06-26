@@ -20,11 +20,14 @@ EOF
     read -n1 -s
     case "$REPLY" in
     "1")  curl -X POST localhost:8081/1 ;;
-    "2")  curl -X POST localhost:8081/2 ;;
-    "3")  curl -X POST localhost:8081/3 ;;
+    "2")
+            echo "Data ingestion requested"
+            curl -X POST localhost:8081/2 ;;
+    "3")    echo "Experiment run requested"
+            curl -X POST localhost:8081/3 ;;
     "4")  curl -X POST localhost:8081/4 ;;
-    "5") #echo "Not supported option"     ;;
-            echo "Enter the path of the configuration file. Remeber to switch / by %2F"
+    "5") 
+            echo "Enter the path of the configuration file. Remember to switch / by %2F"
             read json
             curl -X POST localhost:8081/6/$json
             ;;
@@ -32,7 +35,7 @@ EOF
     "q")  exit  ;; 
      * )  echo "invalid option"     ;;
     esac
-    REPLY=
-    sleep 1
+    #REPLY=
+    sleep 2
 done
 

@@ -96,7 +96,7 @@ namespace Common.DataGeneration.Real
         
         /**
          * 
-         * TODO Make sure the product IDs are monotonically increasing for every seller
+         * TO_DO: Make sure the product IDs are monotonically increasing for every seller
          */
         private void LoadProducts(DuckDBConnection connection)
         {

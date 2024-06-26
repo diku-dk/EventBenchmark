@@ -94,7 +94,9 @@ public class MetricManager
 
         if (epochPeriod <= 0 || epochPeriod >= executionTime.Milliseconds)
         {
-            logger.LogWarning("Skipping breakdown calculation");
+            logger.LogWarning("Skipping breakdown calculation since epoch is outside allowed range!");
+        } else
+        {
             BreakdownCalculation(startTime, finishTime, epochPeriod, sw, latencyGatherResults, txTypeValues, executionTime);
         }
 
@@ -340,7 +342,6 @@ public class MetricManager
                     logger.LogDebug("[Seller] Duplicate finished transaction entry found. Existing {0} New {1} ", sellerFinished[tx.tid], finished);
                 }
             }
-
         }
 
         if (dupSub > 0)

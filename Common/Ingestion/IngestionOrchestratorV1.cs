@@ -12,7 +12,7 @@ namespace Common.Ingestion;
 public sealed class IngestionOrchestratorV1
 {
 
-	public static async Task Run(DuckDBConnection connection, IngestionConfig config)
+	public static async Task Run(DuckDBConnection connection, IngestionConfig config, bool debug = false)
 	{
         var startTime = DateTime.UtcNow;
         Console.WriteLine("Ingestion process starting at {0} with strategy {1}", startTime, config.strategy.ToString());
@@ -28,7 +28,7 @@ public sealed class IngestionOrchestratorV1
 
         foreach (var table in config.mapTableToUrl)
         {
-            Console.WriteLine("Ingesting table {0} at {1}", table, DateTime.UtcNow);
+           Console.WriteLine("Spawning table {0} load task at {1}", table.Key, DateTime.UtcNow);
 
             command.CommandText = "select * from "+table.Key+";";
             var queryResult = command.ExecuteReader();
@@ -48,7 +48,7 @@ public sealed class IngestionOrchestratorV1
             if (config.strategy == IngestionStrategy.TABLE_PER_WORKER)
             {
                 TaskCompletionSource tcs = new TaskCompletionSource();
-                Task t = Task.Run(() => Consume(tuples, table.Value, rowCount, tcs));
+                Task t = Task.Run(() => Consume(tuples, table.Value, rowCount, tcs, debug));
                 tasksToWait.Add(tcs.Task);
             }
             else if (config.strategy == IngestionStrategy.WORKER_PER_CPU)
@@ -56,7 +56,7 @@ public sealed class IngestionOrchestratorV1
                 var numThreads = config.concurrencyLevel <= 0 ? 1 : config.concurrencyLevel;
                 for (int i = 0; i < numThreads; i++) {
                     TaskCompletionSource tcs = new TaskCompletionSource();
-                    Task t = Task.Run(() => ConsumeShared(tuples, table.Value, rowCount, tcs));
+                    Task t = Task.Run(() => ConsumeShared(tuples, table.Value, rowCount, tcs, debug));
                     tasksToWait.Add(tcs.Task);
                 }
                 await Task.WhenAll(tasksToWait);
@@ -75,7 +75,7 @@ public sealed class IngestionOrchestratorV1
             else // default to single worker
             {
                 TaskCompletionSource tcs = new TaskCompletionSource();
-                Task t = Task.Run(() => Consume(tuples, table.Value, rowCount, tcs));
+                Task t = Task.Run(() => Consume(tuples, table.Value, rowCount, tcs, debug));
                 await tcs.Task;
                 Console.WriteLine("Finished loading table {0}", table);
             }
@@ -117,7 +117,7 @@ public sealed class IngestionOrchestratorV1
 
     private static int totalCount = 0;
 
-    private static void ConsumeShared(BlockingCollection<JObject> tuples, string url, long rowCount, TaskCompletionSource tcs)
+    private static void ConsumeShared(BlockingCollection<JObject> tuples, string url, long rowCount, TaskCompletionSource tcs, bool debug)
     {
         JObject jobject;
         do
@@ -126,33 +126,36 @@ public sealed class IngestionOrchestratorV1
             if (taken)
             {
                 Interlocked.Increment(ref totalCount);
-                ConvertAndSend(jobject, url);
+                ConvertAndSend(jobject, url, debug);
             }
         } while (Volatile.Read(ref totalCount) < rowCount);
         tcs.SetResult();
     }
 
-    private static void Consume(BlockingCollection<JObject> tuples, string url, long rowCount, TaskCompletionSource tcs)
+    private static void Consume(BlockingCollection<JObject> tuples, string url, long rowCount, TaskCompletionSource tcs, bool debug)
     {
         int currRow = 1;
         do
         {
             JObject obj = tuples.Take();
-            ConvertAndSend(obj, url);
+            ConvertAndSend(obj, url, debug);
             currRow++;
         } while (currRow <= rowCount);
         tcs.SetResult();
     }
 
-    private static void ConvertAndSend(JObject obj, string url)
+    private static void ConvertAndSend(JObject obj, string url, bool debug)
     {
         string strObj = JsonConvert.SerializeObject(obj);
-
         HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Post, url)
         {
             Content = HttpUtils.BuildPayload(strObj)
         };
-
+        if (debug)
+        {
+            Console.WriteLine(strObj);
+            return;
+        }
         try
         {
             using HttpResponseMessage response = HttpUtils.client.Send(message);
