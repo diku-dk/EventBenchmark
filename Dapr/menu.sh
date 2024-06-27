@@ -36,6 +36,6 @@ EOF
      * )  echo "invalid option"     ;;
     esac
     #REPLY=
-    sleep 2
+    sleep 1
 done
 

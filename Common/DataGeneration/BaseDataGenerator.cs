@@ -36,6 +36,7 @@ namespace Common.DataGeneration
             ["sellers"] = "DELETE FROM sellers;",
             ["products"] = "DELETE FROM products;",
             ["stock_items"] = "DELETE FROM stock_items;",
+            // by default, customers are fixed across experiment runs
             // ["customers"] = "DELETE FROM customers;"
         };
 
@@ -89,8 +90,8 @@ namespace Common.DataGeneration
         {
             var firstName = RemoveBadCharacter( faker.Name.FirstName() );
             var lastName = RemoveBadCharacter( faker.Name.LastName() );
-            var address = RemoveBadCharacter(faker.Address.StreetName());
-            var complement = RemoveBadCharacter(faker.Address.StreetSuffix());
+            var address = RemoveBadCharacter( faker.Address.StreetName() );
+            var complement = RemoveBadCharacter( faker.Address.StreetSuffix() );
             var birth_date = GenerateBirthdate();
 
             var cardNumber = faker.Finance.CreditCardNumber();
@@ -129,12 +130,10 @@ namespace Common.DataGeneration
             sb.Append(0).Append(','); // success_payment_count
             sb.Append(0).Append(','); // failed_payment_count
             sb.Append(0).Append(','); // delivery_count
-            // sb.Append(0).Append(','); // abandoned carts
             sb.Append('\'').Append(C_DATA).Append("');");
 
             command.CommandText = sb.ToString();
             command.ExecuteNonQuery();
-
         }
 
         protected void GenerateSeller(DuckDbCommand command, int sellerId)

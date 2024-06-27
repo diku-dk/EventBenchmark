@@ -17,8 +17,8 @@ public class DaprController : ControllerBase
 
     // requests are served by different threads
     // to ensure visibility after updates, need interlocked
-    private static ExperimentConfig config;
-    private static DuckDBConnection connection;
+    private static ExperimentConfig CONFIG;
+    private static DuckDBConnection CONNECTION;
 
     public DaprController(IHttpClientFactory httpClientFactory, ILogger<DaprController> logger)
     {
@@ -31,25 +31,25 @@ public class DaprController : ControllerBase
     [ProducesResponseType((int)HttpStatusCode.OK)]
     public ActionResult GenerateData()
     {
-        if(config is null)
+        if(CONFIG is null)
         {
             return BadRequest("Please register a configuration first.");
         }
-        Interlocked.Exchange(ref connection, ConsoleUtility.GenerateData(config));
+        Interlocked.Exchange(ref CONNECTION, ConsoleUtility.GenerateData(CONFIG));
         return Ok("Data generated");
     }
 
     private static bool ConnectionIsSet()
     {
-        if(connection is null){
-            if(config.connectionString.SequenceEqual("DataSource=:memory:"))
+        if(CONNECTION is null){
+            if(CONFIG.connectionString.SequenceEqual("DataSource=:memory:"))
             {
                 return false;
             }
             else
             {
-                Interlocked.Exchange(ref connection, new DuckDBConnection(config.connectionString));
-                connection.Open();
+                Interlocked.Exchange(ref CONNECTION, new DuckDBConnection(CONFIG.connectionString));
+                CONNECTION.Open();
                 return true;
             }
         }
@@ -62,7 +62,7 @@ public class DaprController : ControllerBase
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
     public async Task<ActionResult> IngestData()
     {
-        if(config is null)
+        if(CONFIG is null)
         {
             return BadRequest("Please register a configuration first.");
         }
@@ -70,7 +70,7 @@ public class DaprController : ControllerBase
         {
             return BadRequest("Please generate some data first by selecting option 1.");
         }
-        await IngestionOrchestratorV1.Run(connection, config.ingestionConfig);
+        await IngestionOrchestratorV1.Run(CONNECTION, CONFIG.ingestionConfig);
         return Ok("Data ingested");
     }
 
@@ -79,7 +79,7 @@ public class DaprController : ControllerBase
     [ProducesResponseType((int)HttpStatusCode.OK)]
     public ActionResult RunExperiment()
     {
-        if(config is null)
+        if(CONFIG is null)
         {
             return BadRequest("Please register a configuration first.");
         }
@@ -87,7 +87,7 @@ public class DaprController : ControllerBase
         {
             return BadRequest("Please generate some data first by selecting option 1.");
         }
-        DaprExperimentManager experimentManager = DaprExperimentManager.BuildDaprExperimentManager(this.httpClientFactory, config, connection);
+        DaprExperimentManager experimentManager = DaprExperimentManager.BuildDaprExperimentManager(this.httpClientFactory, CONFIG, CONNECTION);
         experimentManager.RunSimpleExperiment();
         return Ok("Experiment finished");
     }
@@ -98,7 +98,7 @@ public class DaprController : ControllerBase
     [ProducesResponseType((int)HttpStatusCode.BadRequest)]
     public async Task<ActionResult> IngestDataAndRunExperiment()
     {
-        if(config is null)
+        if(CONFIG is null)
         {
             return BadRequest("Please register a configuration first.");
         }
@@ -106,9 +106,9 @@ public class DaprController : ControllerBase
         {
             return BadRequest("Please generate some data first by selecting option 1.");
         }
-        await CustomIngestionOrchestrator.Run(connection, config.ingestionConfig);
+        await CustomIngestionOrchestrator.Run(CONNECTION, CONFIG.ingestionConfig);
         var expManager = DaprExperimentManager
-                        .BuildDaprExperimentManager(new CustomHttpClientFactory(), config, connection);
+                        .BuildDaprExperimentManager(new CustomHttpClientFactory(), CONFIG, CONNECTION);
         expManager.RunSimpleExperiment();
         return Ok("Experiment finished");
     }
@@ -119,7 +119,7 @@ public class DaprController : ControllerBase
     public ActionResult ParseNewConfiguration([FromBody] ExperimentConfig newConfig)
     {
         // Console.WriteLine("Parse new configuration from body requested. Is null? "+config is null);
-        Interlocked.Exchange(ref config, newConfig);
+        Interlocked.Exchange(ref CONFIG, newConfig);
         return Ok("New configuration parsed.");
     }
 
@@ -131,7 +131,7 @@ public class DaprController : ControllerBase
         // Console.WriteLine("Parse new configuration from path requested. Is null? "+config is null);
         path = path.Replace("%2F","/");
         ExperimentConfig newConfig = ConsoleUtility.BuildExperimentConfig_(path);
-        Interlocked.Exchange(ref config, newConfig);
+        Interlocked.Exchange(ref CONFIG, newConfig);
         return Ok("New configuration parsed.");
     }
 

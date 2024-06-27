@@ -69,7 +69,7 @@ public sealed class ActorWorkloadManager : WorkloadManager
         var execTime = TimeSpan.FromMilliseconds(this.executionTime);
         int currentTid = 1;
         var startTime = DateTime.UtcNow;
-        Console.WriteLine("Started sending batch of transactions with concurrency level {0} at {0}.", this.concurrencyLevel, startTime);
+        Console.WriteLine("Started sending batch of transactions with concurrency level {0} at {1}.", this.concurrencyLevel, startTime);
         s.Start();
         while (currentTid < this.concurrencyLevel)
         {

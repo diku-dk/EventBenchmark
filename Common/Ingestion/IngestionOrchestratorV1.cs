@@ -2,7 +2,6 @@
 using System.Reflection;
 using Common.Ingestion.Config;
 using Common.Http;
-using Common.Infra;
 using DuckDB.NET.Data;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -23,7 +22,7 @@ public sealed class IngestionOrchestratorV1
 
         int idx = 0;
         int total =  config.mapTableToUrl.Count;
-        ConsoleUtility.WriteProgressBar(idx);
+        
         Console.WriteLine();
 
         foreach (var table in config.mapTableToUrl)
@@ -62,8 +61,6 @@ public sealed class IngestionOrchestratorV1
                 await Task.WhenAll(tasksToWait);
 
                 idx++;
-                float perc = (float)idx / total;
-                ConsoleUtility.WriteProgressBar((int)(perc * 100), true);
 
                 totalCount = 0;
                 tasksToWait.Clear();
@@ -84,7 +81,6 @@ public sealed class IngestionOrchestratorV1
         if(tasksToWait.Count > 0)
         {
             await Task.WhenAll(tasksToWait);
-            ConsoleUtility.WriteProgressBar(100,true);
             Console.WriteLine("Finished loading all tables");
         }
 

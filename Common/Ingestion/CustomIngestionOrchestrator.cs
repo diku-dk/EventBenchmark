@@ -26,8 +26,6 @@ public sealed class CustomIngestionOrchestrator
 
         BlockingCollection<(string,string)> errors = new BlockingCollection<(string,string)>();
 
-        ConsoleUtility.WriteProgressBar(0);
-
         // Console.WriteLine($"Setting up {config.mapTableToUrl.Count} utility workers to read tuples from internal database and parse them into JSON...");
 
         foreach (var entry in config.mapTableToUrl)
@@ -43,35 +41,17 @@ public sealed class CustomIngestionOrchestrator
             tasksToWait.Add(Task.Run(() => Produce(tuples, queryResult, table)));
         }
 
-        int progress = 25;
-        ConsoleUtility.WriteProgressBar(progress, true);
+        Console.WriteLine($"All {config.mapTableToUrl.Count} utility workers submitted.");
+        await Task.WhenAll(tasksToWait);
+        Console.WriteLine($"All {config.mapTableToUrl.Count} utility workers finished.");
 
-        // Console.WriteLine($"All {config.mapTableToUrl.Count} utility workers submitted.");
-
-        int prog = 25 / config.mapTableToUrl.Count;
-        foreach(var task in tasksToWait)
-        {
-            await task;
-            progress += prog;
-            ConsoleUtility.WriteProgressBar(progress, true);
-        }
-
-        // Console.WriteLine($"All {config.mapTableToUrl.Count} utility workers finished.");
-
-        // Console.WriteLine($"Setting up {numThreads} worker threads to send parsed records to target microservices...");
+        Console.WriteLine($"Setting up {numThreads} worker threads to send parsed records to target microservices...");
 
         for (int i = 0; i < numThreads; i++) {
              tasksToWait.Add( Task.Run(() => ConsumeShared(tuples, errors)) );
         }
-
-        prog = 50 / numThreads;
-        foreach(var task in tasksToWait) {
-            await task;
-            progress += prog;
-            ConsoleUtility.WriteProgressBar(progress, true);
-        }
-
-        ConsoleUtility.WriteProgressBar(100, true);
+        
+        await Task.WhenAll(tasksToWait);
         Console.WriteLine();
         Console.WriteLine("Finished loading all tables.");
 

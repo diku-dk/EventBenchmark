@@ -14,7 +14,7 @@
     },
     "ingestionConfig": {
         "strategy": "WORKER_PER_CPU",
-        "concurrencyLevel": 6,
+        "concurrencyLevel": 4,
         "mapTableToUrl": {
             "stock_items": "http://127.0.0.1:5003",
             "products": "http://127.0.0.1:5008"
@@ -22,7 +22,7 @@
     },
     "runs": [
         {
-            "numProducts": 1000,
+            "numProducts": 10000,
             "sellerDistribution": "UNIFORM",
             "keyDistribution": "UNIFORM"
         }

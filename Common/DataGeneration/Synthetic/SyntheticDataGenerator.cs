@@ -54,8 +54,7 @@ namespace Common.DataGeneration
 
             var command = connection.CreateCommand();
 
-            Console.WriteLine("Seller, Product, and Stock Item generation in progress...");                        
-            ConsoleUtility.WriteProgressBar(0);            
+            Console.WriteLine("Seller and respective Product and Stock Item records generation in progress...");          
             float perc;
             while (remainingProducts > 0)
             {
@@ -70,10 +69,9 @@ namespace Common.DataGeneration
                     currProductId++;
                 }                
                 remainingProducts -= numProductsForSeller;
-                currSellerId++;
-
                 perc = (float)currProductId / this.config.numProducts;
-                ConsoleUtility.WriteProgressBar((int)(perc * 100), true);                
+                Console.WriteLine(numProductsForSeller+" products created for seller "+currSellerId+". %: "+perc*100);
+                currSellerId++;
             }
 
             Console.WriteLine();
@@ -102,17 +100,14 @@ namespace Common.DataGeneration
                 command_ = command;
             }
             int currCustomer = 1;
-
-            ConsoleUtility.WriteProgressBar(0);
             float perc;
             while (currCustomer <= this.config.numCustomers)
             {
                 GenerateCustomer(command_, currCustomer);
-                currCustomer++;
                 perc = (float)currCustomer / this.config.numCustomers;
-                ConsoleUtility.WriteProgressBar((int)(perc * 100), true);
+                Console.WriteLine("Customer "+currCustomer+" created. Total %: "+perc*100);
+                currCustomer++;
             }
-            Console.WriteLine();
         }
       
     }

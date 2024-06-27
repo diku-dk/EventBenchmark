@@ -11,5 +11,7 @@ public class SyntheticDataSourceConfig
 
     public int qtyPerProduct { get; set; }
 
+    public SyntheticDataSourceConfig(){ }
+
 }
 

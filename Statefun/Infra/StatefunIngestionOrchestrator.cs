@@ -1,6 +1,5 @@
 ﻿using System.Collections.Concurrent;
 using Common.Ingestion.Config;
-using Common.Infra;
 using DuckDB.NET.Data;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -27,8 +26,6 @@ public sealed class StatefunIngestionOrchestrator
 
         BlockingCollection<(string,string)> errors = new BlockingCollection<(string,string)>();
 
-        ConsoleUtility.WriteProgressBar(0);
-
         foreach (var table in config.mapTableToUrl)
         {
             command.CommandText = "select * from "+table.Key+";";
@@ -37,7 +34,7 @@ public sealed class StatefunIngestionOrchestrator
         }
 
         await Task.WhenAll(tasksToWait);
-        ConsoleUtility.WriteProgressBar(50, true);
+        Console.WriteLine("Finished loading all record in memory.");
         tasksToWait.Clear();
 
         // Statefun : get the current read record before starting ingestion        
@@ -55,9 +52,8 @@ public sealed class StatefunIngestionOrchestrator
 
         await Task.WhenAll(tasksToWait);
 
-        ConsoleUtility.WriteProgressBar(100, true);
         Console.WriteLine();
-        Console.WriteLine("Finished loading all tables.");
+        Console.WriteLine("Finished ingesting all tables.");
 
         if(errors.Count > 0)
         {
