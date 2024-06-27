@@ -17,10 +17,11 @@ public sealed class ActorWorkloadManager : WorkloadManager
         IDeliveryService deliveryService,
         IDictionary<TransactionType, int> transactionDistribution,
         Interval customerRange,
-        int concurrencyLevel, int executionTime, int delayBetweenRequests) :
-        base(sellerService, customerService, deliveryService, transactionDistribution, customerRange, concurrencyLevel, executionTime, delayBetweenRequests)
-    {
-    }
+        int concurrencyLevel, ConcurrencyType concurrencyType,
+        int executionTime, int delayBetweenRequests) :
+        base(sellerService, customerService, deliveryService, transactionDistribution, customerRange,
+            concurrencyLevel, concurrencyType, executionTime, delayBetweenRequests)
+    { }
 
     public static new ActorWorkloadManager BuildWorkloadManager(
             ISellerService sellerService,
@@ -29,10 +30,11 @@ public sealed class ActorWorkloadManager : WorkloadManager
             IDictionary<TransactionType, int> transactionDistribution,
             Interval customerRange,
             int concurrencyLevel,
+            ConcurrencyType concurrencyType,
             int executionTime,
             int delayBetweenRequests)
     {
-        return new ActorWorkloadManager(sellerService, customerService, deliveryService, transactionDistribution, customerRange, concurrencyLevel, executionTime, delayBetweenRequests);
+        return new ActorWorkloadManager(sellerService, customerService, deliveryService, transactionDistribution, customerRange, concurrencyLevel, concurrencyType, executionTime, delayBetweenRequests);
     }
 
     public (DateTime startTime, DateTime finishTime) RunTasks()

@@ -25,7 +25,7 @@ public sealed class ModbExperimentManager : AbstractExperimentManager
         return new ModbExperimentManager(httpClientFactory, DefaultSellerWorker.BuildSellerWorker, ModbCustomerWorker.BuildCustomerWorker, DefaultDeliveryWorker.BuildDeliveryWorker, config, duckDBConnection);
     }
 
-    public ModbExperimentManager(IHttpClientFactory httpClientFactory, BuildSellerWorkerDelegate sellerWorkerDelegate, BuildCustomerWorkerDelegate customerWorkerDelegate, BuildDeliveryWorkerDelegate deliveryWorkerDelegate, ExperimentConfig config, DuckDBConnection duckDBConnection) : base(httpClientFactory, ModbWorkloadManager.BuildWorkloadManager, MetricManager.BuildMetricManager, sellerWorkerDelegate, customerWorkerDelegate, deliveryWorkerDelegate, config, duckDBConnection)
+    public ModbExperimentManager(IHttpClientFactory httpClientFactory, BuildSellerWorkerDelegate sellerWorkerDelegate, BuildCustomerWorkerDelegate customerWorkerDelegate, BuildDeliveryWorkerDelegate deliveryWorkerDelegate, ExperimentConfig config, DuckDBConnection duckDBConnection) : base(httpClientFactory, WorkloadManager.BuildWorkloadManager, MetricManager.BuildMetricManager, sellerWorkerDelegate, customerWorkerDelegate, deliveryWorkerDelegate, config, duckDBConnection)
     {
         // must be at least same as batch window in modb
         this.modbPollingTask = new ModbPollingTask(this.config.pollingUrl, this.config.pollingRate);
@@ -44,7 +44,7 @@ public sealed class ModbExperimentManager : AbstractExperimentManager
         // let first TID be polled
         Thread.Sleep(1);
         
-        (DateTime startTime, DateTime finishTime) = ((ModbWorkloadManager)this.workloadManager).RunThreads(tokenSource);
+        (DateTime startTime, DateTime finishTime) = this.workloadManager.Run(tokenSource);
        
         // wait for completion
         while(!task.IsCompleted){ }

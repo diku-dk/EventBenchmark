@@ -62,7 +62,7 @@ public abstract class AbstractSellerWorker : ISellerWorker
 
         this.productIdGenerator = keyDistribution == DistributionType.UNIFORM ?
                                  new DiscreteUniform(1, sellerProducts.Count, Random.Shared) :
-                                 new Zipf(WorkloadConfig.productZipfian, sellerProducts.Count, Random.Shared);
+                                 new Zipf(WorkloadManager.productZipfian, sellerProducts.Count, Random.Shared);
         this.submittedTransactions.Clear();
         this.finishedTransactions.Clear();
         this.abortedTransactions.Clear();

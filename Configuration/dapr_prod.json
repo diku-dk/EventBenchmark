@@ -5,6 +5,8 @@
   "numProdPerSeller": 10,
   "executionTime": 360000,
   "epoch": 20000,
+  "concurrencyLevel": 16,
+  "concurrencyType": "CONTINUOUS",
   "delayBetweenRequests": 0,
   "delayBetweenRuns": 15000,
   "transactionDistribution": {
@@ -14,7 +16,6 @@
     "UPDATE_PRODUCT": 85,
     "UPDATE_DELIVERY": 100
   },
-  "concurrencyLevel": 16,
   "ingestionConfig": {
     "strategy": "WORKER_PER_CPU",
     "concurrencyLevel": 6,

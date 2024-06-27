@@ -8,12 +8,16 @@ namespace Common.Workload;
 
 public class WorkloadManager
 {
+    public const double sellerZipfian = 1;
+    public const double productZipfian = 1;
+
     public delegate WorkloadManager BuildWorkloadManagerDelegate(ISellerService sellerService,
                 ICustomerService customerService,
                 IDeliveryService deliveryService,
                 IDictionary<TransactionType, int> transactionDistribution,
                 Interval customerRange,
                 int concurrencyLevel,
+                ConcurrencyType concurrencyType,
                 int executionTime,
                 int delayBetweenRequests);
 
@@ -28,7 +32,7 @@ public class WorkloadManager
 
     protected readonly int executionTime;
     protected readonly int concurrencyLevel;
-
+    private readonly ConcurrencyType concurrencyType;
     private readonly int delayBetweenRequests;
 
     protected readonly IDictionary<TransactionType, int> histogram;
@@ -44,6 +48,7 @@ public class WorkloadManager
                 IDictionary<TransactionType,int> transactionDistribution,
                 Interval customerRange,
                 int concurrencyLevel,
+                ConcurrencyType concurrencyType,
                 int executionTime,
                 int delayBetweenRequests)
     {
@@ -54,6 +59,7 @@ public class WorkloadManager
         this.customerRange = customerRange;
         this.random = new Random();
         this.concurrencyLevel = concurrencyLevel;
+        this.concurrencyType = concurrencyType;
         this.executionTime = executionTime;
         this.delayBetweenRequests = delayBetweenRequests;
         this.histogram = new Dictionary<TransactionType, int>();
@@ -67,10 +73,11 @@ public class WorkloadManager
                 IDictionary<TransactionType, int> transactionDistribution,
                 Interval customerRange,
                 int concurrencyLevel,
+                ConcurrencyType concurrencyType,
                 int executionTime,
                 int delayBetweenRequests)
     {
-        return new WorkloadManager(sellerService, customerService, deliveryService, transactionDistribution, customerRange, concurrencyLevel, executionTime, delayBetweenRequests);
+        return new WorkloadManager(sellerService, customerService, deliveryService, transactionDistribution, customerRange, concurrencyLevel, concurrencyType, executionTime, delayBetweenRequests);
     }
 
     // can differ across runs
@@ -79,7 +86,7 @@ public class WorkloadManager
         this.sellerIdGenerator =
                     sellerDistribution == DistributionType.UNIFORM ?
                     new DiscreteUniform(sellerRange.min, sellerRange.max, new Random()) :
-                    new Zipf(WorkloadConfig.sellerZipfian, sellerRange.max, new Random());
+                    new Zipf(sellerZipfian, sellerRange.max, new Random());
 
         foreach (TransactionType tx in Enum.GetValues(typeof(TransactionType)))
         {
@@ -94,12 +101,67 @@ public class WorkloadManager
 
     }
 
+    public virtual (DateTime startTime, DateTime finishTime) Run(CancellationTokenSource cancellationTokenSource = null)
+    {
+        if(this.concurrencyType == ConcurrencyType.CONTROL)
+        {
+            return this.RunControl();
+        } else
+        {
+            return this.RunContinuous(cancellationTokenSource);
+        }
+    }
+
+    // signal when all threads have started
+    private Barrier barrier;
+    private CancellationTokenSource tokenSource;
+
+    private (DateTime startTime, DateTime finishTime) RunContinuous(CancellationTokenSource cancellationTokenSource)
+    {
+        int i = 0;
+        // pass token source along to align polling task and emitter threads
+        this.tokenSource = cancellationTokenSource;
+        this.barrier = new Barrier(this.concurrencyLevel+1);
+
+        while(i < this.concurrencyLevel)
+        {
+            var thread = new Thread(Worker);
+            thread.Start();
+            i++;
+        }
+
+        // for all to start at the same time
+        this.barrier.SignalAndWait();
+        var startTime = DateTime.UtcNow;
+        Console.WriteLine("Run started at {0}.", startTime);
+        Thread.Sleep(this.executionTime);
+        cancellationTokenSource.Cancel();
+        var finishTime = DateTime.UtcNow;
+        this.barrier.Dispose();
+        Console.WriteLine("Run finished at {0}.", finishTime);
+        return (startTime, finishTime);
+    }
+
+    private void Worker()
+    {
+        long threadId = Environment.CurrentManagedThreadId;
+        Console.WriteLine("Thread {0} started", threadId); 
+        int currentTid = 0;
+        this.barrier.SignalAndWait();
+        while(!tokenSource.IsCancellationRequested)
+        {
+            TransactionType tx = this.PickTransactionFromDistribution();
+            this.SubmitTransaction(threadId+"-"+(currentTid++).ToString(), tx);
+        }
+        Console.WriteLine("Thread {0} finished", threadId);
+    }
+
     // two classes of transactions:
     // a.eventual complete
     // b. complete on response received
     // for b it is easy, upon completion we know we can submit another transaction
     // for a is tricky, we never know when it completes
-    public virtual (DateTime startTime, DateTime finishTime) Run()
+    public virtual (DateTime startTime, DateTime finishTime) RunControl()
 	{
         Stopwatch s = new Stopwatch();
         var execTime = TimeSpan.FromMilliseconds(this.executionTime);
@@ -210,15 +272,6 @@ public class WorkloadManager
         {
             if(e is HttpRequestException)
             {
-                /*
-                var current = e;
-                while( current != null )
-                {
-                    Console.WriteLine( current.ToString( ) );
-                    Console.WriteLine( );
-                    current = current.InnerException;
-                }
-                */
                 e = e.GetBaseException();
             }
             Console.WriteLine("Thread ID {0} - Error caught in SubmitTransaction. Type: {1}\n Source: {2}\n Message: {3}\n StackTrace: \n{4}", Environment.CurrentManagedThreadId, e.GetType().Name, e.Source, e.Message, e.StackTrace);

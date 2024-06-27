@@ -41,6 +41,8 @@ public class ExperimentConfig
 
     public int concurrencyLevel { get; set; }
 
+    public ConcurrencyType concurrencyType { get; set; } = ConcurrencyType.CONTROL;
+
     public StreamingConfig streamingConfig { get; set; }
 
     public CustomerWorkerConfig customerWorkerConfig { get; set; }

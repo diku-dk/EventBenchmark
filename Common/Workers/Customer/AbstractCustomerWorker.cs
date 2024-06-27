@@ -52,10 +52,10 @@ public abstract class AbstractCustomerWorker : ICustomerWorker
     {
         this.sellerIdGenerator = sellerDistribution == DistributionType.UNIFORM ?
                                   new DiscreteUniform(sellerRange.min, sellerRange.max, new Random()) :
-                                  new Zipf(WorkloadConfig.sellerZipfian, sellerRange.max, new Random());
+                                  new Zipf(WorkloadManager.sellerZipfian, sellerRange.max, new Random());
         this.productIdGenerator = keyDistribution == DistributionType.UNIFORM ?
                                 new DiscreteUniform(1, numberOfProducts, new Random()) :
-                                new Zipf(WorkloadConfig.productZipfian, numberOfProducts, new Random());
+                                new Zipf(WorkloadManager.productZipfian, numberOfProducts, new Random());
 
         this.submittedTransactions.Clear();
     }

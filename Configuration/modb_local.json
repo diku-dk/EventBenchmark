@@ -5,6 +5,8 @@
     "qtyPerProduct": 10000,
     "executionTime": 10000,
     "epoch": 0,
+    "concurrencyLevel": 4,
+    "concurrencyType": "CONTINUOUS",
     "pollingRate": 250,
     "pollingUrl": "http://localhost:8090/status",
     "delayBetweenRequests": 0,
@@ -16,7 +18,6 @@
         "UPDATE_PRODUCT": 100
         //"UPDATE_DELIVERY": 100
     },
-    "concurrencyLevel": 4,
     "ingestionConfig": {
         "strategy": "WORKER_PER_CPU",
         "concurrencyLevel": 4,

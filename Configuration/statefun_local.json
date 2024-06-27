@@ -5,6 +5,8 @@
     "qtyPerProduct": 10000,
     "executionTime": 60000,
     "epoch": 10000,
+    "concurrencyLevel": 10,
+    "concurrencyType": "CONTROL",
     "pollingUrl": "http://statefunhost:8091/receipts",
     "pollingRate": 0,
     "delayBetweenRequests": 0,
@@ -16,7 +18,6 @@
         "UPDATE_PRODUCT": 40,
         "UPDATE_DELIVERY": 100
     },
-    "concurrencyLevel": 10,
     "ingestionConfig": {
         "strategy": "WORKER_PER_CPU",
         "concurrencyLevel": 12,

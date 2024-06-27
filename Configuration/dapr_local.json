@@ -8,6 +8,7 @@
     "delayBetweenRequests": 0,
     "delayBetweenRuns": 0,
     "concurrencyLevel": 2,
+    "concurrencyType": "CONTINUOUS",
     "transactionDistribution": {
         "PRICE_UPDATE": 50,
         "UPDATE_PRODUCT": 100

@@ -66,6 +66,7 @@ public abstract class AbstractExperimentManager
                                 config.transactionDistribution,
                                 this.customerRange,
                                 config.concurrencyLevel,
+                                config.concurrencyType,
                                 config.executionTime,
                                 config.delayBetweenRequests);
 
