@@ -108,6 +108,8 @@ public class WorkloadManager
             return this.RunControl();
         } else
         {
+            if(cancellationTokenSource == null)
+                return this.RunContinuous(new CancellationTokenSource());
             return this.RunContinuous(cancellationTokenSource);
         }
     }
@@ -151,9 +153,12 @@ public class WorkloadManager
         while(!tokenSource.IsCancellationRequested)
         {
             TransactionType tx = this.PickTransactionFromDistribution();
-            this.SubmitTransaction(threadId+"-"+(currentTid++).ToString(), tx);
+            currentTid++;
+            var instanceId = threadId.ToString()+"-"+currentTid.ToString();
+            // Console.WriteLine("TID: "+instanceId);
+            this.SubmitTransaction(instanceId, tx);
         }
-        Console.WriteLine("Thread {0} finished", threadId);
+        Console.WriteLine("Thread {0} finished. Last TID submitted was {1}", threadId, currentTid);
     }
 
     // two classes of transactions:

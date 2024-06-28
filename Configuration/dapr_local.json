@@ -7,11 +7,12 @@
     "epoch": 0,
     "delayBetweenRequests": 0,
     "delayBetweenRuns": 0,
-    "concurrencyLevel": 2,
+    "concurrencyLevel": 1,
     "concurrencyType": "CONTINUOUS",
     "transactionDistribution": {
-        "PRICE_UPDATE": 50,
-        "UPDATE_PRODUCT": 100
+        // "PRICE_UPDATE": 50,
+        // "UPDATE_PRODUCT": 100
+        "CUSTOMER_SESSION": 100
     },
     "ingestionConfig": {
         "strategy": "WORKER_PER_CPU",
@@ -28,10 +29,8 @@
             "keyDistribution": "UNIFORM"
         }
     ],
-    "postRunTasks": [
-    ],
-    "postExperimentTasks": [
-    ],
+    "postRunTasks": [ ],
+    "postExperimentTasks": [ ],
     "streamingConfig": {
         "type": "REDIS",
         "host": "localhost",
@@ -51,7 +50,6 @@
         ]
     },
     "customerWorkerConfig": {
-        "maxNumberKeysToAddToCart": 10,
         "minMaxQtyRange": {
             "min": 1,
             "max": 10
@@ -60,6 +58,7 @@
             "min": 1,
             "max": 1000
         },
+        "maxNumberKeysToAddToCart": 10,
         "checkoutProbability": 100,
         "voucherProbability": 0,
         "productUrl": "http://127.0.0.1:5008",

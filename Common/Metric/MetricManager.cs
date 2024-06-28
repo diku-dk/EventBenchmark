@@ -3,13 +3,13 @@ using Common.Infra;
 using Common.Services;
 using Common.Workload;
 using Common.Workload.Metrics;
+using MathNet.Numerics.Statistics;
 using Microsoft.Extensions.Logging;
 
 namespace Common.Metric;
 
 public class MetricManager
 {
-
     public delegate MetricManager BuildMetricManagerDelegate(ISellerService sellerService, ICustomerService customerService, IDeliveryService deliveryService);
 
     protected static readonly ILogger logger = LoggerProxy.GetInstance("MetricManager");
@@ -219,9 +219,10 @@ public class MetricManager
         return latencyGatherResults;
     }
 
+    private static readonly List<int> PERCENTILES = new List<int>{ 50, 75, 90 };
+
     private static void BreakdownCalculation(DateTime startTime, DateTime finishTime, int epochPeriod, StreamWriter sw, List<List<Latency>> latencyGatherResults, List<TransactionType> txTypeValues, TimeSpan executionTime)
     {
-        // TODO calculate percentiles
         // break down latencies by end timestamp
         int numEpochs = (int)executionTime.TotalMilliseconds / epochPeriod;
         logger.LogInformation("{0} blocks for epoch {1}", numEpochs, epochPeriod);
@@ -275,6 +276,16 @@ public class MetricManager
                 epochCountTid += entry.Value.Count;
                 logger.LogInformation("Transaction: {0} - #{1} - Average end-to-end latency: {2}", entry.Key, entry.Value.Count, avg.ToString());
                 sw.WriteLine("Transaction: {0} - #{1} - Average end-to-end latency: {2}", entry.Key, entry.Value.Count, avg.ToString());
+
+                // calculate percentiles
+                // https://github.com/diku-dk/Snapper-Orleans/blob/b2f023fdc6b279f2af12e23f7f0a24bb2522add0/SnapperExperimentProcess/SingleExperimentManager.cs#L569C31-L569C46
+                foreach(int perc in PERCENTILES)
+                {
+                    double percValue = ArrayStatistics.PercentileInplace(entry.Value.ToArray(), perc);
+                    logger.LogInformation("Transaction: {0} - #{1} - {2}th percentile end-to-end latency: {3}", entry.Key, entry.Value.Count, perc, percValue);
+                    sw.WriteLine("Transaction: {0} - #{1} - {2}th percentile end-to-end latency: {2}", entry.Key, entry.Value.Count, perc, percValue);
+                }
+               
             }
 
             double epochTxPerSecond = epochCountTid / (epochPeriod / 1000d);

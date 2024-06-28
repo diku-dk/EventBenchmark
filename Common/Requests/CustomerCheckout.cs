@@ -1,52 +1,73 @@
-﻿namespace Common.Requests
-{
+﻿namespace Common.Requests;
+
+/**
+    * A sub-type of customer.
+    * Ideally; address and credit card info may change across customer checkouts
+    * Basket and Order does not need to know all public internal data about customers
+    */
+public class CustomerCheckout {
+
+    public int CustomerId { get; set; }
+
     /**
-     * A sub-type of customer.
-     * Ideally, address and credit card info may change across customer checkouts
-     * Basket and Order does not need to know all internal data about customers
-     */
-    public record CustomerCheckout(
+    * Delivery address (could be different from customer's address)
+    */
+    public string FirstName { get; set; }
 
-        int CustomerId,
+    public string LastName { get; set; }
 
-        /**
-        * Delivery address (could be different from customer's address)
-        */
-        string FirstName,
+    public string Street { get; set; }
 
-        string LastName,
+    public string Complement { get; set; }
 
-        string Street,
+    public string City { get; set; }
 
-        string Complement,
+    public string State { get; set; }
 
-        string City,
+    public string ZipCode { get; set; }
 
-        string State,
+    /**
+    * Payment type
+    */
+    public string PaymentType { get; set; }
 
-        string ZipCode,
+    /**
+    * Credit or debit card
+    */
+    public string CardNumber { get; set; }
 
-        /**
-        * Payment type
-        */
-        string PaymentType,
+    public string CardHolderName { get; set; }
 
-        /**
-        * Credit or debit card
-        */
-        string CardNumber,
+    public string CardExpiration { get; set; }
 
-        string CardHolderName,
+    public string CardSecurityNumber { get; set; }
 
-        string CardExpiration,
+    public string CardBrand { get; set; }
 
-        string CardSecurityNumber,
+    // if no credit card, must be 1
+    public int Installments { get; set; }
 
-        string CardBrand,
+    public string instanceId { get; set; }
 
-        // if no credit card, must be 1
-        int Installments,
+    public CustomerCheckout(){ }
 
-        object instanceId
-    );
+    public CustomerCheckout(int customerId, string firstName, string lastName, string street, string complement, string city, string state, string zipCode, string paymentType, string cardNumber, string cardHolderName, string cardExpiration, string cardSecurityNumber, string cardBrand, int installments, string instanceId)
+    {
+        CustomerId = customerId;
+        FirstName = firstName;
+        LastName = lastName;
+        Street = street;
+        Complement = complement;
+        City = city;
+        State = state;
+        ZipCode = zipCode;
+        PaymentType = paymentType;
+        CardNumber = cardNumber;
+        CardHolderName = cardHolderName;
+        CardExpiration = cardExpiration;
+        CardSecurityNumber = cardSecurityNumber;
+        CardBrand = cardBrand;
+        Installments = installments;
+        this.instanceId = instanceId;
+    }
 }
