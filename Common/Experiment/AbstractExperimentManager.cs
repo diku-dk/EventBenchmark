@@ -29,7 +29,7 @@ public abstract class AbstractExperimentManager
 
     protected static readonly byte ITEM = 0;
 
-    protected static readonly ILogger logger = LoggerProxy.GetInstance("ExperimentManager");
+    protected static readonly ILogger LOGGER = LoggerProxy.GetInstance("ExperimentManager");
 
     // workers config
     protected readonly DeliveryService deliveryService;
@@ -111,7 +111,7 @@ public abstract class AbstractExperimentManager
         foreach (var task in this.config.postRunTasks)
         {
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
-            logger.LogInformation("Post run task to URL {0}", task.url);
+            LOGGER.LogInformation("Post run task to URL {0}", task.url);
             resps_.Add(HttpUtils.client.SendAsync(message));
         }
         await Task.WhenAll(resps_);
@@ -124,7 +124,7 @@ public abstract class AbstractExperimentManager
         foreach (var task in this.config.postExperimentTasks)
         {
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
-            logger.LogInformation("Post experiment task to URL {0}", task.url);
+            LOGGER.LogInformation("Post experiment task to URL {0}", task.url);
             resps_.Add(HttpUtils.client.SendAsync(message));
         }
         await Task.WhenAll(resps_);
@@ -149,7 +149,7 @@ public abstract class AbstractExperimentManager
         } catch(InvalidOperationException e)
         {
             // ignore if exception is related to connection being opened already
-            logger.LogWarning("Perhaps connection is already opened? Message="+e.Message);
+            LOGGER.LogWarning("Perhaps connection is already opened? Message="+e.Message);
         }
         SyntheticDataSourceConfig previousData = new SyntheticDataSourceConfig()
         {
@@ -170,11 +170,11 @@ public abstract class AbstractExperimentManager
 
         foreach (var run in this.config.runs)
         {
-            logger.LogInformation("Run #{0} started at {0}", runIdx, DateTime.UtcNow);
+            LOGGER.LogInformation("Run #{0} started at {0}", runIdx, DateTime.UtcNow);
 
             if (run.numProducts != previousData.numProducts)
             {
-                logger.LogInformation("Run #{0} number of products changed from last run {0}", runIdx, runIdx - 1);
+                LOGGER.LogInformation("Run #{0} number of products changed from last run {0}", runIdx, runIdx - 1);
 
                 // update previous
                 previousData = new SyntheticDataSourceConfig()
@@ -206,14 +206,14 @@ public abstract class AbstractExperimentManager
 
             this.workloadManager.SetUp(this.config.runs[runIdx].sellerDistribution, new Interval(1, this.numSellers));
 
-            logger.LogInformation("Run #{0} started at {1}", runIdx, DateTime.UtcNow);
+            LOGGER.LogInformation("Run #{0} started at {1}", runIdx, DateTime.UtcNow);
 
             var workloadTask = this.workloadManager.Run();
 
             DateTime startTime = workloadTask.startTime;
             DateTime finishTime = workloadTask.finishTime;
 
-            logger.LogInformation("Wait for microservices to converge (i.e., finish receiving events) for {0} seconds...", this.config.delayBetweenRuns / 1000);
+            LOGGER.LogInformation("Wait for microservices to converge (i.e., finish receiving events) for {0} seconds...", this.config.delayBetweenRuns / 1000);
             Thread.Sleep(this.config.delayBetweenRuns);
 
             // set up data collection for metrics
@@ -221,7 +221,7 @@ public abstract class AbstractExperimentManager
 
             this.CollectGarbage();
 
-            logger.LogInformation("Run #{0} finished at {1}", runIdx, DateTime.UtcNow);
+            LOGGER.LogInformation("Run #{0} finished at {1}", runIdx, DateTime.UtcNow);
 
             // increment run index
             runIdx++;
@@ -229,11 +229,11 @@ public abstract class AbstractExperimentManager
             this.PostRunTasks(runIdx);
         }
 
-        logger.LogInformation("Post experiment cleanup tasks starting...");
+        LOGGER.LogInformation("Post experiment cleanup tasks starting...");
 
         this.PostExperiment();
 
-        logger.LogInformation("Experiment finished");
+        LOGGER.LogInformation("Experiment finished");
     }
 
     public void RunSimpleExperiment()
@@ -251,12 +251,12 @@ public abstract class AbstractExperimentManager
 
     protected void CollectGarbage()
     {
-        logger.LogInformation("Memory used before collection:       {0:N0}",
+        LOGGER.LogInformation("Memory used before collection:       {0:N0}",
         GC.GetTotalMemory(false));
 
         // Collect all generations of memory.
         GC.Collect();
-        logger.LogInformation("Memory used after full collection:   {0:N0}",
+        LOGGER.LogInformation("Memory used after full collection:   {0:N0}",
         GC.GetTotalMemory(true));
     }
 

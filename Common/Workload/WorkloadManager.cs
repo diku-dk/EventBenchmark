@@ -120,11 +120,11 @@ public class WorkloadManager
 
     private (DateTime startTime, DateTime finishTime) RunContinuous(CancellationTokenSource cancellationTokenSource)
     {
-        int i = 0;
         // pass token source along to align polling task and emitter threads
         this.tokenSource = cancellationTokenSource;
         this.barrier = new Barrier(this.concurrencyLevel+1);
 
+        int i = 0;
         while(i < this.concurrencyLevel)
         {
             var thread = new Thread(Worker);
@@ -137,8 +137,8 @@ public class WorkloadManager
         var startTime = DateTime.UtcNow;
         Console.WriteLine("Run started at {0}.", startTime);
         Thread.Sleep(this.executionTime);
-        cancellationTokenSource.Cancel();
         var finishTime = DateTime.UtcNow;
+        cancellationTokenSource.Cancel();
         this.barrier.Dispose();
         Console.WriteLine("Run finished at {0}.", finishTime);
         return (startTime, finishTime);
@@ -150,12 +150,11 @@ public class WorkloadManager
         Console.WriteLine("Thread {0} started", threadId); 
         int currentTid = 0;
         this.barrier.SignalAndWait();
-        while(!tokenSource.IsCancellationRequested)
+        while(!this.tokenSource.IsCancellationRequested)
         {
             TransactionType tx = this.PickTransactionFromDistribution();
             currentTid++;
             var instanceId = threadId.ToString()+"-"+currentTid.ToString();
-            // Console.WriteLine("TID: "+instanceId);
             this.SubmitTransaction(instanceId, tx);
         }
         Console.WriteLine("Thread {0} finished. Last TID submitted was {1}", threadId, currentTid);
@@ -226,7 +225,7 @@ public class WorkloadManager
     protected TransactionType PickTransactionFromDistribution()
     {
         int x = this.random.Next(0, 101);
-        foreach (var entry in transactionDistribution)
+        foreach (var entry in this.transactionDistribution)
         {
             if (x <= entry.Value)
             {

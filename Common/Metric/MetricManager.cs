@@ -12,7 +12,7 @@ public class MetricManager
 {
     public delegate MetricManager BuildMetricManagerDelegate(ISellerService sellerService, ICustomerService customerService, IDeliveryService deliveryService);
 
-    protected static readonly ILogger logger = LoggerProxy.GetInstance("MetricManager");
+    protected static readonly ILogger LOGGER = LoggerProxy.GetInstance("MetricManager");
 
     protected readonly ISellerService sellerService;
     protected readonly ICustomerService customerService;
@@ -47,14 +47,14 @@ public class MetricManager
         {
             if (!submitted.ContainsKey(entry.tid))
             {
-                logger.LogWarning("[{0}] Cannot find correspondent submitted TID from finished transaction {0}", workerType, entry);
+                LOGGER.LogWarning("[{0}] Cannot find correspondent submitted TID from finished transaction {0}", workerType, entry);
                 continue;
             }
             var init = submitted[entry.tid];
             var latency = (entry.timestamp - init.timestamp).TotalMilliseconds;
             if (latency < 0)
             {
-                logger.LogWarning("[{0}] Negative latency found for TID {1}. Init {2} End {3}", workerType, entry.tid, init, entry);
+                LOGGER.LogWarning("[{0}] Negative latency found for TID {1}. Init {2} End {3}", workerType, entry.tid, init, entry);
                 continue;
             }
             latencyList.Add(new Latency(entry.tid, init.type, latency, entry.timestamp));
@@ -75,7 +75,7 @@ public class MetricManager
 
     public void Collect(DateTime startTime, DateTime finishTime, int epochPeriod = 0, string runName = null)
     {
-        logger.LogInformation("Starting collecting metrics for run between {0} and {1}", startTime, finishTime);
+        LOGGER.LogInformation("Starting collecting metrics for run between {0} and {1}", startTime, finishTime);
 
         StreamWriter sw = BuildStreamWriter(startTime, finishTime, runName);
 
@@ -94,7 +94,7 @@ public class MetricManager
 
         if (epochPeriod <= 0 || epochPeriod >= executionTime.Milliseconds)
         {
-            logger.LogWarning("Skipping breakdown calculation since epoch is outside allowed range!");
+            LOGGER.LogWarning("Skipping breakdown calculation since epoch is outside allowed range!");
         } else
         {
             BreakdownCalculation(startTime, finishTime, epochPeriod, sw, latencyGatherResults, txTypeValues, executionTime);
@@ -106,7 +106,7 @@ public class MetricManager
 
         CloseStreamWriter(sw);
 
-        logger.LogInformation("Finished collecting metrics.");
+        LOGGER.LogInformation("Finished collecting metrics.");
     }
 
     private void CalculateReplicationAnomalies(DateTime finishTime, StreamWriter sw)
@@ -115,30 +115,30 @@ public class MetricManager
         int anomalies = this.CollectReplicationAnomalies(finishTime);
         if (anomalies > 0)
         {
-            logger.LogInformation("================== Anomalies ==================");
+            LOGGER.LogInformation("================== Anomalies ==================");
             sw.WriteLine("================== Anomalies ==================");
-            logger.LogInformation("Number of collected anomalies: {0}", anomalies);
+            LOGGER.LogInformation("Number of collected anomalies: {0}", anomalies);
             sw.WriteLine("Number of collected anomalies: {0}", anomalies);
         }
     }
 
     private void CalculateAborts(DateTime finishTime, StreamWriter sw)
     {
-        logger.LogInformation("================== Aborts ==================");
+        LOGGER.LogInformation("================== Aborts ==================");
         sw.WriteLine("================== Aborts ==================");
         Dictionary<TransactionType, int> dictCount = this.CollectAborts(finishTime);
         foreach (var entry in dictCount)
         {
-            logger.LogInformation("Transaction: {0}: {1}", entry.Key, entry.Value);
+            LOGGER.LogInformation("Transaction: {0}: {1}", entry.Key, entry.Value);
             sw.WriteLine("Transaction: {0}: {1}", entry.Key, entry.Value);
         }
-        logger.LogInformation("===========================================");
+        LOGGER.LogInformation("===========================================");
         sw.WriteLine("===========================================");
     }
 
     private static void CloseStreamWriter(StreamWriter sw)
     {
-        logger.LogInformation("=================    THE END   ================");
+        LOGGER.LogInformation("=================    THE END   ================");
         sw.WriteLine("=================    THE END   ================");
         sw.Flush();
         sw.Close();
@@ -148,11 +148,11 @@ public class MetricManager
     {
         double txPerSecond = countTid / executionTime.TotalSeconds;
 
-        logger.LogInformation("Number of seconds: {0}", executionTime.TotalSeconds);
+        LOGGER.LogInformation("Number of seconds: {0}", executionTime.TotalSeconds);
         sw.WriteLine("Number of seconds: {0}", executionTime.TotalSeconds);
-        logger.LogInformation("Number of completed transactions: {0}", countTid);
+        LOGGER.LogInformation("Number of completed transactions: {0}", countTid);
         sw.WriteLine("Number of completed transactions: {0}", countTid);
-        logger.LogInformation("Transactions per second: {0}", txPerSecond);
+        LOGGER.LogInformation("Transactions per second: {0}", txPerSecond);
         sw.WriteLine("Transactions per second: {0}", txPerSecond);
         sw.WriteLine("=====================================================");
     }
@@ -212,7 +212,7 @@ public class MetricManager
             {
                 avg = entry.Value.Average();
             }
-            logger.LogInformation("Transaction: {0} - #{1} - Average end-to-end latency: {2}", entry.Key, entry.Value.Count, avg.ToString());
+            LOGGER.LogInformation("Transaction: {0} - #{1} - Average end-to-end latency: {2}", entry.Key, entry.Value.Count, avg.ToString());
             sw.WriteLine("Transaction: {0} - #{1} - Average end-to-end latency: {2}", entry.Key, entry.Value.Count, avg.ToString());
         }
 
@@ -225,7 +225,7 @@ public class MetricManager
     {
         // break down latencies by end timestamp
         int numEpochs = (int)executionTime.TotalMilliseconds / epochPeriod;
-        logger.LogInformation("{0} blocks for epoch {1}", numEpochs, epochPeriod);
+        LOGGER.LogInformation("{0} blocks for epoch {1}", numEpochs, epochPeriod);
         sw.WriteLine("{0} blocks for epoch {1}", numEpochs, epochPeriod);
 
         List<Dictionary<TransactionType, List<double>>> epochs = new(numEpochs);
@@ -261,7 +261,7 @@ public class MetricManager
         int epochIdx = 1;
         foreach (var epoch in epochs)
         {
-            logger.LogInformation("Block {0} results:", epochIdx);
+            LOGGER.LogInformation("Block {0} results:", epochIdx);
             sw.WriteLine("Block {0} results:", epochIdx);
 
             // iterating over each transaction type in block
@@ -274,7 +274,7 @@ public class MetricManager
                     avg = entry.Value.Average();
                 }
                 epochCountTid += entry.Value.Count;
-                logger.LogInformation("Transaction: {0} - #{1} - Average end-to-end latency: {2}", entry.Key, entry.Value.Count, avg.ToString());
+                LOGGER.LogInformation("Transaction: {0} - #{1} - Average end-to-end latency: {2}", entry.Key, entry.Value.Count, avg.ToString());
                 sw.WriteLine("Transaction: {0} - #{1} - Average end-to-end latency: {2}", entry.Key, entry.Value.Count, avg.ToString());
 
                 // calculate percentiles
@@ -282,7 +282,7 @@ public class MetricManager
                 foreach(int perc in PERCENTILES)
                 {
                     double percValue = ArrayStatistics.PercentileInplace(entry.Value.ToArray(), perc);
-                    logger.LogInformation("Transaction: {0} - #{1} - {2}th percentile end-to-end latency: {3}", entry.Key, entry.Value.Count, perc, percValue);
+                    LOGGER.LogInformation("Transaction: {0} - #{1} - {2}th percentile end-to-end latency: {3}", entry.Key, entry.Value.Count, perc, percValue);
                     sw.WriteLine("Transaction: {0} - #{1} - {2}th percentile end-to-end latency: {2}", entry.Key, entry.Value.Count, perc, percValue);
                 }
                
@@ -290,9 +290,9 @@ public class MetricManager
 
             double epochTxPerSecond = epochCountTid / (epochPeriod / 1000d);
 
-            logger.LogInformation("Number of completed transactions: {0}", epochCountTid);
+            LOGGER.LogInformation("Number of completed transactions: {0}", epochCountTid);
             sw.WriteLine("Number of completed transactions: {0}", epochCountTid);
-            logger.LogInformation("Transactions per second: {0}", epochTxPerSecond);
+            LOGGER.LogInformation("Transactions per second: {0}", epochTxPerSecond);
             sw.WriteLine("Transactions per second: {0}", epochTxPerSecond);
 
             epochIdx++;
@@ -318,7 +318,7 @@ public class MetricManager
         var customerAborts = this.customerService.GetAbortedTransactions();
         abortCount[TransactionType.CUSTOMER_SESSION] += customerAborts.Count;
 
-        var deliveryAborts = deliveryService.GetAbortedTransactions();
+        var deliveryAborts = this.deliveryService.GetAbortedTransactions();
         abortCount[TransactionType.UPDATE_DELIVERY] += deliveryAborts.Count;
         
         return abortCount;
@@ -340,7 +340,7 @@ public class MetricManager
                 if (!sellerSubmitted.TryAdd(tx.tid, tx))
                 {
                     dupSub++;
-                    logger.LogDebug("[Seller] Duplicate submitted transaction entry found. Existing {0} New {1} ", sellerSubmitted[tx.tid], tx);
+                    LOGGER.LogDebug("[Seller] Duplicate submitted transaction entry found. Existing {0} New {1} ", sellerSubmitted[tx.tid], tx);
                 }
             }
 
@@ -350,15 +350,15 @@ public class MetricManager
                 if (!sellerFinished.TryAdd(tx.tid, tx))
                 {
                     dupFin++;
-                    logger.LogDebug("[Seller] Duplicate finished transaction entry found. Existing {0} New {1} ", sellerFinished[tx.tid], finished);
+                    LOGGER.LogDebug("[Seller] Duplicate finished transaction entry found. Existing {0} New {1} ", sellerFinished[tx.tid], finished);
                 }
             }
         }
 
         if (dupSub > 0)
-            logger.LogWarning("[Seller] Number of duplicated submitted transactions found: {0}", dupSub);
+            LOGGER.LogWarning("[Seller] Number of duplicated submitted transactions found: {0}", dupSub);
         if (dupFin > 0)
-            logger.LogWarning("[Seller] Number of duplicated finished transactions found: {0}", dupFin);
+            LOGGER.LogWarning("[Seller] Number of duplicated finished transactions found: {0}", dupFin);
 
         return BuildLatencyList(sellerSubmitted, sellerFinished, finishTime, "seller");
     }
@@ -380,7 +380,7 @@ public class MetricManager
                 if (!customerSubmitted.TryAdd(tx.tid, tx))
                 {
                     dupSub++;
-                    logger.LogDebug("[Customer] Duplicate submitted transaction entry found. Existing {0} New {1} ", customerSubmitted[tx.tid], tx);
+                    LOGGER.LogDebug("[Customer] Duplicate submitted transaction entry found. Existing {0} New {1} ", customerSubmitted[tx.tid], tx);
                 }
             }
 
@@ -389,16 +389,16 @@ public class MetricManager
                 if (!customerFinished.TryAdd(tx.tid, tx))
                 {
                     dupFin++;
-                    logger.LogDebug("[Customer] Duplicate finished transaction entry found. Existing {0} New {1} ", customerFinished[tx.tid], tx);
+                    LOGGER.LogDebug("[Customer] Duplicate finished transaction entry found. Existing {0} New {1} ", customerFinished[tx.tid], tx);
                 }
             }
 
         }
 
         if (dupSub > 0)
-            logger.LogWarning("[Customer] Number of duplicated submitted transactions found: {0}", dupSub);
+            LOGGER.LogWarning("[Customer] Number of duplicated submitted transactions found: {0}", dupSub);
         if (dupFin > 0)
-            logger.LogWarning("[Customer] Number of duplicated finished transactions found: {0}", dupFin);
+            LOGGER.LogWarning("[Customer] Number of duplicated finished transactions found: {0}", dupFin);
 
         return BuildLatencyList(customerSubmitted, customerFinished, finishTime, "customer");
     }
@@ -417,7 +417,7 @@ public class MetricManager
             if (!deliverySubmitted.TryAdd(tx.tid, tx))
             {
                 dupSub++;
-                logger.LogDebug("[Delivery] Duplicate submitted transaction entry found. Existing {0} New {1} ", deliverySubmitted[tx.tid], tx);
+                LOGGER.LogDebug("[Delivery] Duplicate submitted transaction entry found. Existing {0} New {1} ", deliverySubmitted[tx.tid], tx);
             }
         }
 
@@ -427,14 +427,14 @@ public class MetricManager
             if (!deliveryFinished.TryAdd(tx.tid, tx))
             {
                 dupFin++;
-                logger.LogDebug("[Delivery] Duplicate finished transaction entry found. Existing {0} New {1} ", deliveryFinished[tx.tid], tx);
+                LOGGER.LogDebug("[Delivery] Duplicate finished transaction entry found. Existing {0} New {1} ", deliveryFinished[tx.tid], tx);
             }
         }
 
         if (dupSub > 0)
-            logger.LogWarning("[Delivery] Number of duplicated submitted transactions found: {0}", dupSub);
+            LOGGER.LogWarning("[Delivery] Number of duplicated submitted transactions found: {0}", dupSub);
         if (dupFin > 0)
-            logger.LogWarning("[Delivery] Number of duplicated finished transactions found: {0}", dupFin);
+            LOGGER.LogWarning("[Delivery] Number of duplicated finished transactions found: {0}", dupFin);
 
         return BuildLatencyList(deliverySubmitted, deliveryFinished, finishTime, "delivery");
     }

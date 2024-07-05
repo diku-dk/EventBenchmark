@@ -19,12 +19,7 @@ public sealed class DaprMetricManager : MetricManager
 
     protected override Dictionary<TransactionType, int> CollectAborts(DateTime finishTime)
     {
-        Dictionary<TransactionType, int> abortCount = new()
-        {
-            { TransactionType.PRICE_UPDATE, 0 },
-             { TransactionType.UPDATE_PRODUCT, 0 },
-              { TransactionType.CUSTOMER_SESSION, 0 },
-        };
+        Dictionary<TransactionType, int> abortCount = base.CollectAborts(finishTime);
         while (Shared.PoisonPriceUpdateOutputs.Reader.TryRead(out _))
         {
             abortCount[TransactionType.PRICE_UPDATE]++;
@@ -50,7 +45,7 @@ public sealed class DaprMetricManager : MetricManager
         int dupSub = 0;
         int dupFin = 0;
 
-        for (int i = 1; i <= numCustomers; i++)
+        for (int i = 1; i <= this.numCustomers; i++)
         {
             var submitted = this.customerService.GetSubmittedTransactions(i);
             foreach (var tx in submitted)
@@ -58,7 +53,7 @@ public sealed class DaprMetricManager : MetricManager
                 if (!customerSubmitted.TryAdd(tx.tid, tx))
                 {
                     dupSub++;
-                    logger.LogDebug("[Customer] Duplicate submitted transaction entry found. Existing {0} New {1} ", customerSubmitted[tx.tid], tx);
+                    LOGGER.LogDebug("[Customer] Duplicate submitted transaction entry found. Existing {0} New {1} ", customerSubmitted[tx.tid], tx);
                 }
             }
         }
@@ -68,14 +63,14 @@ public sealed class DaprMetricManager : MetricManager
             if (!customerFinished.TryAdd(item.tid, item))
             {
                 dupFin++;
-                logger.LogDebug("[Customer] Duplicate finished transaction entry found: Tid {0} Mark {1}", item.tid, item);
+                LOGGER.LogDebug("[Customer] Duplicate finished transaction entry found: Tid {0} Mark {1}", item.tid, item);
             }
         }
 
         if (dupSub > 0)
-            logger.LogWarning("[Customer] Number of duplicated submitted transactions found: {0}", dupSub);
+            LOGGER.LogWarning("[Customer] Number of duplicated submitted transactions found: {0}", dupSub);
         if (dupFin > 0)
-            logger.LogWarning("[Customer] Number of duplicated finished transactions found: {0}", dupFin);
+            LOGGER.LogWarning("[Customer] Number of duplicated finished transactions found: {0}", dupFin);
 
         return BuildLatencyList(customerSubmitted, customerFinished, finishTime, "customer");
     }
@@ -88,7 +83,7 @@ public sealed class DaprMetricManager : MetricManager
         int dupSub = 0;
         int dupFin = 0;
 
-        for (int i = 1; i <= numSellers; i++)
+        for (int i = 1; i <= this.numSellers; i++)
         {
             var submitted = this.sellerService.GetSubmittedTransactions(i);
             foreach (var tx in submitted)
@@ -96,7 +91,17 @@ public sealed class DaprMetricManager : MetricManager
                 if (!sellerSubmitted.TryAdd(tx.tid, tx))
                 {
                     dupSub++;
-                    logger.LogDebug("[Seller] Duplicate submitted transaction entry found. Existing {0} New {1} ", sellerSubmitted[tx.tid], tx);
+                    LOGGER.LogDebug("[Seller] Duplicate submitted transaction entry found. Existing {0} New {1} ", sellerSubmitted[tx.tid], tx);
+                }
+            }
+
+            var finished = this.sellerService.GetFinishedTransactions(i);
+            foreach (var tx in finished)
+            {
+                if (!sellerFinished.TryAdd(tx.tid, tx))
+                {
+                    dupFin++;
+                    LOGGER.LogDebug("[Seller] Duplicate finished transaction entry found. Existing {0} New {1} ", sellerFinished[tx.tid], finished);
                 }
             }
         }
@@ -107,7 +112,7 @@ public sealed class DaprMetricManager : MetricManager
             if (!sellerFinished.TryAdd(item.tid, item))
             {
                 dupFin++;
-                logger.LogDebug("[Seller] Duplicate finished transaction entry found: Tid {0} Mark {1}", item.tid, item);
+                LOGGER.LogDebug("[Seller] Duplicate finished transaction entry found: Tid {0} Mark {1}", item.tid, item);
             }
         }
 
@@ -116,17 +121,16 @@ public sealed class DaprMetricManager : MetricManager
             if (!sellerFinished.TryAdd(item.tid, item))
             {
                 dupFin++;
-                logger.LogDebug("[Seller] Duplicate finished transaction entry found: Tid {0} Mark {1}", item.tid, item);
+                LOGGER.LogDebug("[Seller] Duplicate finished transaction entry found: Tid {0} Mark {1}", item.tid, item);
             }
         }
 
         if (dupSub > 0)
-            logger.LogWarning("[Seller] Number of duplicated submitted transactions found: {0}", dupSub);
+            LOGGER.LogWarning("[Seller] Number of duplicated submitted transactions found: {0}", dupSub);
         if (dupFin > 0)
-            logger.LogWarning("[Seller] Number of duplicated finished transactions found: {0}", dupFin);
+            LOGGER.LogWarning("[Seller] Number of duplicated finished transactions found: {0}", dupFin);
 
         return BuildLatencyList(sellerSubmitted, sellerFinished, finishTime, "seller");
-
     }
 }
 

@@ -42,11 +42,25 @@ public sealed class DaprExperimentManager : AbstractExperimentManager
             AbortOnConnectFail = false
         };
         this.channelsToTrim = new();
+        this.channelsToTrim.AddRange(this.config.streamingConfig.streams);
+
+        // should also iterate over all transaction mark streams and trim them
+        foreach (var type in TX_SET)
+        {
+            var channel = new StringBuilder(nameof(TransactionMark)).Append('_').Append(type.ToString()).ToString();
+            this.channelsToTrim.Add(channel);
+        }
     }
+
+    public async void TrimStreams()
+    {
+        await RedisUtils.TrimStreams(this.redisConfig, this.channelsToTrim);
+    }
+
 
     protected override async void PostExperiment()
     {
-        await RedisUtils.TrimStreams(this.redisConfig, channelsToTrim);
+        await RedisUtils.TrimStreams(this.redisConfig, this.channelsToTrim);
         base.PostExperiment();
     }
 
@@ -59,27 +73,17 @@ public sealed class DaprExperimentManager : AbstractExperimentManager
     {
         // cleanup microservice states
         var resps_ = new List<Task<HttpResponseMessage>>();
-        foreach (var task in config.postExperimentTasks)
+        foreach (var task in this.config.postExperimentTasks)
         {
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
-            logger.LogInformation("Pre experiment task to URL {0}", task.url);
+            LOGGER.LogInformation("Pre experiment task to URL {0}", task.url);
             resps_.Add(HttpUtils.client.SendAsync(message));
         }
         await Task.WhenAll(resps_);
 
-        this.channelsToTrim.AddRange(config.streamingConfig.streams);
-
-        // should also iterate over all transaction mark streams and trim them
-        foreach (var type in TX_SET)
-        {
-            var channel = new StringBuilder(nameof(TransactionMark)).Append('_').Append(type.ToString()).ToString();
-            this.channelsToTrim.Add(channel);
-        }
-
-        await RedisUtils.TrimStreams(redisConfig, channelsToTrim);
+        await RedisUtils.TrimStreams(this.redisConfig, this.channelsToTrim);
 
         base.PreExperiment();
-
     }
 
     protected override async void PostRunTasks(int runIdx)
@@ -90,28 +94,28 @@ public sealed class DaprExperimentManager : AbstractExperimentManager
         // reset data in microservices - post run
         if (runIdx < this.config.runs.Count - 1)
         {
-            logger.LogInformation("Post run tasks started");
+            LOGGER.LogInformation("Post run tasks started");
             var responses = new List<Task<HttpResponseMessage>>();
             List<PostRunTask> postRunTasks;
             // must call the cleanup if next run changes number of products
             if (config.runs[runIdx + 1].numProducts != config.runs[runIdx].numProducts)
             {
-                logger.LogInformation("Next run changes the number of products.");
+                LOGGER.LogInformation("Next run changes the number of products.");
                 postRunTasks = config.postExperimentTasks;
             }
             else
             {
-                logger.LogInformation("Next run does not change the number of products.");
+                LOGGER.LogInformation("Next run does not change the number of products.");
                 postRunTasks = config.postRunTasks;
             }
             foreach (var task in postRunTasks)
             {
                 HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
-                logger.LogInformation("Post run task to Microservice {0} URL {1}", task.name, task.url);
+                LOGGER.LogInformation("Post run task to Microservice {0} URL {1}", task.name, task.url);
                 responses.Add(HttpUtils.client.SendAsync(message));
             }
             await Task.WhenAll(responses);
-            logger.LogInformation("Post run tasks finished");
+            LOGGER.LogInformation("Post run tasks finished");
         }
 
     }

@@ -39,9 +39,9 @@ public sealed class SellerService : ISellerService
     public List<TransactionMark> GetAbortedTransactions()
     {
         List<TransactionMark> merged = new();
-        foreach(var seller in this.sellers)
+        foreach(var seller in this.sellers.Values)
         {
-            merged.AddRange(seller.Value.GetAbortedTransactions());
+            merged.AddRange(seller.GetAbortedTransactions());
         }
         return merged;
     }

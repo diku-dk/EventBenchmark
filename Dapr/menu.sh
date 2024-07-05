@@ -5,7 +5,7 @@ do
     clear
     cat<<EOF
     ==============================
-    Dapr driver
+    Dapr benchmark driver
     ------------------------------
     Please enter your choice:
 
@@ -14,6 +14,7 @@ do
     (3) Run Experiment
     (4) Ingest and Run
     (5) Refresh Configuration
+    (6) Trim Streams
     (q) Quit
     ------------------------------
 EOF
@@ -30,6 +31,10 @@ EOF
             echo "Enter the path of the configuration file. Remember to switch / by %2F"
             read json
             curl -X POST localhost:8081/6/$json
+            ;;
+    "6") 
+            echo "Requesting trimming streams"
+            curl -X POST localhost:8081/7
             ;;
     "Q")  exit  ;;
     "q")  exit  ;; 

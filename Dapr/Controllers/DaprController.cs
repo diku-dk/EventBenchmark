@@ -87,7 +87,8 @@ public class DaprController : ControllerBase
         {
             return BadRequest("Please generate some data first by selecting option 1.");
         }
-        DaprExperimentManager experimentManager = DaprExperimentManager.BuildDaprExperimentManager(this.httpClientFactory, CONFIG, CONNECTION);
+        var experimentManager = DaprExperimentManager
+                                    .BuildDaprExperimentManager(this.httpClientFactory, CONFIG, CONNECTION);
         experimentManager.RunSimpleExperiment();
         return Ok("Experiment finished");
     }
@@ -108,7 +109,7 @@ public class DaprController : ControllerBase
         }
         await CustomIngestionOrchestrator.Run(CONNECTION, CONFIG.ingestionConfig);
         var expManager = DaprExperimentManager
-                        .BuildDaprExperimentManager(new CustomHttpClientFactory(), CONFIG, CONNECTION);
+                            .BuildDaprExperimentManager(new CustomHttpClientFactory(), CONFIG, CONNECTION);
         expManager.RunSimpleExperiment();
         return Ok("Experiment finished");
     }
@@ -133,6 +134,24 @@ public class DaprController : ControllerBase
         ExperimentConfig newConfig = ConsoleUtility.BuildExperimentConfig_(path);
         Interlocked.Exchange(ref CONFIG, newConfig);
         return Ok("New configuration parsed.");
+    }
+
+    private static readonly string STREAMS_TRIMMED_OK = "New trimmed successfully.";
+
+    [Route("/7")]
+    [HttpPost]
+    [ProducesResponseType((int)HttpStatusCode.OK)]
+    public ActionResult TrimStreams()
+    {
+        if(CONFIG is null)
+        {
+            return BadRequest("Please register a configuration first.");
+        }
+        var expManager = DaprExperimentManager
+                            .BuildDaprExperimentManager(new CustomHttpClientFactory(), CONFIG, CONNECTION);
+        expManager.TrimStreams();
+        Console.WriteLine(STREAMS_TRIMMED_OK);
+        return Ok(STREAMS_TRIMMED_OK);
     }
 
 }

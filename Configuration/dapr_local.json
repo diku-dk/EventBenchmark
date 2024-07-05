@@ -12,7 +12,8 @@
     "transactionDistribution": {
         // "PRICE_UPDATE": 50,
         // "UPDATE_PRODUCT": 100
-        "CUSTOMER_SESSION": 100
+        "QUERY_DASHBOARD": 100,
+        //"CUSTOMER_SESSION": 100
     },
     "ingestionConfig": {
         "strategy": "WORKER_PER_CPU",
@@ -36,17 +37,16 @@
         "host": "localhost",
         "port": 6379,
         "streams": [
-            "DeliveryNotification",
-            "InvoiceIssued",
-            "PaymentConfirmed",
-            "PaymentFailed",
-            "Product",
             "ProductUpdated",
             "PriceUpdated",
             "ReserveStock",
-            "ShipmentNotification",
+            "ReserveStockFailed",
             "StockConfirmed",
-            "ReserveStockFailed"
+            "InvoiceIssued",
+            "PaymentConfirmed",
+            "PaymentFailed",
+            "ShipmentNotification",
+            "DeliveryNotification"
         ]
     },
     "customerWorkerConfig": {

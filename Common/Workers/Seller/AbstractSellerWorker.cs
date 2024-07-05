@@ -45,7 +45,7 @@ public abstract class AbstractSellerWorker : ISellerWorker
         this.logger = logger;
         this.submittedTransactions = new ConcurrentBag<TransactionIdentifier>();
         this.finishedTransactions = new ConcurrentBag<TransactionOutput>();
-        this.abortedTransactions = new();
+        this.abortedTransactions = new ConcurrentBag<TransactionMark>();
         this.sellerId = sellerId;
         this.config = workerConfig;
         this.trackedUpdates = new List<Product>();

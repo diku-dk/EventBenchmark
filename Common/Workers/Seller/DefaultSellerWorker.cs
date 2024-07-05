@@ -84,22 +84,23 @@ public class DefaultSellerWorker : AbstractSellerWorker
         try
         {
             HttpRequestMessage message = new(HttpMethod.Get, config.sellerUrl + "/dashboard/" + this.sellerId);
-
-            var now = DateTime.UtcNow;
+            var startTs = DateTime.UtcNow;
             var response = this.httpClient.Send(message);
+            var endTs = DateTime.UtcNow;
             if (response.IsSuccessStatusCode)
             {
-                this.finishedTransactions.Add(new TransactionOutput(tid, DateTime.UtcNow));
-                this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.QUERY_DASHBOARD, now));
+                this.finishedTransactions.Add(new TransactionOutput(tid, endTs));
+                this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.QUERY_DASHBOARD, startTs));
             }
             else
             {
                 this.abortedTransactions.Add(new TransactionMark(tid, TransactionType.QUERY_DASHBOARD, this.sellerId, MarkStatus.ABORT, "seller"));
-                this.logger.LogDebug("Seller {0}: Dashboard retrieval failed: {0}", this.sellerId, response.ReasonPhrase);
+                this.logger.LogDebug("Seller {0} - {1} - Dashboard retrieval failed: {2}", this.sellerId, endTs, response.ReasonPhrase);
             }
         }
         catch (Exception e)
         {
+            this.abortedTransactions.Add(new TransactionMark(tid, TransactionType.QUERY_DASHBOARD, this.sellerId, MarkStatus.ABORT, "seller"));
             this.logger.LogDebug("Seller {0}: Dashboard could not be retrieved: {1}", this.sellerId, e.Message);
         }
     }

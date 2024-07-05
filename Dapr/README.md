@@ -12,3 +12,5 @@ dapr run --app-port 8081 --app-id driver --app-protocol http --dapr-http-port 80
 # Run from the root folder
 dapr run --app-port 8081 --app-id driver --app-protocol http --dapr-http-port 8082 -- dotnet run --project Dapr/Dapr.csproj
 
+# Connect Redis Insight to Redis in Docker
+docker.for.mac.localhost
