@@ -139,7 +139,7 @@ public abstract class AbstractExperimentManager
     {
         this.metricManager.SetUp(this.numSellers, this.config.numCustomers);
         string ts = new DateTimeOffset(startTime).ToUnixTimeMilliseconds().ToString();
-        this.metricManager.Collect(startTime, finishTime, config.epoch, string.Format("{0}#{1}_{2}_{3}_{4}_{5}_{6}", ts, runIdx, this.config.numCustomers, this.config.concurrencyLevel, this.config.runs[runIdx].numProducts, this.config.runs[runIdx].sellerDistribution, this.config.runs[runIdx].keyDistribution));
+        this.metricManager.Collect(startTime, finishTime, this.config.epoch, string.Format("{0}#{1}_{2}_{3}_{4}_{5}_{6}", ts, runIdx, this.config.numCustomers, this.config.concurrencyLevel, this.config.runs[runIdx].numProducts, this.config.runs[runIdx].sellerDistribution, this.config.runs[runIdx].keyDistribution));
     }
 
     public virtual async Task Run()

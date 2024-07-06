@@ -92,17 +92,17 @@ public class MetricManager
         TimeSpan executionTime = finishTime - startTime;
         CalculateOverallThroughput(sw, countTid, executionTime);
 
-        if (epochPeriod <= 0 || epochPeriod >= executionTime.Milliseconds)
+        if (epochPeriod <= 0 || epochPeriod >= executionTime.TotalMilliseconds)
         {
-            LOGGER.LogWarning("Skipping breakdown calculation since epoch is outside allowed range!");
+            LOGGER.LogWarning($"Skipping breakdown calculation since epoch ({epochPeriod}) is outside allowed range!");
         } else
         {
             BreakdownCalculation(startTime, finishTime, epochPeriod, sw, latencyGatherResults, txTypeValues, executionTime);
         }
 
-        CalculateAborts(finishTime, sw);
+        this.CalculateAborts(finishTime, sw);
 
-        CalculateReplicationAnomalies(finishTime, sw);
+        this.CalculateReplicationAnomalies(finishTime, sw);
 
         CloseStreamWriter(sw);
 
@@ -214,6 +214,15 @@ public class MetricManager
             }
             LOGGER.LogInformation("Transaction: {0} - #{1} - Average end-to-end latency: {2}", entry.Key, entry.Value.Count, avg.ToString());
             sw.WriteLine("Transaction: {0} - #{1} - Average end-to-end latency: {2}", entry.Key, entry.Value.Count, avg.ToString());
+            // calculate percentiles
+            if(avg > 0){
+                foreach(int perc in PERCENTILES)
+                {
+                    double percValue = ArrayStatistics.PercentileInplace(entry.Value.ToArray(), perc);
+                    LOGGER.LogInformation("Transaction: {0} - #{1} - {2}th percentile end-to-end latency: {3}", entry.Key, entry.Value.Count, perc, percValue);
+                    sw.WriteLine("Transaction: {0} - #{1} - {2}th percentile end-to-end latency: {2}", entry.Key, entry.Value.Count, perc, percValue);
+                }
+            }
         }
 
         return latencyGatherResults;
@@ -278,14 +287,14 @@ public class MetricManager
                 sw.WriteLine("Transaction: {0} - #{1} - Average end-to-end latency: {2}", entry.Key, entry.Value.Count, avg.ToString());
 
                 // calculate percentiles
-                // https://github.com/diku-dk/Snapper-Orleans/blob/b2f023fdc6b279f2af12e23f7f0a24bb2522add0/SnapperExperimentProcess/SingleExperimentManager.cs#L569C31-L569C46
-                foreach(int perc in PERCENTILES)
-                {
-                    double percValue = ArrayStatistics.PercentileInplace(entry.Value.ToArray(), perc);
-                    LOGGER.LogInformation("Transaction: {0} - #{1} - {2}th percentile end-to-end latency: {3}", entry.Key, entry.Value.Count, perc, percValue);
-                    sw.WriteLine("Transaction: {0} - #{1} - {2}th percentile end-to-end latency: {2}", entry.Key, entry.Value.Count, perc, percValue);
+                if(avg > 0){
+                    foreach(int perc in PERCENTILES)
+                    {
+                        double percValue = ArrayStatistics.PercentileInplace(entry.Value.ToArray(), perc);
+                        LOGGER.LogInformation("Transaction: {0} - #{1} - {2}th percentile end-to-end latency: {3}", entry.Key, entry.Value.Count, perc, percValue);
+                        sw.WriteLine("Transaction: {0} - #{1} - {2}th percentile end-to-end latency: {2}", entry.Key, entry.Value.Count, perc, percValue);
+                    }
                 }
-               
             }
 
             double epochTxPerSecond = epochCountTid / (epochPeriod / 1000d);

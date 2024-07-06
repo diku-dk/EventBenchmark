@@ -47,7 +47,7 @@ public class DefaultSellerWorker : AbstractSellerWorker
         else
         {
             this.abortedTransactions.Add(new TransactionMark(tid, TransactionType.PRICE_UPDATE, this.sellerId, MarkStatus.ABORT, "product"));
-            this.logger.LogDebug("Seller {0} failed to update product {1} price: {2}", this.sellerId, product.product_id, resp.ReasonPhrase);
+            this.logger.LogWarning("Seller {0} failed to update product {1} price: {2}", this.sellerId, product.product_id, resp.ReasonPhrase);
         }
     }
 
@@ -70,7 +70,7 @@ public class DefaultSellerWorker : AbstractSellerWorker
         else
         {
             this.abortedTransactions.Add(new TransactionMark(tid, TransactionType.UPDATE_PRODUCT, this.sellerId, MarkStatus.ABORT, "product"));
-            this.logger.LogDebug("Seller {0} failed to update product {1} version: {2}", this.sellerId, product.product_id, resp.ReasonPhrase);
+            this.logger.LogWarning("Seller {0} failed to update product {1} version: {2}", this.sellerId, product.product_id, resp.ReasonPhrase);
         }
     }
 

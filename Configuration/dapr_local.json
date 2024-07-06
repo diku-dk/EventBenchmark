@@ -4,16 +4,16 @@
     "numProdPerSeller": 10,
     "qtyPerProduct": 10000,
     "executionTime": 10000,
-    "epoch": 0,
+    "epoch": 1000,
     "delayBetweenRequests": 0,
     "delayBetweenRuns": 0,
-    "concurrencyLevel": 1,
-    "concurrencyType": "CONTINUOUS",
+    "concurrencyLevel": 2,
+    "concurrencyType": "CONTINUOUS", // CONTINUOUS or CONTROL
     "transactionDistribution": {
-        // "PRICE_UPDATE": 50,
-        // "UPDATE_PRODUCT": 100
-        "QUERY_DASHBOARD": 100,
-        //"CUSTOMER_SESSION": 100
+        "PRICE_UPDATE": 20,
+        "UPDATE_PRODUCT": 40,
+        "QUERY_DASHBOARD": 60,
+        "CUSTOMER_SESSION": 100
     },
     "ingestionConfig": {
         "strategy": "WORKER_PER_CPU",
@@ -30,8 +30,8 @@
             "keyDistribution": "UNIFORM"
         }
     ],
-    "postRunTasks": [ ],
-    "postExperimentTasks": [ ],
+    "postRunTasks": [],
+    "postExperimentTasks": [],
     "streamingConfig": {
         "type": "REDIS",
         "host": "localhost",
