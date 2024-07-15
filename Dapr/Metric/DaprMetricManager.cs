@@ -2,6 +2,7 @@
 using Common.Workload.Metrics;
 using Common.Services;
 using Common.Metric;
+using Common.Streaming;
 
 namespace Daprr.Metric;
 
@@ -20,6 +21,7 @@ public sealed class DaprMetricManager : MetricManager
     protected override Dictionary<TransactionType, int> CollectAborts(DateTime finishTime)
     {
         Dictionary<TransactionType, int> abortCount = base.CollectAborts(finishTime);
+
         while (Shared.PoisonPriceUpdateOutputs.Reader.TryRead(out _))
         {
             abortCount[TransactionType.PRICE_UPDATE]++;
@@ -30,10 +32,18 @@ public sealed class DaprMetricManager : MetricManager
             abortCount[TransactionType.UPDATE_PRODUCT]++;
         }
 
-        while (Shared.PoisonCheckoutOutputs.Reader.TryRead(out _))
+        List<TransactionMark> customerAborts = new();
+        while (Shared.PoisonCheckoutOutputs.Reader.TryRead(out var item))
         {
+            customerAborts.Add(item);
             abortCount[TransactionType.CUSTOMER_SESSION]++;
         }
+
+        if(customerAborts.Count > 0)
+        {
+            OutputCustomerAbortsAggregated(customerAborts);
+        }
+
         return abortCount;
     }
 

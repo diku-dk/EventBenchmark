@@ -1,6 +1,7 @@
 ﻿using Common.Entities;
 using Common.Infra;
 using Common.Services;
+using Common.Streaming;
 using Common.Workload;
 using Common.Workload.Metrics;
 using MathNet.Numerics.Statistics;
@@ -319,18 +320,41 @@ public class MetricManager
                 { TransactionType.QUERY_DASHBOARD, 0 },
                   { TransactionType.UPDATE_DELIVERY, 0 },
         };
-        var sellerAborts = this.sellerService.GetAbortedTransactions();
+        List<TransactionMark> sellerAborts = this.sellerService.GetAbortedTransactions();
         foreach(var abort in sellerAborts){
             abortCount[abort.type]++;
         }
 
-        var customerAborts = this.customerService.GetAbortedTransactions();
+        if(sellerAborts.Count > 0){
+            var sellerAbortsAgg = sellerAborts.GroupBy(a=>a.source).Select(group => new { Source = group.Key, Count = group.Count() }).OrderBy(g=>g.Count);
+            LOGGER.LogInformation("Seller Aborts by Source");
+            foreach(var line in sellerAbortsAgg)
+            {
+                LOGGER.LogInformation("Source: {0} Count: {1}", line.Source, line.Count);
+            }
+        }
+
+        List<TransactionMark> customerAborts = this.customerService.GetAbortedTransactions();
         abortCount[TransactionType.CUSTOMER_SESSION] += customerAborts.Count;
 
-        var deliveryAborts = this.deliveryService.GetAbortedTransactions();
+        if(customerAborts.Count > 0){
+            OutputCustomerAbortsAggregated(customerAborts);
+        }
+
+        List<TransactionMark> deliveryAborts = this.deliveryService.GetAbortedTransactions();
         abortCount[TransactionType.UPDATE_DELIVERY] += deliveryAborts.Count;
         
         return abortCount;
+    }
+
+    protected void OutputCustomerAbortsAggregated(List<TransactionMark> customerAborts)
+    {
+        var customerAbortsAgg = customerAborts.GroupBy(a=>a.source).Select(group => new { Source = group.Key, Count = group.Count() }).OrderBy(g=>g.Count);
+        LOGGER.LogInformation("Customer Aborts by Source");
+        foreach(var line in customerAbortsAgg)
+        {
+            LOGGER.LogInformation("Source: {0} Count: {1}", line.Source, line.Count);
+        }
     }
 
     protected virtual List<Latency> CollectFromSeller(DateTime finishTime)
@@ -349,7 +373,7 @@ public class MetricManager
                 if (!sellerSubmitted.TryAdd(tx.tid, tx))
                 {
                     dupSub++;
-                    LOGGER.LogDebug("[Seller] Duplicate submitted transaction entry found. Existing {0} New {1} ", sellerSubmitted[tx.tid], tx);
+                    LOGGER.LogWarning("[Seller] Duplicate submitted transaction entry found. Existing {0} New {1} ", sellerSubmitted[tx.tid], tx);
                 }
             }
 
@@ -359,7 +383,7 @@ public class MetricManager
                 if (!sellerFinished.TryAdd(tx.tid, tx))
                 {
                     dupFin++;
-                    LOGGER.LogDebug("[Seller] Duplicate finished transaction entry found. Existing {0} New {1} ", sellerFinished[tx.tid], finished);
+                    LOGGER.LogWarning("[Seller] Duplicate finished transaction entry found. Existing {0} New {1} ", sellerFinished[tx.tid], finished);
                 }
             }
         }
@@ -389,7 +413,7 @@ public class MetricManager
                 if (!customerSubmitted.TryAdd(tx.tid, tx))
                 {
                     dupSub++;
-                    LOGGER.LogDebug("[Customer] Duplicate submitted transaction entry found. Existing {0} New {1} ", customerSubmitted[tx.tid], tx);
+                    LOGGER.LogWarning("[Customer] Duplicate submitted transaction entry found. Existing {0} New {1} ", customerSubmitted[tx.tid], tx);
                 }
             }
 
@@ -398,7 +422,7 @@ public class MetricManager
                 if (!customerFinished.TryAdd(tx.tid, tx))
                 {
                     dupFin++;
-                    LOGGER.LogDebug("[Customer] Duplicate finished transaction entry found. Existing {0} New {1} ", customerFinished[tx.tid], tx);
+                    LOGGER.LogWarning("[Customer] Duplicate finished transaction entry found. Existing {0} New {1} ", customerFinished[tx.tid], tx);
                 }
             }
 
@@ -426,7 +450,7 @@ public class MetricManager
             if (!deliverySubmitted.TryAdd(tx.tid, tx))
             {
                 dupSub++;
-                LOGGER.LogDebug("[Delivery] Duplicate submitted transaction entry found. Existing {0} New {1} ", deliverySubmitted[tx.tid], tx);
+                LOGGER.LogWarning("[Delivery] Duplicate submitted transaction entry found. Existing {0} New {1} ", deliverySubmitted[tx.tid], tx);
             }
         }
 
@@ -436,7 +460,7 @@ public class MetricManager
             if (!deliveryFinished.TryAdd(tx.tid, tx))
             {
                 dupFin++;
-                LOGGER.LogDebug("[Delivery] Duplicate finished transaction entry found. Existing {0} New {1} ", deliveryFinished[tx.tid], tx);
+                LOGGER.LogWarning("[Delivery] Duplicate finished transaction entry found. Existing {0} New {1} ", deliveryFinished[tx.tid], tx);
             }
         }
 
