@@ -64,7 +64,7 @@ public class MetricManager
         return latencyList;
     }
 
-    public static void SimpleCollect(DateTime startTime, DateTime finishTime, int numberTIDs, string runName = null)
+    public static void SimpleCollect(DateTime startTime, DateTime finishTime, long numberTIDs, string runName = null)
     {
         StreamWriter sw = BuildStreamWriter(startTime, finishTime, runName);
         
@@ -145,7 +145,7 @@ public class MetricManager
         sw.Close();
     }
 
-    private static void CalculateOverallThroughput(StreamWriter sw, int countTid, TimeSpan executionTime)
+    private static void CalculateOverallThroughput(StreamWriter sw, long countTid, TimeSpan executionTime)
     {
         double txPerSecond = countTid / executionTime.TotalSeconds;
 
@@ -347,7 +347,7 @@ public class MetricManager
         return abortCount;
     }
 
-    protected void OutputCustomerAbortsAggregated(List<TransactionMark> customerAborts)
+    protected static void OutputCustomerAbortsAggregated(List<TransactionMark> customerAborts)
     {
         var customerAbortsAgg = customerAborts.GroupBy(a=>a.source).Select(group => new { Source = group.Key, Count = group.Count() }).OrderBy(g=>g.Count);
         LOGGER.LogInformation("Customer Aborts by Source");

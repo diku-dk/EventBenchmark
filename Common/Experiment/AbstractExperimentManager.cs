@@ -20,6 +20,16 @@ namespace Common.Experiment;
 
 public abstract class AbstractExperimentManager
 {
+    protected const string PostExpMessage = "Post experiment task to URL {0}";
+    protected const string PostRunMessage = "Post run task to URL {0}";
+    protected const string PostRunErrorMessage = "Post run task to URL {0} failed:\n{1}";
+    protected const string ConnOpenedMessage = "Perhaps connection is already opened? Message={0}";
+    protected const string RunFinishedMessage = "Run #{0} finished at {1}";
+    protected const string NumProdChangedFromLastRunMessage = "Run #{0} number of products changed from last run {1}";
+    protected const string RunStartedMessage = "Run #{0} started at {1}";
+    protected const string ConvergeWaitMessage = "Wait for microservices to converge (i.e., finish receiving events) for {0} seconds...";
+    private const string InitGcMessage = "Memory used before collection:       {0:N0}";
+    private const string AfterGcMessage = "Memory used after full collection:   {0:N0}";
 
     protected readonly IHttpClientFactory httpClientFactory;
 
@@ -111,28 +121,32 @@ public abstract class AbstractExperimentManager
         foreach (var task in this.config.postRunTasks)
         {
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
-            LOGGER.LogInformation("Post run task to URL {0}", task.url);
+            LOGGER.LogInformation(PostRunMessage, task.url);
             resps_.Add(HttpUtils.client.SendAsync(message));
         }
         await Task.WhenAll(resps_);
     }
 
-    private async Task TriggerPostExperimentTasks()
+    private void TriggerPostExperimentTasks()
     {
         // cleanup microservice states
-        var resps_ = new List<Task<HttpResponseMessage>>();
         foreach (var task in this.config.postExperimentTasks)
         {
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
-            LOGGER.LogInformation("Post experiment task to URL {0}", task.url);
-            resps_.Add(HttpUtils.client.SendAsync(message));
+            LOGGER.LogInformation(PostExpMessage, task.url);
+            try {
+                HttpUtils.client.Send(message);
+            }
+            catch(HttpRequestException e)
+            {
+                LOGGER.LogError(PostRunErrorMessage, task.url, e.Message);
+            }
         }
-        await Task.WhenAll(resps_);
     }
 
-    protected virtual async void PostExperiment()
+    public virtual void PostExperiment()
     {
-        await this.TriggerPostExperimentTasks();
+        this.TriggerPostExperimentTasks();
     }
 
     protected virtual void Collect(int runIdx, DateTime startTime, DateTime finishTime)
@@ -149,7 +163,7 @@ public abstract class AbstractExperimentManager
         } catch(InvalidOperationException e)
         {
             // ignore if exception is related to connection being opened already
-            LOGGER.LogWarning("Perhaps connection is already opened? Message="+e.Message);
+            LOGGER.LogWarning(ConnOpenedMessage, e.Message);
         }
         SyntheticDataSourceConfig previousData = new SyntheticDataSourceConfig()
         {
@@ -170,11 +184,11 @@ public abstract class AbstractExperimentManager
 
         foreach (var run in this.config.runs)
         {
-            LOGGER.LogInformation("Run #{0} started at {0}", runIdx, DateTime.UtcNow);
+            LOGGER.LogInformation(RunStartedMessage, runIdx, DateTime.UtcNow);
 
             if (run.numProducts != previousData.numProducts)
             {
-                LOGGER.LogInformation("Run #{0} number of products changed from last run {0}", runIdx, runIdx - 1);
+                LOGGER.LogInformation(NumProdChangedFromLastRunMessage, runIdx, runIdx - 1);
 
                 // update previous
                 previousData = new SyntheticDataSourceConfig()
@@ -206,22 +220,22 @@ public abstract class AbstractExperimentManager
 
             this.workloadManager.SetUp(this.config.runs[runIdx].sellerDistribution, new Interval(1, this.numSellers));
 
-            LOGGER.LogInformation("Run #{0} started at {1}", runIdx, DateTime.UtcNow);
+            LOGGER.LogInformation(RunStartedMessage, runIdx, DateTime.UtcNow);
 
             var workloadTask = this.workloadManager.Run();
 
             DateTime startTime = workloadTask.startTime;
             DateTime finishTime = workloadTask.finishTime;
 
-            LOGGER.LogInformation("Wait for microservices to converge (i.e., finish receiving events) for {0} seconds...", this.config.delayBetweenRuns / 1000);
+            LOGGER.LogInformation(ConvergeWaitMessage, this.config.delayBetweenRuns / 1000);
             Thread.Sleep(this.config.delayBetweenRuns);
 
             // set up data collection for metrics
             this.Collect(runIdx, startTime, finishTime);
 
-            this.CollectGarbage();
+            CollectGarbage();
 
-            LOGGER.LogInformation("Run #{0} finished at {1}", runIdx, DateTime.UtcNow);
+            LOGGER.LogInformation(RunFinishedMessage, runIdx, DateTime.UtcNow);
 
             // increment run index
             runIdx++;
@@ -246,17 +260,17 @@ public abstract class AbstractExperimentManager
         this.Collect(0, startTime, finishTime);
         this.PostRunTasks(0);
         this.PostExperiment();
-        this.CollectGarbage();
+        CollectGarbage();
     }
 
-    protected void CollectGarbage()
+    protected static void CollectGarbage()
     {
-        LOGGER.LogInformation("Memory used before collection:       {0:N0}",
+        LOGGER.LogInformation(InitGcMessage,
         GC.GetTotalMemory(false));
 
         // Collect all generations of memory.
         GC.Collect();
-        LOGGER.LogInformation("Memory used after full collection:   {0:N0}",
+        LOGGER.LogInformation(AfterGcMessage,
         GC.GetTotalMemory(true));
     }
 

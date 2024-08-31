@@ -9,19 +9,18 @@ public sealed class ModbPollingTask
 {
     private readonly string url;
     private readonly int rate;
-    private int firstTid;
-    private int lastTid;
+    private long firstTid;
+    private long lastTid;
 
 	public ModbPollingTask(string pollingUrl, int pollingRate)
 	{
-        this.url = pollingUrl;
+        this.url = pollingUrl + "/status/committed";
         this.rate = pollingRate;
 	}
 
-    private int PollTid()
+    public long PollLastCommittedTid()
     {
-        HttpResponseMessage response = HttpUtils.client.Send(new(HttpMethod.Get, url));
-            
+        HttpResponseMessage response = HttpUtils.client.Send(new(HttpMethod.Get, url));  
         // Console.WriteLine("New result!!!");
         // StreamReader stream = new StreamReader(response.Content.ReadAsStream());
         if(!response.IsSuccessStatusCode)
@@ -31,17 +30,15 @@ public sealed class ModbPollingTask
             return 0;
         }
         byte[] ba = response.Content.ReadAsByteArrayAsync().Result;
-
-        return (int) BitConverter.ToInt64(ba);
+        return BitConverter.ToInt64(ba);
     }
 
-    public int Run(CancellationToken token)
+    public long Run(CancellationToken token)
     {
         // get first tid
-        this.firstTid = this.PollTid();
+        this.firstTid = this.PollLastCommittedTid();
         Console.WriteLine($"Polling task starting with url {url}, rate {this.rate} and first tid as {this.firstTid}");
-        
-        int newTid;
+        long newTid;
         while (!token.IsCancellationRequested)
         {
             // Thread.Sleep(this.batchWindow);
@@ -52,7 +49,7 @@ public sealed class ModbPollingTask
                 // start sleeping, very unlikely to get batch completed on first request
                 Thread.Sleep(this.rate);
 
-                newTid = this.PollTid();
+                newTid = this.PollLastCommittedTid();
 
                 if (newTid > this.lastTid)
                 {
@@ -80,7 +77,7 @@ public sealed class ModbPollingTask
         return this.lastTid - this.firstTid;
     }
 
-    public int GetNumberOfExecutedTIDs()
+    public long GetNumberOfExecutedTIDs()
     {
         return this.lastTid - this.firstTid;
     }

@@ -50,7 +50,7 @@ public sealed class ActorExperimentManager : AbstractExperimentManager
         DateTime finishTime = res.finishTime;
         this.Collect(0, startTime, finishTime);
         this.PostExperiment();
-        this.CollectGarbage();
+        CollectGarbage();
     }
 
 }

@@ -4,28 +4,28 @@
     "numProdPerSeller": 10,
     "qtyPerProduct": 10000,
     "executionTime": 10000,
-    "epoch": 0,
-    "concurrencyLevel": 4,
+    "epoch": 1000,
+    "concurrencyLevel": 2,
     "concurrencyType": "CONTINUOUS",
-    "pollingRate": 250,
-    "pollingUrl": "http://localhost:8090/status",
+    "pollingRate": 200,
+    "pollingUrl": "http://localhost:8090",
     "delayBetweenRequests": 0,
     "delayBetweenRuns": 0,
     "transactionDistribution": {
-        // "CUSTOMER_SESSION": 100
-        //"QUERY_DASHBOARD": 35,
-        //"PRICE_UPDATE": 50,
-        "UPDATE_PRODUCT": 100
-        //"UPDATE_DELIVERY": 100
+        "PRICE_UPDATE": 10,
+        "UPDATE_PRODUCT": 20,
+        //"QUERY_DASHBOARD": 30,
+        //"UPDATE_DELIVERY": 40,
+        "CUSTOMER_SESSION": 100
     },
     "ingestionConfig": {
         "strategy": "WORKER_PER_CPU",
         "concurrencyLevel": 4,
         "mapTableToUrl": {
-            //"sellers": "http://localhost:8001/seller",
-            //"customers": "http://localhost:8001/customer",
-            "stock_items": "http://localhost:8002/stock",
-            "products": "http://localhost:8001/product"
+            "products": "http://localhost:8001/product",
+            "stock_items": "http://localhost:8002/stock"
+            //"customers": "http://localhost:8006/customer",
+            //"sellers": "http://localhost:8007/seller",
         }
     },
     "runs": [
@@ -37,9 +37,20 @@
             //"keyDistribution": "ZIPFIAN"
         }
     ],
-    "postRunTasks": [
-    ],
+    "postRunTasks": [ ],
     "postExperimentTasks": [
+        {
+            "name": "cart",
+            "url": "http://localhost:8000/cart/reset"
+        },
+        {
+            "name": "product",
+            "url": "http://localhost:8001/product/reset"
+        },
+        {
+            "name": "stock",
+            "url": "http://localhost:8002/stock/reset"
+        }
     ],
     "customerWorkerConfig": {
         "maxNumberKeysToAddToCart": 10,
@@ -53,7 +64,8 @@
         },
         "checkoutProbability": 100,
         "voucherProbability": 0,
-        "cartUrl": "http://localhost:8090/cart",
+        "cartUrl": "http://localhost:8000/cart",
+        "checkoutUrl": "http://localhost:8090/cart",
         "trackTids": false
     },
     "sellerWorkerConfig": {
@@ -66,7 +78,7 @@
             "min": 1,
             "max": 10
         },
-        "sellerUrl": "http://localhost:8006/seller",
+        "sellerUrl": "http://localhost:8007/seller",
         "productUrl": "http://localhost:8090/product"
     },
     "deliveryWorkerConfig": {

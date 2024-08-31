@@ -12,6 +12,8 @@ public sealed class CustomerWorkerConfig
 
     public string cartUrl { get; set; }
 
+    public string checkoutUrl { get; set; }
+
     public Interval minMaxQtyRange { get; set; }
 
     public Interval delayBetweenRequestsRange { get; set; }

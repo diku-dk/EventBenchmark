@@ -23,7 +23,7 @@ public sealed class ModbCustomerWorker : DefaultCustomerWorker
 
     protected override string BuildCheckoutUrl()
     {
-        return "http://localhost:8090/cart";
+        return this.config.checkoutUrl;
     }
 
     protected override void DoAfterSuccessSubmission(string tid){ }

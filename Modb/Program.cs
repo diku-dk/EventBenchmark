@@ -20,7 +20,7 @@ public sealed class Program
         try{
         while(true){
 
-        Console.WriteLine("\n Select an option: \n 1 - Generate Data \n 2 - Ingest Data \n 3 - Run Experiment \n 4 - Ingest and Run (2 and 3) \n 5 - Parse New Configuration \n q - Exit");
+        Console.WriteLine("\n Select an option: \n 1 - Generate Data \n 2 - Ingest Data \n 3 - Run Experiment \n 4 - Ingest and Run (2 and 3) \n 5 - Parse New Configuration \n 6 - Reset States \n q - Exit");
         string op = Console.ReadLine();
 
         switch (op)
@@ -96,6 +96,13 @@ public sealed class Program
             {
                 config = ConsoleUtility.BuildExperimentConfig(args);
                 Console.WriteLine("Configuration parsed.");
+                break;
+            }
+            case "6":
+            {
+                var expManager = ModbExperimentManager
+                                .BuildModbExperimentManager(new CustomHttpClientFactory(), config, connection);
+                expManager.PostExperiment();
                 break;
             }
             case "q":
