@@ -50,6 +50,22 @@
         {
             "name": "stock",
             "url": "http://localhost:8002/stock/reset"
+        },
+        {
+            "name": "order",
+            "url": "http://localhost:8003/order/reset"
+        },
+        {
+            "name": "payment",
+            "url": "http://localhost:8004/payment/reset"
+        },
+        {
+            "name": "shipment",
+            "url": "http://localhost:8005/shipment/reset"
+        },
+        {
+            "name": "seller",
+            "url": "http://localhost:8007/seller/reset"
         }
     ],
     "customerWorkerConfig": {
