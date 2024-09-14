@@ -45,7 +45,7 @@ public sealed class StatefunExperimentManager : AbstractExperimentManager
         Console.WriteLine("=== Starting receipt pulling thread ===");
     }
 
-    protected override void PostExperiment()
+    public override void PostExperiment()
     {
         base.PostExperiment();
         this.cancellationTokenSource.Cancel();

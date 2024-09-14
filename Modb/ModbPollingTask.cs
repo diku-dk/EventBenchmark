@@ -7,25 +7,42 @@ namespace Modb;
 
 public sealed class ModbPollingTask
 {
-    private readonly string url;
+    private readonly string urlCommitted;
+    private readonly string urlSubmitted;
     private readonly int rate;
     private long firstTid;
     private long lastTid;
 
 	public ModbPollingTask(string pollingUrl, int pollingRate)
 	{
-        this.url = pollingUrl + "/status/committed";
+        this.urlCommitted = pollingUrl + "/status/committed";
+        this.urlSubmitted = pollingUrl + "/status/submitted";
         this.rate = pollingRate;
 	}
 
-    public long PollLastCommittedTid()
+    public long PollLastSubmittedTid()
     {
-        HttpResponseMessage response = HttpUtils.client.Send(new(HttpMethod.Get, url));  
-        // Console.WriteLine("New result!!!");
-        // StreamReader stream = new StreamReader(response.Content.ReadAsStream());
+        var request = new HttpRequestMessage(HttpMethod.Get, this.urlSubmitted);
+        request.Headers.Add("Accept","application/octet-stream");
+        HttpResponseMessage response = HttpUtils.client.Send(request);
         if(!response.IsSuccessStatusCode)
         {
-            Console.WriteLine("No sucess result!!!");
+            Console.WriteLine("Request for last submitted TID failed: "+response.ReasonPhrase);
+            return -1;
+        }
+        byte[] ba = response.Content.ReadAsByteArrayAsync().Result;
+        return BitConverter.ToInt64(ba);
+    }
+
+    public long PollLastCommittedTid()
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, this.urlCommitted);
+        request.Headers.Add("Accept","application/octet-stream");
+
+        HttpResponseMessage response = HttpUtils.client.Send(request);
+        if(!response.IsSuccessStatusCode)
+        {
+            Console.WriteLine("Request for last committed TID failed: "+response.ReasonPhrase);
             Thread.Sleep(this.rate);
             return 0;
         }
@@ -37,42 +54,23 @@ public sealed class ModbPollingTask
     {
         // get first tid
         this.firstTid = this.PollLastCommittedTid();
-        Console.WriteLine($"Polling task starting with url {url}, rate {this.rate} and first tid as {this.firstTid}");
+        Console.WriteLine($"Polling task starting with url {urlCommitted}, rate {this.rate} and first tid as {this.firstTid}");
         long newTid;
         while (!token.IsCancellationRequested)
         {
-            // Thread.Sleep(this.batchWindow);
-            // Console.WriteLine($"Polling task sending request...");
-
             try{
-
                 // start sleeping, very unlikely to get batch completed on first request
                 Thread.Sleep(this.rate);
-
                 newTid = this.PollLastCommittedTid();
-
                 if (newTid > this.lastTid)
                 {
                     this.lastTid = newTid;
                 }
-
-                /*
-                int idx = init;
-                while (idx <= lastTid)
-                {
-                    // always return true, it is an unbounded channel
-                    Shared.ResultQueue.Writer.TryWrite(Shared.ITEM);
-                    idx++;
-                }
-                */
-
             } catch(Exception e)
             {
                 Console.WriteLine(e);
             }
-
         }
-
         Console.WriteLine("Polling task exiting...");
         return this.lastTid - this.firstTid;
     }

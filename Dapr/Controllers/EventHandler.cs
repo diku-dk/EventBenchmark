@@ -25,7 +25,6 @@ public class EventHandler : ControllerBase
     [Topic(PUBSUB_NAME, productUpdateMark)]
     public async Task<ActionResult> ProcessProductUpdateMark([FromBody] TransactionMark productUpdateMark)
     {
-        // logger.LogWarning("Received a TransactionMark_UPDATE_PRODUCT");
         var ts = DateTime.UtcNow;
         await Shared.ResultQueue.Writer.WriteAsync(Shared.ITEM);
         if (productUpdateMark.status == MarkStatus.SUCCESS)
@@ -33,6 +32,7 @@ public class EventHandler : ControllerBase
             await Shared.ProductUpdateOutputs.Writer.WriteAsync(new(productUpdateMark.tid, ts));
         } else
         {
+            logger.LogDebug("Received a poison TransactionMark_UPDATE_PRODUCT");
             await Shared.PoisonProductUpdateOutputs.Writer.WriteAsync(productUpdateMark);
         }
         return Ok();

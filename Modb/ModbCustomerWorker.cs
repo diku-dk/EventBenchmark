@@ -21,6 +21,11 @@ public sealed class ModbCustomerWorker : DefaultCustomerWorker
         return new ModbCustomerWorker(sellerService, numberOfProducts, config, customer, httpClientFactory.CreateClient(), logger);
     }
 
+    protected override int GetMaxCheckoutAttempts()
+    {
+        return 1;
+    }
+
     protected override string BuildCheckoutUrl()
     {
         return this.config.checkoutUrl;

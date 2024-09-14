@@ -1,174 +1,173 @@
 ﻿{
-  "enabled": true,
-  "connectionString": "DataSource=:memory:",
-  "numCustomers": 1000,
-  "numProdPerSeller": 10,
-  "executionTime": 360000,
-  "epoch": 20000,
-  "concurrencyLevel": 16,
-  "concurrencyType": "CONTINUOUS",
-  "delayBetweenRequests": 0,
-  "delayBetweenRuns": 15000,
-  "transactionDistribution": {
-    "CUSTOMER_SESSION": 70,
-    "QUERY_DASHBOARD": 75,
-    "PRICE_UPDATE": 82,
-    "UPDATE_PRODUCT": 85,
-    "UPDATE_DELIVERY": 100
-  },
-  "ingestionConfig": {
-    "strategy": "WORKER_PER_CPU",
-    "concurrencyLevel": 6,
-    "mapTableToUrl": {
-        "sellers": "http://dapr:5006",
-        "customers": "http://dapr:5007",
-        "stock_items": "http://dapr:5003",
-        "products": "http://dapr:5008"
+    "connectionString": "Data Source=file.db",
+    "numCustomers": 10000,
+    "numProdPerSeller": 10,
+    "qtyPerProduct": 10000,
+    "executionTime": 10000,
+    "epoch": 0,
+    "delayBetweenRequests": 0,
+    "delayBetweenRuns": 0,
+    "concurrencyLevel": 4,
+    "concurrencyType": "CONTINUOUS",
+    "transactionDistribution": {
+        "PRICE_UPDATE": 10,
+        "UPDATE_PRODUCT": 20,
+        // "QUERY_DASHBOARD": 30,
+        "CUSTOMER_SESSION": 100
+    },
+    "ingestionConfig": {
+        "strategy": "WORKER_PER_CPU",
+        "concurrencyLevel": 4,
+        "mapTableToUrl": {
+            "sellers": "http://dapr:5006",
+            "customers": "http://dapr:5007",
+            "stock_items": "http://dapr:5003",
+            "products": "http://dapr:5008"
+        }
+    },
+    "runs": [
+        {
+            "numProducts": 1000,
+            "customerDistribution": "UNIFORM",
+            "sellerDistribution": "UNIFORM",
+            "keyDistribution": "UNIFORM"
+        },
+        {
+            "numProducts": 1000,
+            "customerDistribution": "UNIFORM",
+            "sellerDistribution": "ZIPFIAN",
+            "keyDistribution": "ZIPFIAN"
+        },
+        {
+            "numProducts": 10000,
+            "customerDistribution": "UNIFORM",
+            "sellerDistribution": "UNIFORM",
+            "keyDistribution": "UNIFORM"
+        },
+        {
+            "numProducts": 10000,
+            "customerDistribution": "UNIFORM",
+            "sellerDistribution": "ZIPFIAN",
+            "keyDistribution": "ZIPFIAN"
+        }
+    ],
+    "postRunTasks": [
+        {
+            "name": "cart",
+            "url": "http://dapr:5001/reset"
+        },
+        {
+            "name": "order",
+            "url": "http://dapr:5002/cleanup"
+        },
+        {
+            "name": "stock",
+            "url": "http://dapr:5003/reset"
+        },
+        {
+            "name": "payment",
+            "url": "http://dapr:5004/cleanup"
+        },
+        {
+            "name": "shipment",
+            "url": "http://dapr:5005/cleanup"
+        },
+        {
+            "name": "seller",
+            "url": "http://dapr:5006/reset"
+        },
+        {
+            "name": "customer",
+            "url": "http://dapr:5007/reset"
+        },
+        {
+            "name": "product",
+            "url": "http://dapr:5008/reset"
+        }
+    ],
+    "postExperimentTasks": [
+        {
+            "name": "cart",
+            "url": "http://dapr:5001/cleanup"
+        },
+        {
+            "name": "order",
+            "url": "http://dapr:5002/cleanup"
+        },
+        {
+            "name": "stock",
+            "url": "http://dapr:5003/cleanup"
+        },
+        {
+            "name": "product",
+            "url": "http://dapr:5008/cleanup"
+        },
+        {
+            "name": "payment",
+            "url": "http://dapr:5004/cleanup"
+        },
+        {
+            "name": "shipment",
+            "url": "http://dapr:5005/cleanup"
+        },
+        {
+            "name": "seller",
+            "url": "http://dapr:5006/cleanup"
+        },
+        {
+            "name": "customer",
+            "url": "http://dapr:5007/cleanup"
+        },
+        {
+            "name": "product",
+            "url": "http://dapr:5008/cleanup"
+        }
+    ],
+    "streamingConfig": {
+        "type": "REDIS",
+        "host": "redis",
+        "port": 6379,
+        "streams": [
+            "DeliveryNotification",
+            "InvoiceIssued",
+            "PaymentConfirmed",
+            "PaymentFailed",
+            "Product",
+            "ProductUpdate",
+            "ReserveStock",
+            "ShipmentNotification",
+            "StockConfirmed",
+            "ReserveStockFailed"
+        ]
+    },
+    "customerWorkerConfig": {
+        "maxNumberKeysToAddToCart": 10,
+        "minMaxQtyRange": {
+            "min": 1,
+            "max": 10
+        },
+        "delayBetweenRequestsRange": {
+            "min": 1,
+            "max": 1000
+        },
+        "checkoutProbability": 100,
+        "voucherProbability": 5,
+        "productUrl": "http://dapr:5008",
+        "cartUrl": "http://dapr:5001"
+    },
+    "sellerWorkerConfig": {
+        "delayBetweenRequestsRange": {
+            "min": 1,
+            "max": 1000
+        },
+        "adjustRange": {
+            "min": 1,
+            "max": 10
+        },
+        "sellerUrl": "http://dapr:5006",
+        "productUrl": "http://dapr:5008"
+    },
+    "deliveryWorkerConfig": {
+        "shipmentUrl": "http://dapr:5005"
     }
-  },
-  "runs": [
-    {
-      "numProducts": 1000,
-      "customerDistribution": "UNIFORM",
-      "sellerDistribution": "UNIFORM",
-      "keyDistribution": "UNIFORM"
-    },
-    {
-      "numProducts": 1000,
-      "customerDistribution": "UNIFORM",
-      "sellerDistribution": "ZIPFIAN",
-      "keyDistribution": "ZIPFIAN"
-    },
-    {
-      "numProducts": 10000,
-      "customerDistribution": "UNIFORM",
-      "sellerDistribution": "UNIFORM",
-      "keyDistribution": "UNIFORM"
-    },
-    {
-      "numProducts": 10000,
-      "customerDistribution": "UNIFORM",
-      "sellerDistribution": "ZIPFIAN",
-      "keyDistribution": "ZIPFIAN"
-    }
-  ],
-  "postRunTasks": [
-    {
-      "name": "cart",
-      "url": "http://dapr:5001/reset"
-    },
-    {
-      "name": "order",
-      "url": "http://dapr:5002/cleanup"
-    },
-    {
-      "name": "stock",
-      "url": "http://dapr:5003/reset"
-    },
-    {
-      "name": "payment",
-      "url": "http://dapr:5004/cleanup"
-    },
-    {
-      "name": "shipment",
-      "url": "http://dapr:5005/cleanup"
-    },
-    {
-      "name": "seller",
-      "url": "http://dapr:5006/reset"
-    },
-    {
-      "name": "customer",
-      "url": "http://dapr:5007/reset"
-    },
-    {
-      "name": "product",
-      "url": "http://dapr:5008/reset"
-    }
-  ],
-  "postExperimentTasks": [
-    {
-      "name": "cart",
-      "url": "http://dapr:5001/cleanup"
-    },
-    {
-      "name": "order",
-      "url": "http://dapr:5002/cleanup"
-    },
-    {
-      "name": "stock",
-      "url": "http://dapr:5003/cleanup"
-    },
-    {
-      "name": "product",
-      "url": "http://dapr:5008/cleanup"
-    },
-    {
-      "name": "payment",
-      "url": "http://dapr:5004/cleanup"
-    },
-    {
-      "name": "shipment",
-      "url": "http://dapr:5005/cleanup"
-    },
-    {
-      "name": "seller",
-      "url": "http://dapr:5006/cleanup"
-    },
-    {
-      "name": "customer",
-      "url": "http://dapr:5007/cleanup"
-    },
-    {
-      "name": "product",
-      "url": "http://dapr:5008/cleanup"
-    }
-  ],
-  "streamingConfig": {
-    "type": "REDIS",
-    "host": "redis",
-    "port": 6379,
-    "streams": [
-      "DeliveryNotification",
-      "InvoiceIssued",
-      "PaymentConfirmed",
-      "PaymentFailed",
-      "Product",
-      "ProductUpdate",
-      "ReserveStock",
-      "ShipmentNotification",
-      "StockConfirmed",
-      "ReserveStockFailed"
-    ]
-  },
-  "customerWorkerConfig": {
-    "maxNumberKeysToAddToCart": 10,
-    "minMaxQtyRange": {
-      "min": 1,
-      "max": 10
-    },
-    "delayBetweenRequestsRange": {
-      "min": 1,
-      "max": 1000
-    },
-    "checkoutProbability": 100,
-    "voucherProbability": 5,
-    "productUrl": "http://dapr:5008",
-    "cartUrl": "http://dapr:5001"
-  },
-  "sellerWorkerConfig": {
-    "delayBetweenRequestsRange": {
-      "min": 1,
-      "max": 1000
-    },
-    "adjustRange": {
-      "min": 1,
-      "max": 10
-    },
-    "sellerUrl": "http://dapr:5006",
-    "productUrl": "http://dapr:5008"
-  },
-  "deliveryWorkerConfig": {
-    "shipmentUrl": "http://dapr:5005"
-  }
 }

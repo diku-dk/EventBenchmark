@@ -57,8 +57,7 @@ public sealed class DaprExperimentManager : AbstractExperimentManager
         await RedisUtils.TrimStreams(this.redisConfig, this.channelsToTrim);
     }
 
-
-    protected override async void PostExperiment()
+    public override async void PostExperiment()
     {
         await RedisUtils.TrimStreams(this.redisConfig, this.channelsToTrim);
         base.PostExperiment();

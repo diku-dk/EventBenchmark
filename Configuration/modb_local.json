@@ -1,14 +1,14 @@
 ﻿{
     "connectionString": "Data Source=file.db",
-    "numCustomers": 10000,
+    "numCustomers": 100000,
     "numProdPerSeller": 10,
     "qtyPerProduct": 10000,
     "executionTime": 10000,
-    "epoch": 1000,
-    "concurrencyLevel": 2,
+    "epoch": 0,
+    "concurrencyLevel": 4,
     "concurrencyType": "CONTINUOUS",
-    "pollingRate": 200,
-    "pollingUrl": "http://localhost:8090",
+    "pollingRate": 250,
+    "pollingUrl": "http://localhost:8091",
     "delayBetweenRequests": 0,
     "delayBetweenRuns": 0,
     "transactionDistribution": {
@@ -22,8 +22,8 @@
         "strategy": "WORKER_PER_CPU",
         "concurrencyLevel": 4,
         "mapTableToUrl": {
-            "products": "http://localhost:8001/product",
-            "stock_items": "http://localhost:8002/stock"
+            "products": "http://localhost:8081/product",
+            "stock_items": "http://localhost:8082/stock"
             //"customers": "http://localhost:8006/customer",
             //"sellers": "http://localhost:8007/seller",
         }
@@ -41,15 +41,15 @@
     "postExperimentTasks": [
         {
             "name": "cart",
-            "url": "http://localhost:8000/cart/reset"
+            "url": "http://localhost:8080/cart/reset"
         },
         {
             "name": "product",
-            "url": "http://localhost:8001/product/reset"
+            "url": "http://localhost:8081/product/reset"
         },
         {
             "name": "stock",
-            "url": "http://localhost:8002/stock/reset"
+            "url": "http://localhost:8082/stock/reset"
         },
         {
             "name": "order",
@@ -80,8 +80,8 @@
         },
         "checkoutProbability": 100,
         "voucherProbability": 0,
-        "cartUrl": "http://localhost:8000/cart",
-        "checkoutUrl": "http://localhost:8090/cart",
+        "cartUrl": "http://localhost:8080/cart",
+        "checkoutUrl": "http://localhost:8091/cart",
         "trackTids": false
     },
     "sellerWorkerConfig": {
@@ -95,7 +95,7 @@
             "max": 10
         },
         "sellerUrl": "http://localhost:8007/seller",
-        "productUrl": "http://localhost:8090/product"
+        "productUrl": "http://localhost:8091/product"
     },
     "deliveryWorkerConfig": {
         "shipmentUrl": "http://localhost:8005/shipment"

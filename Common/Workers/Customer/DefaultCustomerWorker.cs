@@ -65,8 +65,8 @@ public class DefaultCustomerWorker : AbstractCustomerWorker
 
     protected virtual void BuildAddCartPayloadAndSend(string objStr)
     {
-        var payload = HttpUtils.BuildPayload(objStr);
-        HttpRequestMessage message = new(HttpMethod.Patch, this.config.cartUrl + "/" + customer.id + "/add")
+        StringContent payload = HttpUtils.BuildPayload(objStr);
+        HttpRequestMessage message = new(HttpMethod.Patch, string.Format(this.BaseAddCartUrl, customer.id))
         {
             Content = payload
         };
@@ -76,17 +76,22 @@ public class DefaultCustomerWorker : AbstractCustomerWorker
     protected override void InformFailedCheckout()
     {
         // just cleaning cart state for next browsing
-        HttpRequestMessage message = new(HttpMethod.Patch, this.config.cartUrl + "/" + customer.id + "/seal");
-        try{ this.httpClient.Send(message); } catch(Exception){ }
+        HttpRequestMessage message = new(HttpMethod.Patch, string.Format(this.BaseSealCartUrl, customer.id));
+        try { this.httpClient.Send(message); } catch(Exception){ }
     }
 
     // the idea is to reuse the cart state to resubmit an aborted customer checkout
     // and thus avoid having to restart a customer session, i.e., having to add cart items again from scratch
-    private static readonly int maxAttempts = 3;
+    private static readonly int MAX_CHECKOUT_ATTEMPTS = 3;
+
+    protected virtual int GetMaxCheckoutAttempts()
+    {
+        return MAX_CHECKOUT_ATTEMPTS;
+    }
 
     protected virtual string BuildCheckoutUrl()
     {
-        return this.config.cartUrl + "/" + this.customer.id + "/checkout";
+        return string.Format(BaseCheckoutUrl, this.customer.id);
     }
 
     protected override void SendCheckoutRequest(string tid)
@@ -94,8 +99,7 @@ public class DefaultCustomerWorker : AbstractCustomerWorker
         var objStr = this.BuildCheckoutPayload(tid);
         var payload = HttpUtils.BuildPayload(objStr);
         string url = this.BuildCheckoutUrl();
-
-        // Console.WriteLine("URL to send checkout request: "+url);
+        int maxAttempts = this.GetMaxCheckoutAttempts();
 
         DateTime sentTs;
         int attempt = 0;
@@ -109,14 +113,8 @@ public class DefaultCustomerWorker : AbstractCustomerWorker
                 {
                     Content = payload
                 });
-                
                 attempt++;
-
                 success = resp.IsSuccessStatusCode;
-
-                if(!success)
-                      this.abortedTransactions.Add(new TransactionMark(tid, TransactionType.CUSTOMER_SESSION, this.customer.id, MarkStatus.ABORT, "cart"));
-
             } while(!success && attempt < maxAttempts);
 
             if(success)

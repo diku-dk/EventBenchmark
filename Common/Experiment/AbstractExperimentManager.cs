@@ -267,7 +267,6 @@ public abstract class AbstractExperimentManager
     {
         LOGGER.LogInformation(InitGcMessage,
         GC.GetTotalMemory(false));
-
         // Collect all generations of memory.
         GC.Collect();
         LOGGER.LogInformation(AfterGcMessage,

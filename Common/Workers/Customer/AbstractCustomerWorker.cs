@@ -36,6 +36,10 @@ public abstract class AbstractCustomerWorker : ICustomerWorker
 
     protected readonly ILogger logger;
 
+    protected readonly string BaseCheckoutUrl;
+    protected readonly string BaseAddCartUrl;
+    protected readonly string BaseSealCartUrl;
+
     protected AbstractCustomerWorker(ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Entities.Customer customer, ILogger logger)
     {
         this.sellerService = sellerService;
@@ -46,6 +50,9 @@ public abstract class AbstractCustomerWorker : ICustomerWorker
         this.submittedTransactions = new();
         this.abortedTransactions = new();
         this.random = new Random();
+        this.BaseCheckoutUrl = this.config.cartUrl + "/{0}/checkout";
+        this.BaseAddCartUrl = this.config.cartUrl + "/{0}/add";
+        this.BaseSealCartUrl = this.config.cartUrl + "/{0}/seal";
     }
 
     public virtual void SetUp(DistributionType sellerDistribution, Interval sellerRange, DistributionType keyDistribution)
