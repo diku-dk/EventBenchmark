@@ -5,7 +5,7 @@
     "qtyPerProduct": 10000,
     "executionTime": 10000,
     "epoch": 0,
-    "concurrencyLevel": 4,
+    "concurrencyLevel": 1,
     "concurrencyType": "CONTINUOUS",
     "pollingRate": 250,
     "pollingUrl": "http://localhost:8091",
@@ -14,7 +14,7 @@
     "transactionDistribution": {
         "PRICE_UPDATE": 10,
         "UPDATE_PRODUCT": 20,
-        //"QUERY_DASHBOARD": 30,
+        "QUERY_DASHBOARD": 30,
         //"UPDATE_DELIVERY": 40,
         "CUSTOMER_SESSION": 100
     },
@@ -53,19 +53,19 @@
         },
         {
             "name": "order",
-            "url": "http://localhost:8003/order/reset"
+            "url": "http://localhost:8083/order/reset"
         },
         {
             "name": "payment",
-            "url": "http://localhost:8004/payment/reset"
+            "url": "http://localhost:8084/payment/reset"
         },
         {
             "name": "shipment",
-            "url": "http://localhost:8005/shipment/reset"
+            "url": "http://localhost:8085/shipment/reset"
         },
         {
             "name": "seller",
-            "url": "http://localhost:8007/seller/reset"
+            "url": "http://localhost:8087/seller/reset"
         }
     ],
     "customerWorkerConfig": {
@@ -94,10 +94,10 @@
             "min": 1,
             "max": 10
         },
-        "sellerUrl": "http://localhost:8007/seller",
+        "sellerUrl": "http://localhost:8087/seller",
         "productUrl": "http://localhost:8091/product"
     },
     "deliveryWorkerConfig": {
-        "shipmentUrl": "http://localhost:8005/shipment"
+        "shipmentUrl": "http://localhost:8085/shipment"
     }
 }
