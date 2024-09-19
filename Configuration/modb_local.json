@@ -5,7 +5,7 @@
     "qtyPerProduct": 10000,
     "executionTime": 10000,
     "epoch": 0,
-    "concurrencyLevel": 1,
+    "concurrencyLevel": 4,
     "concurrencyType": "CONTINUOUS",
     "pollingRate": 250,
     "pollingUrl": "http://localhost:8091",
@@ -24,8 +24,8 @@
         "mapTableToUrl": {
             "products": "http://localhost:8081/product",
             "stock_items": "http://localhost:8082/stock"
-            //"customers": "http://localhost:8006/customer",
-            //"sellers": "http://localhost:8007/seller",
+            //"customers": "http://localhost:8086/customer",
+            //"sellers": "http://localhost:8087/seller",
         }
     },
     "runs": [

@@ -38,6 +38,7 @@ public sealed class ModbExperimentManager : AbstractExperimentManager
         this.PreExperiment();
         this.PreWorkload(0);
         this.workloadManager.SetUp(this.config.runs[0].sellerDistribution, new Interval(1, this.numSellers));
+        this.metricManager.SetUp(this.numSellers, this.config.numCustomers);
 
         var tokenSource = new CancellationTokenSource();
         Task<long> pollingTask = Task.Run(() => this.modbPollingTask.Run(tokenSource.Token));
@@ -51,11 +52,16 @@ public sealed class ModbExperimentManager : AbstractExperimentManager
         while(!pollingTask.IsCompleted){ }
 
         if(pollingTask.IsCompletedSuccessfully){
-            MetricManager.SimpleCollect(startTime, finishTime, pollingTask.Result);
+            this.metricManager.SimpleCollect(startTime, finishTime, pollingTask.Result);
             if (this.WaitCompletion())
             {
                 this.PostExperiment();
             }
+        }
+        else
+        {
+            LOGGER.LogWarning("Polling task has not finished correctly!");
+            this.metricManager.SimpleCollect(startTime, finishTime, 0);
         }
 
         CollectGarbage();

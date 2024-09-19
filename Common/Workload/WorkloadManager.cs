@@ -278,7 +278,7 @@ public class WorkloadManager
             {
                 e = e.GetBaseException();
             }
-            Console.WriteLine("Thread ID {0} - Error caught in SubmitTransaction. Type: {1}\n Source: {2}\n Message: {3}\n StackTrace: \n{4}", Environment.CurrentManagedThreadId, e.GetType().Name, e.Source, e.Message, e.StackTrace);
+            Console.WriteLine($"Thread ID {Environment.CurrentManagedThreadId} - Error caught in SubmitTransaction.\nTID: {tid} Type: {type} \nError Type: {e.GetType()}\nError Source: {e.Source}\nError Message: {e.Message}\n StackTrace: \n{e.StackTrace}");
            
         }
     }

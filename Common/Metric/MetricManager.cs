@@ -64,19 +64,29 @@ public class MetricManager
         return latencyList;
     }
 
-    public static void SimpleCollect(DateTime startTime, DateTime finishTime, long numberTIDs, string runName = null)
+    public void SimpleCollect(DateTime startTime, DateTime finishTime, long numberTIDs, string runName = null)
     {
         StreamWriter sw = BuildStreamWriter(startTime, finishTime, runName);
         
         TimeSpan executionTime = finishTime - startTime;
-        CalculateOverallThroughput(sw, numberTIDs, executionTime);
+
+        List<TransactionType> txTypeValues = new() { TransactionType.QUERY_DASHBOARD };
+        List<List<Latency>> latencyGatherResults = this.CalculateLatency(finishTime, sw, txTypeValues);
+
+        long countTid = numberTIDs;
+        foreach (var list in latencyGatherResults)
+        {
+            countTid += list.Count;
+        }
+
+        CalculateOverallThroughput(sw, countTid, executionTime);
 
         CloseStreamWriter(sw);
     }
 
     public void Collect(DateTime startTime, DateTime finishTime, int epochPeriod = 0, string runName = null)
     {
-        LOGGER.LogInformation("Starting collecting metrics for run between {0} and {1}", startTime, finishTime);
+        LOGGER.LogInformation($"Starting collecting metrics for run between {startTime} and {finishTime}");
 
         StreamWriter sw = BuildStreamWriter(startTime, finishTime, runName);
 
@@ -147,7 +157,14 @@ public class MetricManager
 
     private static void CalculateOverallThroughput(StreamWriter sw, long countTid, TimeSpan executionTime)
     {
-        double txPerSecond = countTid / executionTime.TotalSeconds;
+
+        double txPerSecond = 0;
+        if(countTid <= 0)
+        {
+            LOGGER.LogWarning("Number of completed TIDs received is 0!");
+        } else {
+            txPerSecond = countTid / executionTime.TotalSeconds;
+        }
 
         LOGGER.LogInformation("Number of seconds: {0}", executionTime.TotalSeconds);
         sw.WriteLine("Number of seconds: {0}", executionTime.TotalSeconds);
@@ -365,7 +382,7 @@ public class MetricManager
         int dupSub = 0;
         int dupFin = 0;
 
-        for (int i = 1; i <= numSellers; i++)
+        for (int i = 1; i <= this.numSellers; i++)
         {
             var submitted = this.sellerService.GetSubmittedTransactions(i);
             foreach (var tx in submitted)
