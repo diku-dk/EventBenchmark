@@ -41,7 +41,7 @@ public class DefaultSellerWorker : AbstractSellerWorker
         var resp = this.httpClient.Send(request, HttpCompletionOption.ResponseHeadersRead);
         if (resp.IsSuccessStatusCode)
         {
-            this.DoAfterSuccessUpdate(tid);
+            this.DoAfterSuccessUpdate(tid, TransactionType.PRICE_UPDATE);
             this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.PRICE_UPDATE, initTime));
         }
         else
@@ -60,12 +60,12 @@ public class DefaultSellerWorker : AbstractSellerWorker
             Content = HttpUtils.BuildPayload(productJson)
         };
 
-        var now = DateTime.UtcNow;
+        var sentTs = DateTime.UtcNow;
         var resp = this.httpClient.Send(message, HttpCompletionOption.ResponseHeadersRead);
         if (resp.IsSuccessStatusCode)
         {
-            this.DoAfterSuccessUpdate(tid);
-            this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.UPDATE_PRODUCT, now));
+            this.DoAfterSuccessUpdate(tid, TransactionType.UPDATE_PRODUCT);
+            this.submittedTransactions.Add(new TransactionIdentifier(tid, TransactionType.UPDATE_PRODUCT, sentTs));
         }
         else
         {
@@ -74,7 +74,7 @@ public class DefaultSellerWorker : AbstractSellerWorker
         }
     }
 
-    protected virtual void DoAfterSuccessUpdate(string tid)
+    protected virtual void DoAfterSuccessUpdate(string tid, TransactionType transactionType)
     {
         // do nothing by default
     }

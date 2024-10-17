@@ -7,7 +7,6 @@ using Common.Workers.Customer;
 using Common.Workload;
 using Common.Workload.CustomerWorker;
 using Common.Workload.Metrics;
-using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Statefun.Infra;
 
@@ -17,12 +16,8 @@ public sealed class StatefunCustomerWorker : DefaultCustomerWorker
 {
     private readonly string partitionID;
 
-    // concurrent data structure is necessary because results are received asynchronously, possibly via concurrent pulling thread    
-    private readonly ConcurrentBag<TransactionOutput> finishedTransactions;
-
     private StatefunCustomerWorker(ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer, HttpClient httpClient, ILogger logger) : base(sellerService, numberOfProducts, config, customer, httpClient, logger)
     {
-        this.finishedTransactions = new();
         this.partitionID = this.customer.id.ToString();
     }
 
@@ -32,15 +27,9 @@ public sealed class StatefunCustomerWorker : DefaultCustomerWorker
         return new StatefunCustomerWorker(sellerService, numberOfProducts, config, customer, httpClientFactory.CreateClient(), logger);
     }
 
-    public override List<TransactionOutput> GetFinishedTransactions()
-    {
-        return this.finishedTransactions.ToList();
-    }
-
     public override void SetUp(DistributionType sellerDistribution, Interval sellerRange, DistributionType keyDistribution)
     {
         base.SetUp(sellerDistribution, sellerRange, keyDistribution);
-        this.finishedTransactions.Clear();
     }
 
     protected override void BuildAddCartPayloadAndSend(string payLoad)
@@ -88,10 +77,6 @@ public sealed class StatefunCustomerWorker : DefaultCustomerWorker
         string contentType = string.Concat(StatefunUtils.BASE_CONTENT_TYPE, eventType);
         string payLoad = "{}";
         StatefunUtils.SendHttpToStatefun(this.httpClient, apiUrl, contentType, payLoad).Wait();  
-    }
-
-    public override void AddFinishedTransaction(TransactionOutput transactionOutput){
-        this.finishedTransactions.Add(transactionOutput);
     }
 
 }

@@ -161,7 +161,7 @@ public abstract class AbstractSellerWorker : ISellerWorker
 
     public virtual void AddFinishedTransaction(TransactionOutput transactionOutput)
     {
-        throw new NotImplementedException("Not supported by current implementation.");
+        this.finishedTransactions.Add(transactionOutput);
     }
 
     public List<TransactionMark> GetAbortedTransactions()

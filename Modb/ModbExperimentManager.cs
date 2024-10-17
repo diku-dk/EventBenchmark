@@ -7,8 +7,8 @@ using Common.Experiment;
 using Common.Infra;
 using Common.Metric;
 using Common.Workers.Delivery;
-using Common.Workers.Seller;
 using Common.Workload;
+using Common.Workload.Metrics;
 using DuckDB.NET.Data;
 using Microsoft.Extensions.Logging;
 using static Common.Services.CustomerService;
@@ -23,7 +23,7 @@ public sealed class ModbExperimentManager : AbstractExperimentManager
 
     public static ModbExperimentManager BuildModbExperimentManager(IHttpClientFactory httpClientFactory, ExperimentConfig config, DuckDBConnection duckDBConnection)
     {
-        return new ModbExperimentManager(httpClientFactory, DefaultSellerWorker.BuildSellerWorker, ModbCustomerWorker.BuildCustomerWorker, DefaultDeliveryWorker.BuildDeliveryWorker, config, duckDBConnection);
+        return new ModbExperimentManager(httpClientFactory, ModbSellerWorker.BuildSellerWorker, ModbCustomerWorker.BuildCustomerWorker, DefaultDeliveryWorker.BuildDeliveryWorker, config, duckDBConnection);
     }
 
     public ModbExperimentManager(IHttpClientFactory httpClientFactory, BuildSellerWorkerDelegate sellerWorkerDelegate, BuildCustomerWorkerDelegate customerWorkerDelegate, BuildDeliveryWorkerDelegate deliveryWorkerDelegate, ExperimentConfig config, DuckDBConnection duckDBConnection) : base(httpClientFactory, WorkloadManager.BuildWorkloadManager, MetricManager.BuildMetricManager, sellerWorkerDelegate, customerWorkerDelegate, deliveryWorkerDelegate, config, duckDBConnection)
@@ -51,8 +51,27 @@ public sealed class ModbExperimentManager : AbstractExperimentManager
         // wait for completion
         while(!pollingTask.IsCompleted){ }
 
-        if(pollingTask.IsCompletedSuccessfully){
-            this.metricManager.SimpleCollect(startTime, finishTime, pollingTask.Result);
+        if(pollingTask.IsCompletedSuccessfully)
+        {
+            // fill missing tx output entries
+            foreach(var entry in BatchTrackingUtils.tidToBatchMap)
+            {
+                if (!BatchTrackingUtils.batchToFinishedTsMap.ContainsKey(entry.Value.batchId))
+                {
+                    continue;
+                }
+                var finishedTs = BatchTrackingUtils.batchToFinishedTsMap[entry.Value.batchId];
+                TransactionOutput transactionOutput = new TransactionOutput(entry.Key, finishedTs);
+                if(entry.Value.transactionType == TransactionType.CUSTOMER_SESSION){
+                    customerService.AddFinishedTransaction(entry.Value.workerId, transactionOutput);
+                } else
+                {
+                    sellerService.AddFinishedTransaction(entry.Value.workerId, transactionOutput);
+                }
+            }
+
+            // this.metricManager.SimpleCollect(startTime, finishTime, pollingTask.Result);
+            this.metricManager.Collect(startTime, finishTime, this.config.epoch);
             if (this.WaitCompletion())
             {
                 this.PostExperiment();
@@ -69,7 +88,7 @@ public sealed class ModbExperimentManager : AbstractExperimentManager
 
     private bool WaitCompletion()
     {
-        int maxAttempts = 20;
+        int maxAttempts = 10;
         long lastCommittedTid;
         long lastSubmittedTid;
         try {
@@ -82,7 +101,6 @@ public sealed class ModbExperimentManager : AbstractExperimentManager
                 LOGGER.LogInformation($"Last committed TID retrieved: {lastCommittedTid}");
                 maxAttempts--;
             } while (lastCommittedTid != lastSubmittedTid && maxAttempts > 0);
-            // very weird that even after proxy confirming commit, there is task running in cart VMS...
             Thread.Sleep(2000);
             if(lastCommittedTid == lastSubmittedTid) return true;
             return false;

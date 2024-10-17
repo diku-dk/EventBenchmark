@@ -127,9 +127,11 @@ public abstract class AbstractExperimentManager
         await Task.WhenAll(resps_);
     }
 
+    /**
+     * Cleanup microservice states
+     */
     private void TriggerPostExperimentTasks()
     {
-        // cleanup microservice states
         foreach (var task in this.config.postExperimentTasks)
         {
             HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Patch, task.url);
@@ -137,7 +139,7 @@ public abstract class AbstractExperimentManager
             try {
                 HttpUtils.client.Send(message);
             }
-            catch(HttpRequestException e)
+            catch(Exception e)
             {
                 LOGGER.LogError(PostRunErrorMessage, task.url, e.Message);
             }

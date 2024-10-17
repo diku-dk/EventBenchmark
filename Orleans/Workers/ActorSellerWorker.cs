@@ -1,5 +1,6 @@
 ﻿using Common.Infra;
 using Common.Workers.Seller;
+using Common.Workload;
 using Common.Workload.Metrics;
 using Common.Workload.Seller;
 using Microsoft.Extensions.Logging;
@@ -19,7 +20,7 @@ public sealed class ActorSellerWorker : DefaultSellerWorker
         return new ActorSellerWorker(sellerId, httpClientFactory.CreateClient(), workerConfig, logger);
     }
 
-    protected override void DoAfterSuccessUpdate(string tid)
+    protected override void DoAfterSuccessUpdate(string tid, TransactionType transactionType)
     {
         this.finishedTransactions.Add(new TransactionOutput(tid, DateTime.UtcNow));
     }

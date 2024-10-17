@@ -70,7 +70,7 @@ public class MetricManager
         
         TimeSpan executionTime = finishTime - startTime;
 
-        List<TransactionType> txTypeValues = new() { TransactionType.QUERY_DASHBOARD };
+        List<TransactionType> txTypeValues = Enum.GetValues(typeof(TransactionType)).Cast<TransactionType>().ToList();
         List<List<Latency>> latencyGatherResults = this.CalculateLatency(finishTime, sw, txTypeValues);
 
         long countTid = numberTIDs;

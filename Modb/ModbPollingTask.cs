@@ -4,7 +4,6 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Common.Http;
-using Newtonsoft.Json.Linq;
 
 namespace Modb;
 
@@ -55,11 +54,11 @@ public sealed class ModbPollingTask
 
     public async Task<long> Run(CancellationToken token)
     {
-        // get first tid
+        BatchTrackingUtils.Reset();
+
         this.firstTid = this.PollLastCommittedTid();
         Console.WriteLine($"Polling task starting with the options:\nURL: {urlCommitted}\nRate: {this.rate}\nFirst TID: {this.firstTid}");
 
-        // this.Poll(token);
         await this.PollSse(token);
         
         var last = Interlocked.Read(ref this.lastTid);
@@ -82,6 +81,7 @@ public sealed class ModbPollingTask
                     string line;
                     while ((line = await reader.ReadLineAsync(token)) != null)
                     {
+                        var receivedTs = DateTime.UtcNow;
                         if (!string.IsNullOrEmpty(line))
                         {
                             // Process each event (ignoring "data: " prefix)
@@ -89,7 +89,9 @@ public sealed class ModbPollingTask
                             {
                                 string eventData = line.Substring(5).Trim();
                                 Console.WriteLine($"Received TID: {eventData}");
-                                Interlocked.Exchange(ref lastTid, long.Parse(eventData));
+                                Interlocked.Exchange(ref this.lastTid, long.Parse(eventData));
+
+                                BatchTrackingUtils.UpdateBatchId(receivedTs);
                             }
                         }
                     }
@@ -100,33 +102,6 @@ public sealed class ModbPollingTask
         {
             Console.WriteLine($"Error receiving SSE: {ex.Message}");
         }
-    }
-
-    private void Poll(CancellationToken token)
-    {
-        while (!token.IsCancellationRequested)
-        {
-            long newTid;
-            try
-            {
-                // start sleeping, very unlikely to get batch completed on first request
-                Thread.Sleep(this.rate);
-                newTid = this.PollLastCommittedTid();
-                if (newTid > this.lastTid)
-                {
-                    this.lastTid = newTid;
-                }
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-            }
-        }
-    }
-
-    public long GetNumberOfExecutedTIDs()
-    {
-        return this.lastTid - this.firstTid;
     }
 
 }

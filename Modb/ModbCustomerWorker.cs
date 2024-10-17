@@ -3,6 +3,7 @@ using Common.Entities;
 using Common.Infra;
 using Common.Services;
 using Common.Workers.Customer;
+using Common.Workload;
 using Common.Workload.CustomerWorker;
 using Microsoft.Extensions.Logging;
 
@@ -17,7 +18,7 @@ public sealed class ModbCustomerWorker : DefaultCustomerWorker
 
     public static new ModbCustomerWorker BuildCustomerWorker(IHttpClientFactory httpClientFactory, ISellerService sellerService, int numberOfProducts, CustomerWorkerConfig config, Customer customer)
     {
-        var logger = LoggerProxy.GetInstance("ModbCustomer" + customer.id.ToString());
+        var logger = LoggerProxy.GetInstance("ModbCustomerWorker_" + customer.id.ToString());
         return new ModbCustomerWorker(sellerService, numberOfProducts, config, customer, httpClientFactory.CreateClient(), logger);
     }
 
@@ -31,7 +32,11 @@ public sealed class ModbCustomerWorker : DefaultCustomerWorker
         return this.config.checkoutUrl;
     }
 
-    protected override void DoAfterSuccessSubmission(string tid){ }
+    protected override void DoAfterSuccessSubmission(string tid)
+    {
+        // map this tid to a batch
+        BatchTrackingUtils.MapTidToBatch(tid, this.customer.id, TransactionType.CUSTOMER_SESSION);
+    }
 
 }
 

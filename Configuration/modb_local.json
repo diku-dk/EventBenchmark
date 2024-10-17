@@ -4,7 +4,7 @@
     "numProdPerSeller": 10,
     "qtyPerProduct": 10000,
     "executionTime": 10000,
-    "epoch": 0,
+    "epoch": 2000,
     "concurrencyLevel": 4,
     "concurrencyType": "CONTINUOUS",
     "pollingRate": 250,

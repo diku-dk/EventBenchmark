@@ -6,7 +6,6 @@ using Common.Services;
 using Common.Streaming;
 using Common.Workload;
 using Common.Workload.CustomerWorker;
-using Common.Workload.Metrics;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 
@@ -66,7 +65,7 @@ public class DefaultCustomerWorker : AbstractCustomerWorker
     protected virtual void BuildAddCartPayloadAndSend(string objStr)
     {
         StringContent payload = HttpUtils.BuildPayload(objStr);
-        HttpRequestMessage message = new(HttpMethod.Patch, string.Format(this.BaseAddCartUrl, customer.id))
+        HttpRequestMessage message = new(HttpMethod.Patch, string.Format(this.BaseAddCartUrl, this.customer.id))
         {
             Content = payload
         };
@@ -76,7 +75,7 @@ public class DefaultCustomerWorker : AbstractCustomerWorker
     protected override void InformFailedCheckout()
     {
         // just cleaning cart state for next browsing
-        HttpRequestMessage message = new(HttpMethod.Patch, string.Format(this.BaseSealCartUrl, customer.id));
+        HttpRequestMessage message = new(HttpMethod.Patch, string.Format(this.BaseSealCartUrl, this.customer.id));
         try { this.httpClient.Send(message); } catch(Exception){ }
     }
 
@@ -120,8 +119,7 @@ public class DefaultCustomerWorker : AbstractCustomerWorker
             if(success)
             {
                 this.DoAfterSuccessSubmission(tid);
-                TransactionIdentifier txId = new(tid, TransactionType.CUSTOMER_SESSION, sentTs);
-                this.submittedTransactions.Add(txId);
+                this.submittedTransactions.Add(new(tid, TransactionType.CUSTOMER_SESSION, sentTs));
             } else
             {
                 this.abortedTransactions.Add(new TransactionMark(tid, TransactionType.CUSTOMER_SESSION, this.customer.id, MarkStatus.ABORT, "cart"));
@@ -129,7 +127,7 @@ public class DefaultCustomerWorker : AbstractCustomerWorker
         }
         catch (Exception e)
         {
-            this.logger.LogError("Customer {0} Url {1}: Exception Message: {5} ", customer.id, url, e.Message);
+            this.logger.LogError("Customer {0} Url {1}: Exception Message: {5} ", this.customer.id, url, e.Message);
             this.InformFailedCheckout();
         }
 
@@ -219,11 +217,6 @@ public class DefaultCustomerWorker : AbstractCustomerWorker
         );
 
         return JsonConvert.SerializeObject(cartItem); 
-    }
-
-    public override List<TransactionOutput> GetFinishedTransactions()
-    {
-        return new List<TransactionOutput>(0);
     }
 
 }

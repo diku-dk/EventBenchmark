@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Common.Workload.CustomerWorker;
 using Common.Streaming;
 using Common.Entities;
+using System.Collections.Concurrent;
 
 namespace Common.Workers.Customer;
 
@@ -30,6 +31,9 @@ public abstract class AbstractCustomerWorker : ICustomerWorker
     // it is not necessary to be concurrent 
     protected readonly List<TransactionIdentifier> submittedTransactions;
 
+    // concurrent data structure because results are received asynchronously, possibly by concurrent pulling threads    
+    private readonly ConcurrentBag<TransactionOutput> finishedTransactions;
+
     protected readonly List<TransactionMark> abortedTransactions;
 
     protected readonly ISellerService sellerService;
@@ -48,6 +52,7 @@ public abstract class AbstractCustomerWorker : ICustomerWorker
         this.numberOfProducts = numberOfProducts;
         this.logger = logger;
         this.submittedTransactions = new();
+        this.finishedTransactions = new();
         this.abortedTransactions = new();
         this.random = new Random();
         this.BaseCheckoutUrl = this.config.cartUrl + "/{0}/checkout";
@@ -65,6 +70,7 @@ public abstract class AbstractCustomerWorker : ICustomerWorker
                                 new Zipf(WorkloadManager.productZipfian, numberOfProducts, new Random());
 
         this.submittedTransactions.Clear();
+        this.finishedTransactions.Clear();
     }
 
     public void Run(string tid)
@@ -109,17 +115,17 @@ public abstract class AbstractCustomerWorker : ICustomerWorker
     }
 
     /**
-    * Only implemented if the target data platform has an asynchronous API
-    * for submitting transaction requests. This is the case for Statefun, for example. Data structure for storing TransactionOutput is not declared in this class becuase this may differ according to the data platform
+    * Only used if the target data platform has an asynchronous API
+    * for submitting transaction requests. This is the case for Statefun, for example
     */
     public virtual void AddFinishedTransaction(TransactionOutput transactionOutput)
     {
-        throw new NotImplementedException();
+        this.finishedTransactions.Add(transactionOutput);
     }
 
     public virtual List<TransactionOutput> GetFinishedTransactions()
     {
-        throw new NotImplementedException();
+        return this.finishedTransactions.ToList();
     }
 
     public virtual IDictionary<string, List<CartItem>> GetCartItemsPerTid(DateTime finishTime)

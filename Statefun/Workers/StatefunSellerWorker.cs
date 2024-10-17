@@ -102,9 +102,4 @@ public sealed class StatefunSellerWorker : AbstractSellerWorker
         }
     }
 
-    public override void AddFinishedTransaction(TransactionOutput transactionOutput)
-    {
-        this.finishedTransactions.Add(transactionOutput);
-    }
-
 }
