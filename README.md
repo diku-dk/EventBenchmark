@@ -1,6 +1,8 @@
 # Online Marketplace: A Benchmark for Data Management in Microservices
 
-Online Marketplace is a benchmark modeling an event-driven microservice system in the marketplace application domain. It is designed to reflect emerging data management requirements and challenges faced by microservice developers in practice. This project contains the source code for the driver for the Online Marketplace benchmark. The driver is responsible to manage the lifecycle of an experiment, including data generation, data population, workload submission, and metrics collection.
+[Online Marketplace](https://dl.acm.org/doi/10.1145/3709653) is a benchmark designed to reflect emerging data management requirements and challenges faced by microservice developers in practice.
+
+This repository contains the source code of the benchmark driver, which is responsible to manage the lifecycle of an experiment, including data generation, data population, workload submission, and metrics collection.
 
 :exclamation: Looking for SIGMOD 2025 reproducibility? :exclamation: Jump straight to it by clicking on [Reproducibility](#reproducibility) :boom:
 
@@ -21,9 +23,9 @@ Online Marketplace is a benchmark modeling an event-driven microservice system i
     * [Troubleshooting](#troubleshooting)
 - [Reproducibility](#reproducibility)
 
-## <a name="marketplace"></a>Online Marketplace Benchmark
+## <a name="marketplace"></a>Online Marketplace Microservice Benchmark
 
-For an in-depth discussion and explanation of the benchmark, please refer to our full paper at SIGMOD '25:
+For an in-depth discussion and explanation of the benchmark, please refer to our full paper at [SIGMOD '25](https://dl.acm.org/doi/10.1145/3709653). To cite our work, please use the following entry:
 
 ```bibtex
 @article{10.1145/3709653,
@@ -45,15 +47,16 @@ keywords = {benchmark, data management, microservices, online marketplace}
 }
 ```
 
-### <a name="implementations"></a>Implementations
+### <a name="implementations"></a>Benchmark Application Implementations
 
 There are three stable implementations of the application prescribed by the Online Marketplace benchmark available: [Orleans](https://github.com/diku-dk/MarketplaceOnOrleans), [Statefun](https://github.com/diku-dk/MarketplaceOnStatefun), and [Dapr](https://github.com/rnlaigner/MarketplaceOnDapr). In order to run experiments targeting one of the platforms, refer to their respective repositories since they contain specific instructions as to how to configure and deploy the platform.
 
-### <a name="apis"></a>Required APIs
+If you looking to implement the benchmark in your platform, we strongly recommend analyzing the subprojects [Orleans](Orleans) and [Statefun](Statefun) to understand how to extend the driver to conduct experiments in other platforms.
+
+### <a name="apis"></a>Required APIs in Implementations
 
 In case you are looking to implement the application prescribed by Online Marketplace benchmark in another platform,
  some HTTP APIs are required to be exposed by the platform prior to workload submission. The list of HTTP APIs is as follows.
-
 
 API                  | HTTP Request Type  | Miroservice    |  Description |
 -------------------- |------------------- |--------------- |--------------|
@@ -69,17 +72,33 @@ API                  | HTTP Request Type  | Miroservice    |  Description |
 /shipment/{tid} | PATCH | Shipment | Update packages to 'delivered' status | 
 /stock | POST | Stock | Register a new stock item |
 
-For the requests that modify microservices' state (POST/PATCH/PUT), refer to classes present in [Entities](Common/Entities) to understand the expected payload. We strongly recommend analyzing the subprojects [Orleans](Orleans) and [Statefun](Statefun) to understand how to extend the driver to run experiments in other platforms.
+For the requests that modify microservices' state (POST/PATCH/PUT), refer to classes present in [Entities](Common/Entities) to understand the expected payload.
 
 ## <a name="driver"></a>Benchmark Driver
 
-The benchmark driver is written in C# and takes advantage of the thread management facilities provided by the .NET framework.
+The benchmark driver is written in C# and contains 8K lines of code. The driver takes advantage of the thread management and network facilities provided by the .NET framework.
+
+To use the driver, a user must specify the workload requirements through a configuration file. A workload configuration includes the concurrency level, number of products, number of sellers, experiment duration, ratio of transactions, cleaning procedures, as well as the target platform APIs in order for the driver to establish connections and submit requests.
+
+The driver parses configuration files dynamically and initializes an experiment lifecycle accordingly. The driver also allows the user to run a specific step, such as data generation, through an interactive menu. The typical usage of the driver is as follows:
+
+A user usually starts with data generation. Sellers, customers, products, and stock items are generated using Bogus, a popular library for generating synthetic but realistic data, including email, full name, address, and social security number. For products, Bogus generates matching product names and descriptions, including prices and locations.
+
+Generated data can be either stored durably or kept in main memory via DuckDB. Users can load the data from DuckDB and move on to data ingestion, populating the microservices with initial data. 
+
+After data generation and ingestion, for workload submission, the driver controls the maximum number of concurrent transactions running in the target platform by: (i) Initializing a number of threads defined by the configuration file. Each thread simulates a user interacting with the application; (ii) Whenever a transaction result returns, the driver pulls a previously used thread from a thread pool and spawns a new transaction submission.
+
+Upon experiment completion, the driver computes the metrics of completed transactions and stores the result in a file. 
+
+It is noteworthy the driver expects a target platform to expose specific HTTP APIs, as it is commonly found in web services, in order to submit operations (e.g., add item to cart) and transaction requests (e.g., checkout).
+
+Although we aimed to abstract the gist of experiment functionalities, due to the difference of APIs across platforms, platform-specific implementation of some interfaces was necessary. For example, while in Orleans, we can measure end-to-end latency by waiting for the response of an asynchronous RPC, in Statefun, it was necessary to continuously pull transaction results.
 
 ### <a name="prerequisites"></a>Prerequisites
 
 * [.NET Framework 7](https://dotnet.microsoft.com/en-us/download/dotnet/7.0)
 * A multi-core machine with appropriate memory size in case generated data is kept in memory
-* Linux- or MacOS-based operating system
+* A Linux- or MacOS-based operating system
 
 In case you want to modify, extend, or debug the benchmark driver, we recommend an IDE, which can be [Visual Studio](https://visualstudio.microsoft.com/vs/community/) or [VSCode](https://code.visualstudio.com/).
 
@@ -112,9 +131,11 @@ The directory [Common](Common) contains base classes for implementing a platform
 * [Workload](Common/Workload)
     The workload manager that ensures the empriment workload adheres to the workload configuration provided by the user
 
-The directories [Dapr](Dapr), [Statefun](Statefun), and [Orleans](Orleans) relies upon (and extends) many of the above classes to ensure the driver core functionalities remain functional in each respective platform. For example, due to the synchrnous RPC nature of Orleans, the use of events to mark the end of a long-running business transaction is not necessary, reason why the workload manager is overriden.
+The directories [Dapr](Dapr), [Statefun](Statefun), and [Orleans](Orleans) rely upon (and extend) many of the above classes to ensure the driver core functionalities are configured to each respective platform. For example, due to the synchronous RPC communication abstraction of Orleans, the use of asynchronous events to mark the end of a long-running business transaction is not necessary, reason why the workload manager is overriden in the [Orleans](Orleans) subproject.
 
-The directory [Tests](Tests) contain varied unit tests to ensure the correctness of the requests sent to a platform.
+The directory [Tests](Tests) contains varied unit tests to ensure the correctness of the requests sent to a platform.
+
+The directory [DriverBench](DriverBench) contains microbenchmarks attesting the performance of the driver.
 
 ### <a name="data"></a>Data Generation
 
@@ -213,7 +234,7 @@ Other example configuration files are found in [Configuration](Configuration).
 
 ### <a name="run"></a>Running an Experiment
 
-Once the configuration is set and assuming the target data platform is up and running (i.e., ready to receive requests), we can initialize the benchmark driver process. In the project root folder, run the following commands for the respective platforms:
+Once the configuration is set and assuming the target data platform is up and running (i.e., ready to receive requests), one can initialize the benchmark driver process. In the project root folder, run the following commands for the respective platforms:
 
 - Orleans
 ```
@@ -253,15 +274,15 @@ We understand these settings are sensible and prone to error. We expect to impro
 
 ### <a name="performance"></a>Driver Performance
 
-The project DriverBench can run simulated workload to test the driver scalability. That is, the driver's ability to submit more requests as more computational resources are added.
+The project DriverBench can run simulated workloads to test the driver scalability. That is, the driver's ability to submit more requests as more computational resources are added.
 
-There are three impediments that refrain the driver from scaling:
+There are three impediments that can refrain the driver from scaling:
 
 - (a) Insufficient computational resources
 - (b) Contended workload
 - (c) The target platform
 
-(a) can be mitigated with more CPUs and memory (to hold data in memory if necessary).
+(a) can be mitigated with more CPUs and storage (e.g., to hold data in memory if necessary).
 
 (b) does not occur if uniform distribution is used. However, when using non-uniform distribution, the task is tricky because there could be some level of synchronization in the driver to make sure updates to a product are linearizable. Adjusting the zipfian constant can alleviate the problem in case non-uniform distribution is really necessary.
 
@@ -273,32 +294,30 @@ We intend to count the "add item to cart" operation as a measured query in the d
 
 ### <a name="troubleshooting"></a>Troubleshooting
 
-The following links provide useful pointers for troubleshooting possible deployment and performance issues with experiments.
+The following links provide useful pointers for troubleshooting possible deployment and performance issues during experiments.
 
 - [How to copy files to output directory](https://stackoverflow.com/questions/44374074/copy-files-to-output-directory-using-csproj-dotnetcore)
 - [What process is listening to a given port?](https://stackoverflow.com/questions/4421633/who-is-listening-on-a-given-tcp-port-on-mac-os-x)
 - [Orleans Docker deployment](http://sergeybykov.github.io/orleans/1.5/Documentation/Deployment-and-Operations/Docker-Deployment.html)
-- [Interlocked](https://learn.microsoft.com/en-us/dotnet/api/system.threading.interlocked.increment?view=net-7.0&redirectedfrom=MSDN#System_Threading_Interlocked_Increment_System_Int32__)
-- [Locust](https://github.com/GoogleCloudPlatform/microservices-demo/blob/main/src/loadgenerator/locustfile.py)
 - [.NET HTTP client optimization](https://www.stevejgordon.co.uk/using-httpcompletionoption-responseheadersread-to-improve-httpclient-performance-dotnet)
 - [.NET HTTP client connection pooling](https://www.stevejgordon.co.uk/httpclient-connection-pooling-in-dotnet-core)
 - [.NET HTTP client timeout handling](https://thomaslevesque.com/2018/02/25/better-timeout-handling-with-httpclient/)
 
-## <a name="reproducibility"></a>SIGMOD Reproducibility
+## <a name="reproducibility"></a>SIGMOD 2025 Reproducibility
 
-### Source Code (for Artifact Availability)
+### Source Code (Artifact Availability)
 
 The source code of all the projects required for reproducibility steps can be downloaded as follows:
 
-- [Benchmark driver](https://github.com/diku-dk/OnlineMarketplaceBenchmark/archive/refs/tags/v1.0.zip)
-- [Orleans](https://github.com/diku-dk/MarketplaceOnOrleans/archive/refs/tags/v1.0.zip)
-- [Statefun](https://github.com/diku-dk/MarketplaceOnStatefun/archive/refs/tags/v1.0.zip)
+- [Online Marketplace Driver](https://github.com/diku-dk/OnlineMarketplaceBenchmark/archive/refs/tags/v1.0.zip)
+- [Online Marketplace on Orleans](https://github.com/diku-dk/MarketplaceOnOrleans/archive/refs/tags/v1.0.zip)
+- [Online Marketplace on Statefun](https://github.com/diku-dk/MarketplaceOnStatefun/archive/refs/tags/v1.0.zip)
 
-### Configuration Instructions (to ensure Artifacts are Functional)
+### Configuration Instructions (Artifacts are Functional)
 
 The instructions provided in this section assume the usage of the Linux distribution [Ubuntu](https://ubuntu.com/) 22.10. 
 
-To setup the benchmark driver, we must install .NET 7 using the following command:
+To setup the benchmark driver, one must install .NET 7 using the following command:
 
 ```
 sudo apt-get update && \
@@ -311,9 +330,9 @@ To setup Orleans, make sure .NET 7 is installed. Then, you can run the project w
 dotnet run --urls "http://*:8080" --project ../Silo
 ```
 
-Further instructions about Orleans deployment can be found in the following link: [MarketplaceOnOrleans](https://github.com/diku-dk/MarketplaceOnOrleans).
+Further instructions about Online Marketplace Orleans deployment can be found in the following link: [MarketplaceOnOrleans](https://github.com/diku-dk/MarketplaceOnOrleans).
 
-To setup Statefun, we must install Java 8 using the following command:
+To setup Statefun, one must install Java 8 using the following command:
 
 ```
 sudo apt update && \
@@ -334,10 +353,10 @@ docker-compose build
 docker-compose up
 ```
 
-Further instructions about Statefun deployment can be found in the following link: [MarketplaceOnStatefun](https://github.com/diku-dk/MarketplaceOnStatefun).
+Further instructions about Online Marketplace Statefun deployment can be found in the following link: [MarketplaceOnStatefun](https://github.com/diku-dk/MarketplaceOnStatefun).
 
 Finally, the following commands can be used to initialize the benchmark driver.
-The driver interacts with the target platforms (i.e., submit workload), therefore now we can setup an experiment to benchmark one of the target platforms (Orleans or Statefun).
+The driver interacts with the target platforms (i.e., submit workload), therefore now one can setup an experiment to benchmark one of the target platforms.
 
 
 For Orleans:
@@ -370,24 +389,6 @@ Number of completed transactions: 424452
 Transactions per second: 7074.175865270006
 ```
 
-### Experimental Setup (to ensure Results are Reproducible)
+### Reproducibility of Experimental Results
 
-The cloud platform [UCloud](https://cloud.sdu.dk) must be used to reproduce the experiments found in the SIGMOD paper. According to [UCloud docs](https://docs.cloud.sdu.dk/help/faq.html), an individual not affiliated with a Danish institution must request access through a PI. In this case, the reviewer must send an e-mail to [Rodrigo laigner](https://rnlaigner.github.io/) requesting the access.
-
-Once the access is granted, log in [UCloud](https://cloud.sdu.dk/app). Access your home folder through the [link](https://cloud.sdu.dk/app/drives). Click "Upload files" and upload the files found in [Reproducibility](Reproducibility).
-
-#### Setting up Orleans in UCloud
-
-To set up the Orleans platform, access the [link](https://cloud.sdu.dk/app/jobs/create?app=ubuntu-xfce&version=Jul2023).
-
-In the upper right corner, select the 'Big Data Systems' project.
-
-In 'Job name', type 'orleans'
-
-In 'Machine type', select u1-standard-64.
-
-Inside 'Optional Parameters', in the `Initialization` line, click the button 'Use'. Select the file 'init_dotnet.sh' uploaded earlier in your Home folder. 
-
-Finally, click 'Submit' to start running the Ubuntu instance.
-
-
+The cloud platform [UCloud](https://cloud.sdu.dk) was used to reproduce the experiments found in our [SIGMOD paper](https://dl.acm.org/doi/10.1145/3709653). However, due to resource constraints and limited automation support that requires significant user intervention, we refrain from applying for the reproducibility badge.

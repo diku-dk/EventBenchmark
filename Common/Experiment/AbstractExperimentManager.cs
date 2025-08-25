@@ -46,11 +46,11 @@ public abstract class AbstractExperimentManager
 
     protected List<Customer> customers;
     protected readonly Interval customerRange;
-    private readonly Dictionary<int, AbstractCustomerWorker> customerThreads;
+    private readonly Dictionary<int, AbstractCustomerWorker> customerWorkers;
     protected readonly CustomerService customerService;
 
     protected readonly SellerService sellerService;
-    private readonly Dictionary<int, ISellerWorker> sellerThreads;
+    private readonly Dictionary<int, ISellerWorker> sellerWorkers;
     protected int numSellers;
     protected readonly MetricManager metricManager;
     protected readonly WorkloadManager workloadManager;
@@ -63,12 +63,12 @@ public abstract class AbstractExperimentManager
 
         this.deliveryService = new DeliveryService(deliveryWorkerDelegate(httpClientFactory, config.deliveryWorkerConfig));
 
-        this.sellerThreads = new Dictionary<int, ISellerWorker>();
-        this.sellerService = new SellerService(this.sellerThreads, sellerWorkerDelegate);
+        this.sellerWorkers = new Dictionary<int, ISellerWorker>();
+        this.sellerService = new SellerService(this.sellerWorkers, sellerWorkerDelegate);
         this.numSellers = 0;
 
-        this.customerThreads = new Dictionary<int, AbstractCustomerWorker>();
-        this.customerService = new CustomerService(this.customerThreads, customerWorkerDelegate);
+        this.customerWorkers = new Dictionary<int, AbstractCustomerWorker>();
+        this.customerService = new CustomerService(this.customerWorkers, customerWorkerDelegate);
         this.customerRange = new Interval(1, config.numCustomers);
 
         this.workloadManager = workloadManagerDelegate(
@@ -84,19 +84,19 @@ public abstract class AbstractExperimentManager
     }
 
     /**
-     * Initialize all customer objects
+     * Initialize all customer workers
      */
     protected virtual void PreExperiment()
     {
         LOGGER.LogInformation("Initializing customer workers...");
         for (int i = this.customerRange.min; i <= this.customerRange.max; i++)
         {
-            this.customerThreads.Add(i, this.customerService.BuildCustomerWorker(this.httpClientFactory, this.sellerService, this.config.numProdPerSeller, this.config.customerWorkerConfig, this.customers[i - 1]));
+            this.customerWorkers.Add(i, this.customerService.BuildCustomerWorker(this.httpClientFactory, this.sellerService, this.config.numProdPerSeller, this.config.customerWorkerConfig, this.customers[i - 1]));
         }
     }
 
      /**
-     * 1. Initialize all seller objects
+     * 1. Initialize all seller workers
      * 2. Set distributions on customer objects
      */
     protected virtual void PreWorkload(int runIdx)
@@ -106,18 +106,18 @@ public abstract class AbstractExperimentManager
         for (int i = 1; i <= this.numSellers; i++)
         {
             List<Product> products = DuckDbUtils.SelectAllWithPredicate<Product>(connection, "products", "seller_id = " + i);
-            if (!this.sellerThreads.ContainsKey(i))
+            if (!this.sellerWorkers.ContainsKey(i))
             {
-                this.sellerThreads[i] = this.sellerService.BuildSellerWorker(i, this.httpClientFactory, this.config.sellerWorkerConfig); 
+                this.sellerWorkers[i] = this.sellerService.BuildSellerWorker(i, this.httpClientFactory, this.config.sellerWorkerConfig); 
             }
-            this.sellerThreads[i].SetUp(products, this.config.runs[runIdx].keyDistribution,  this.config.runs[runIdx].productZipfian);
+            this.sellerWorkers[i].SetUp(products, this.config.runs[runIdx].keyDistribution,  this.config.runs[runIdx].productZipfian);
         }
 
         LOGGER.LogInformation("Setting up seller workload data in customer workers...");
         Interval sellerRange = new Interval(1, this.numSellers);
         for (int i = this.customerRange.min; i <= this.customerRange.max; i++)
         {
-            this.customerThreads[i].SetUp(sellerRange, this.config.runs[runIdx].sellerDistribution, this.config.runs[runIdx].keyDistribution, this.config.runs[runIdx].sellerZipfian, this.config.runs[runIdx].productZipfian);
+            this.customerWorkers[i].SetUp(sellerRange, this.config.runs[runIdx].sellerDistribution, this.config.runs[runIdx].keyDistribution, this.config.runs[runIdx].sellerZipfian, this.config.runs[runIdx].productZipfian);
         }
     }
 
@@ -166,6 +166,9 @@ public abstract class AbstractExperimentManager
         this.metricManager.Collect(startTime, finishTime, this.config.epoch, string.Format("{0}#{1}_{2}_{3}_{4}_{5}_{6}", ts, runIdx, this.config.numCustomers, this.config.concurrencyLevel, this.config.runs[runIdx].numProducts, this.config.runs[runIdx].sellerDistribution, this.config.runs[runIdx].keyDistribution));
     }
 
+    /**
+     * This method is only supposed to be called to run the whole lifecycle of an experiment, that is, create data, ingest the data, and execute the the many defined runs.
+     */
     public virtual async Task Run()
     {
         try {
@@ -257,6 +260,7 @@ public abstract class AbstractExperimentManager
         LOGGER.LogInformation("Experiment finished");
     }
 
+    // To simplify the execution of a single experiment run
     public void RunSimpleExperiment()
     {
         this.customers = DuckDbUtils.SelectAll<Customer>(this.connection, "customers");
@@ -272,11 +276,10 @@ public abstract class AbstractExperimentManager
 
     protected static void CollectGarbage()
     {
-        LOGGER.LogInformation(InitGcMessage,GC.GetTotalMemory(false));
+        LOGGER.LogInformation(InitGcMessage, GC.GetTotalMemory(false));
         // Collect all generations of memory.
         GC.Collect();
-        LOGGER.LogInformation(AfterGcMessage,
-        GC.GetTotalMemory(true));
+        LOGGER.LogInformation(AfterGcMessage, GC.GetTotalMemory(true));
     }
 
 }

@@ -1,22 +1,20 @@
-﻿namespace Common.Workload.Seller
+﻿namespace Common.Workload.Seller;
+
+/**
+ * The necessary data required by a seller worker to work properly
+ */
+public sealed class SellerWorkerConfig
 {
-    /**
-     * The necessary data required by a seller worker to work properly
-     */
-    public sealed class SellerWorkerConfig
-    {
-        // the perc of increase
-        public Interval adjustRange { get; set; }
+    // the percentage of increase
+    public Interval adjustRange { get; set; }
 
-        public string productUrl { get; set; }
+    public string productUrl { get; set; }
 
-        public string sellerUrl { get; set; }
+    public string sellerUrl { get; set; }
 
-        public Interval delayBetweenRequestsRange { get; set; }
+    public Interval delayBetweenRequestsRange { get; set; }
 
-        // flag that defines whether causal anomalies are tracked
-        public bool trackUpdates { get; set; }
+    // flag that defines whether causal anomalies are tracked
+    public bool trackUpdates { get; set; }
 
-    }
 }
-

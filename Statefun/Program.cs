@@ -67,29 +67,12 @@ public class Program
                             }
                         }
                         var expManager = StatefunExperimentManager.BuildStatefunExperimentManager(CustomHttpClientFactory.GetInstance(), config, connection);
-                        await expManager.Run();
+                        expManager.RunSimpleExperiment();
                         Console.WriteLine("Experiment finished.");
                         break;
                     }
                     case "4":
                     {
-                        if (connection is null)
-                        {
-                            if (config.connectionString.SequenceEqual("DataSource=:memory:"))
-                            {
-                                Console.WriteLine("Please generate some data first by selecting option 1.");
-                                break;
-                            }
-                            else
-                            {
-                                connection = new DuckDBConnection(config.connectionString);
-                                connection.Open();
-                            }
-                        }
-                        // ingest data
-                        await DefaultIngestionOrchestrator.Run(connection, config.ingestionConfig);
-                        Console.WriteLine("Delay after ingest...");
-                        await Task.Delay(10000);
                         var expManager = StatefunExperimentManager.BuildStatefunExperimentManager(CustomHttpClientFactory.GetInstance(), config,connection);
                         await expManager.Run();
                         Console.WriteLine("Experiment finished.");
