@@ -8,14 +8,15 @@ This repository contains the source code of the benchmark driver, which is respo
 
 ## Table of Contents
 - [Online Marketplace Benchmark](#marketplace)
-    * [Implementations](#implementations)
-    * [Required APIs](#apis)
-- [Benchmark Driver](#driver)
+    * [Benchmark Driver](#driver)
     * [Prerequisites](#prerequisites)
     * [Directory Structure](#structure)
     * [Data Generation](#data)
     * [Configuration](#config)
     * [Running an Experiment](#run)
+- [Benchmarking Applications](#applications)
+    * [Implementations](#implementations)
+    * [Required APIs](#apis)
 - [Advanced Details](#advanced)
     * [Tracking Replication Anomalies](#replication)
     * [Driver Performance](#performance)
@@ -25,7 +26,27 @@ This repository contains the source code of the benchmark driver, which is respo
 
 ## <a name="marketplace"></a>Online Marketplace Microservice Benchmark
 
-For an in-depth discussion and explanation of the benchmark, please refer to our full paper at [SIGMOD '25](https://dl.acm.org/doi/10.1145/3709653). To cite our work, please use the following entry:
+### <a name="driver"></a>Benchmark Driver
+
+The benchmark driver is written in C# and contains 8K lines of code. The driver takes advantage of the thread management and network facilities provided by the .NET framework.
+
+To use the driver, a user must specify the workload requirements through a configuration file. A workload configuration includes the concurrency level, number of products, number of sellers, experiment duration, ratio of transactions, cleaning procedures, as well as the target platform APIs in order for the driver to establish connections and submit requests.
+
+The driver parses configuration files dynamically and initializes an experiment lifecycle accordingly. The driver also allows the user to run a specific step, such as data generation, through an interactive menu. The typical usage of the driver is as follows:
+
+A user usually starts with data generation. Sellers, customers, products, and stock items are generated using Bogus, a popular library for generating synthetic but realistic data, including email, full name, address, and social security number. For products, Bogus generates matching product names and descriptions, including prices and locations.
+
+Generated data can be either stored durably or kept in main memory via DuckDB. Users can load the data from DuckDB and move on to data ingestion, populating the microservices with initial data. 
+
+After data generation and ingestion, for workload submission, the driver controls the maximum number of concurrent transactions running in the target platform by: (i) Initializing a number of threads defined by the configuration file. Each thread simulates a user interacting with the application; (ii) Whenever a transaction result returns, the driver pulls a previously used thread from a thread pool and spawns a new transaction submission.
+
+Upon experiment completion, the driver computes the metrics of completed transactions and stores the result in a file. 
+
+It is noteworthy the driver expects a target platform to expose specific HTTP APIs, as it is commonly found in web services, in order to submit operations (e.g., add item to cart) and transaction requests (e.g., checkout).
+
+Although we aimed to abstract the gist of experiment functionalities, due to the difference of APIs across platforms, platform-specific implementation of some interfaces was necessary. For example, while in Orleans, we can measure end-to-end latency by waiting for the response of an asynchronous RPC, in Statefun, it was necessary to continuously pull transaction results.
+
+For an in-depth discussion of the benchmark, please refer to our full paper at [SIGMOD '25](https://dl.acm.org/doi/10.1145/3709653). To cite our work, please use the following entry:
 
 ```bibtex
 @article{10.1145/3709653,
@@ -46,53 +67,6 @@ numpages = {26},
 keywords = {benchmark, data management, microservices, online marketplace}
 }
 ```
-
-### <a name="implementations"></a>Benchmark Application Implementations
-
-There are three stable implementations of the application prescribed by the Online Marketplace benchmark available: [Orleans](https://github.com/diku-dk/MarketplaceOnOrleans), [Statefun](https://github.com/diku-dk/MarketplaceOnStatefun), and [Dapr](https://github.com/rnlaigner/MarketplaceOnDapr). In order to run experiments targeting one of the platforms, refer to their respective repositories since they contain specific instructions as to how to configure and deploy the platform.
-
-If you looking to implement the benchmark in your platform, we strongly recommend analyzing the subprojects [Orleans](Orleans) and [Statefun](Statefun) to understand how to extend the driver to conduct experiments in other platforms.
-
-### <a name="apis"></a>Required APIs in Implementations
-
-In case you are looking to implement the application prescribed by Online Marketplace benchmark in another platform,
- some HTTP APIs are required to be exposed by the platform prior to workload submission. The list of HTTP APIs is as follows.
-
-API                  | HTTP Request Type  | Miroservice    |  Description |
--------------------- |------------------- |--------------- |--------------|
-/cart/{customerId}/add | PUT | Cart | Add a product to a customer's cart |
-/cart/{customerId}/checkout | POST | Cart | Checkout a cart |
-/cart/{customerId}/seal | POST | Cart | Reset a cart |
-/customer | POST | Customer | Register a new customer |
-/product  | POST  | Product | Register a new product |
-/product  | PATCH | Product | Update a product's price |
-/product  | PUT   | Product | Replace a product |
-/seller   | POST  | Seller | Register a new seller |
-/seller/dashboard/{sellerId} | GET | Seller | Retrieve seller's dashboard for a given a seller |
-/shipment/{tid} | PATCH | Shipment | Update packages to 'delivered' status | 
-/stock | POST | Stock | Register a new stock item |
-
-For the requests that modify microservices' state (POST/PATCH/PUT), refer to classes present in [Entities](Common/Entities) to understand the expected payload.
-
-## <a name="driver"></a>Benchmark Driver
-
-The benchmark driver is written in C# and contains 8K lines of code. The driver takes advantage of the thread management and network facilities provided by the .NET framework.
-
-To use the driver, a user must specify the workload requirements through a configuration file. A workload configuration includes the concurrency level, number of products, number of sellers, experiment duration, ratio of transactions, cleaning procedures, as well as the target platform APIs in order for the driver to establish connections and submit requests.
-
-The driver parses configuration files dynamically and initializes an experiment lifecycle accordingly. The driver also allows the user to run a specific step, such as data generation, through an interactive menu. The typical usage of the driver is as follows:
-
-A user usually starts with data generation. Sellers, customers, products, and stock items are generated using Bogus, a popular library for generating synthetic but realistic data, including email, full name, address, and social security number. For products, Bogus generates matching product names and descriptions, including prices and locations.
-
-Generated data can be either stored durably or kept in main memory via DuckDB. Users can load the data from DuckDB and move on to data ingestion, populating the microservices with initial data. 
-
-After data generation and ingestion, for workload submission, the driver controls the maximum number of concurrent transactions running in the target platform by: (i) Initializing a number of threads defined by the configuration file. Each thread simulates a user interacting with the application; (ii) Whenever a transaction result returns, the driver pulls a previously used thread from a thread pool and spawns a new transaction submission.
-
-Upon experiment completion, the driver computes the metrics of completed transactions and stores the result in a file. 
-
-It is noteworthy the driver expects a target platform to expose specific HTTP APIs, as it is commonly found in web services, in order to submit operations (e.g., add item to cart) and transaction requests (e.g., checkout).
-
-Although we aimed to abstract the gist of experiment functionalities, due to the difference of APIs across platforms, platform-specific implementation of some interfaces was necessary. For example, while in Orleans, we can measure end-to-end latency by waiting for the response of an asynchronous RPC, in Statefun, it was necessary to continuously pull transaction results.
 
 ### <a name="prerequisites"></a>Prerequisites
 
@@ -262,6 +236,35 @@ Through the menu, the user can select specific benchmark tasks, including data g
 
 At the end of an experiment cycle, the results collected along the execution are shown in the screen and stored automatically in a text file. The text file indicates the execution time, as well as some of the parameters used for faster identification of a specific run.
 
+## <a name="applications"></a>Benchmarking Applications
+
+### <a name="implementations"></a>Implementations
+
+There are three stable implementations of the application prescribed by the Online Marketplace benchmark available: [Orleans](https://github.com/diku-dk/MarketplaceOnOrleans), [Statefun](https://github.com/diku-dk/MarketplaceOnStatefun), and [Dapr](https://github.com/rnlaigner/MarketplaceOnDapr). In order to run experiments targeting one of the platforms, refer to their respective repositories since they contain specific instructions as to how to configure and deploy the platform.
+
+If you looking to implement the benchmark in your platform, we strongly recommend analyzing the subprojects [Orleans](Orleans) and [Statefun](Statefun) to understand how to extend the driver to conduct experiments in other platforms.
+
+### <a name="apis"></a>Required APIs in Implementations
+
+In case you are looking to implement the application prescribed by Online Marketplace benchmark in another platform,
+ some HTTP APIs are required to be exposed by the platform prior to workload submission. The list of HTTP APIs is as follows.
+
+API                  | HTTP Request Type  | Miroservice    |  Description |
+-------------------- |------------------- |--------------- |--------------|
+/cart/{customerId}/add | PUT | Cart | Add a product to a customer's cart |
+/cart/{customerId}/checkout | POST | Cart | Checkout a cart |
+/cart/{customerId}/seal | POST | Cart | Reset a cart |
+/customer | POST | Customer | Register a new customer |
+/product  | POST  | Product | Register a new product |
+/product  | PATCH | Product | Update a product's price |
+/product  | PUT   | Product | Replace a product |
+/seller   | POST  | Seller | Register a new seller |
+/seller/dashboard/{sellerId} | GET | Seller | Retrieve seller's dashboard for a given a seller |
+/shipment/{tid} | PATCH | Shipment | Update packages to 'delivered' status | 
+/stock | POST | Stock | Register a new stock item |
+
+For the requests that modify microservices' state (POST/PATCH/PUT), refer to classes present in [Entities](Common/Entities) to understand the expected payload.
+
 ## <a name="advanced"></a>Advanced Details
 
 ### <a name="replication"></a>Tracking Replication Correctness
@@ -391,4 +394,4 @@ Transactions per second: 7074.175865270006
 
 ### Reproducibility of Experimental Results
 
-The cloud platform [UCloud](https://cloud.sdu.dk) was used to reproduce the experiments found in our [SIGMOD paper](https://dl.acm.org/doi/10.1145/3709653). However, due to resource constraints and limited automation support that requires significant user intervention, we refrain from applying for the reproducibility badge.
+The cloud platform [UCloud](https://cloud.sdu.dk) was used to run the experiments found in our [SIGMOD paper](https://dl.acm.org/doi/10.1145/3709653). However, due to resource constraints and limited automation support that requires significant user intervention, we refrain from applying for the reproducibility badge.
