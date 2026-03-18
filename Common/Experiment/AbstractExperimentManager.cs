@@ -46,7 +46,7 @@ public abstract class AbstractExperimentManager
 
     protected List<Customer> customers;
     protected readonly Interval customerRange;
-    private readonly Dictionary<int, AbstractCustomerWorker> customerWorkers;
+    protected readonly Dictionary<int, AbstractCustomerWorker> customerWorkers;
     protected readonly CustomerService customerService;
 
     protected readonly SellerService sellerService;

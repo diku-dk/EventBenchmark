@@ -23,6 +23,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DriverBench", "DriverBench\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Modb", "Modb\Modb.csproj", "{5B1AA504-03EA-4ED5-92C4-6C9C0532D55F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Monitor", "Monitor\Monitor.csproj", "{FC0014FE-24A4-4392-9702-528C71A72C60}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -57,6 +59,10 @@ Global
 		{5B1AA504-03EA-4ED5-92C4-6C9C0532D55F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5B1AA504-03EA-4ED5-92C4-6C9C0532D55F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5B1AA504-03EA-4ED5-92C4-6C9C0532D55F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FC0014FE-24A4-4392-9702-528C71A72C60}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FC0014FE-24A4-4392-9702-528C71A72C60}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FC0014FE-24A4-4392-9702-528C71A72C60}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FC0014FE-24A4-4392-9702-528C71A72C60}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
