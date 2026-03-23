@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using Common.Workload.CustomerWorker;
+using Common.Entities;
 
 namespace Monitor;
 
@@ -18,36 +18,65 @@ public class CartActor
 	// out of order, delays, anything that we want to simulate
 	// distributions, failure probability
 
-	private BlockingCollection<object> inputMailbox;
-    private BlockingCollection<object> outputMailbox;
+	private BlockingCollection<PayloadObject> inputMailbox;
+    private BlockingCollection<PayloadObject> outputMailbox;
     private CartActorConfig config;
+    private Cart cart;
 
     // options if static, can go to constructor, otherwise just create volatile fields
-    public CartActor(BlockingCollection<object> inputMailbox, BlockingCollection<object> outputMailbox, CartActorConfig config)
+    public CartActor(BlockingCollection<PayloadObject> inputMailbox, BlockingCollection<PayloadObject> outputMailbox, CartActorConfig config)
 	{
 		this.inputMailbox = inputMailbox;
 		this.outputMailbox = outputMailbox;
 		this.config = config;
+		cart = new Cart();
 	}
-
-	// message communication between threads
-
-	// everything related to thread synchronization also applies to this
-	// but there are other more beneficial (?) designs
-
-	// mutual exclusion, atomic variables
-	// blocking queue.
+    
+	private void AddItem(CartItem cartItem)
+	{
+		if (cartItem.Quantity <= 0)
+		{
+			throw new Exception("Negative quantity cannot be added!");
+		}
+		
+		if (cart.status == CartStatus.CHECKOUT_SENT)
+		{
+			throw new Exception("Cart for customer " + cart.customerId + " already sent for checkout.");
+		}
+		
+		cart.items.Add(cartItem);
+	}
 
 	public void Run()
 	{
-
+		
 		// event loop
 		while (true)
 		{
 			// wait for a customer checkout
-			object payload = inputMailbox.Take();
-
+			PayloadObject payload = inputMailbox.Take();
 			// TODO do things
+			var message = payload.message_type;
+			try
+			{
+				if (message == "checkout")
+				{
+					
+				} 
+				else if (message == "add_item")
+				{
+					AddItem((CartItem) payload.payload);
+				}
+				else
+				{
+					throw new Exception("Unknown message type: " + message);
+				}
+			}
+			catch (Exception e)
+			{
+				Console.WriteLine(e);
+				throw;
+			}
 
 
 			// if the config allows, output it
