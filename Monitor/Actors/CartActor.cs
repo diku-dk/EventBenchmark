@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using Common.Entities;
+using Common.Events;
 
 namespace Monitor;
 
@@ -22,6 +23,7 @@ public class CartActor
     private BlockingCollection<PayloadObject> outputMailbox;
     private CartActorConfig config;
     private Cart cart;
+    private bool checkedOut = false; 
 
     // options if static, can go to constructor, otherwise just create volatile fields
     public CartActor(BlockingCollection<PayloadObject> inputMailbox, BlockingCollection<PayloadObject> outputMailbox, CartActorConfig config)
@@ -49,7 +51,6 @@ public class CartActor
 
 	public void Run()
 	{
-		
 		// event loop
 		while (true)
 		{
@@ -59,13 +60,31 @@ public class CartActor
 			var message = payload.message_type;
 			try
 			{
-				if (message == "checkout")
+				if (message == Constants.Checkout)
 				{
-					
+					if (checkedOut)
+					{
+
+					}
+					else
+					{
+						checkedOut = true;
+						ReserveInventory x = new ReserveInventory();
+						// todo send to StockActor mailbox,
+					}
 				} 
-				else if (message == "add_item")
+				else if (message == Constants.AddItem)
 				{
-					AddItem((CartItem) payload.payload);
+					if (checkedOut)
+					{
+						// todo logging
+					}
+					else
+					{
+						AddItem((CartItem) payload.payload);
+						// todo logging
+					}
+					
 				}
 				else
 				{
