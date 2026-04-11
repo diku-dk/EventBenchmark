@@ -83,16 +83,15 @@ public class StockActor
                     if (ReserveProducts(val.items))
                     {
                         var newPayload = new StockConfirmed();
-                        var callBackAddress = new Dictionary<String, BlockingCollection<PayloadObject>>();
-                        callBackAddress.TryAdd(Constants.CallBackOrder, orderOutputMailbox);
-                        PayloadObject newPayloadObject = new PayloadObject(Constants.StockConfirmed, newPayload, callBackAddress);
+                        CallbackManager.AddCallBackAddress(payload.mailboxes, Constants.CallBackOrder, inputMailbox);
+                        PayloadObject newPayloadObject = new PayloadObject(Constants.StockConfirmed, newPayload, payload.mailboxes);
                         orderOutputMailbox.Add(newPayloadObject);
                         // logging send E3 stock confirmed
                     }
                     else
                     {
                         var newPayload = new ReserveStockFailed();
-                        PayloadObject newPayloadObject = new PayloadObject(Constants.StockReservationFailed, newPayload, null);
+                        PayloadObject newPayloadObject = new PayloadObject(Constants.StockReservationFailed, newPayload, payload.mailboxes);
                         var costumerMailbox = payload.mailboxes[Constants.CallBackCostumer];
                         costumerMailbox.Add(newPayloadObject);
                         // logging send E4 Stock reservation failed

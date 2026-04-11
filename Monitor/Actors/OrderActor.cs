@@ -37,21 +37,13 @@ public class OrderActor
                     
                     var toBill = productValue +  shipmentValue;
                     var issuedInvoice = new InvoiceIssued();
-                    var newPayLoadObject = new PayloadObject("issue_invoice", issuedInvoice, null);
+                    var newPayLoadObject = new PayloadObject(Constants.InvoiceIssued, issuedInvoice, payload.mailboxes);
                     paymentMailbox.Add(newPayLoadObject);
                     // todo logging
                 }
                 else if (message == Constants.ShipmentNotification)
                 {
                     // might not be necessary
-                }
-                else if (message == Constants.PaymentConfirmed)
-                {
-                    
-                }
-                else if (message == Constants.PaymentFailed)
-                {
-                    
                 }
             }
             catch (Exception e)
