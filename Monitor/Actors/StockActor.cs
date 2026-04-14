@@ -10,12 +10,10 @@ public class StockActor
 {
     private Dictionary<int, int> inventory;
     private BlockingCollection<PayloadObject> inputMailbox;
-    private BlockingCollection<PayloadObject> orderOutputMailbox;
     
-    public StockActor(Dictionary<int, int> inventory, BlockingCollection<PayloadObject> inputMailbox, BlockingCollection<PayloadObject> orderOutputMailbox)
+    public StockActor(Dictionary<int, int> inventory, BlockingCollection<PayloadObject> inputMailbox)
     {
         this.inputMailbox = inputMailbox;
-        this.orderOutputMailbox = orderOutputMailbox;
         this.inventory = inventory;   
     }
 
@@ -83,10 +81,11 @@ public class StockActor
                     if (ReserveProducts(val.items))
                     {
                         var newPayload = new StockConfirmed();
-                        CallbackManager.AddCallBackAddress(payload.mailboxes, Constants.CallBackOrder, inputMailbox);
+                        CallbackManager.AddCallBackAddress(payload.mailboxes, Constants.CallBackStock, inputMailbox);
                         PayloadObject newPayloadObject = new PayloadObject(Constants.StockConfirmed, newPayload, payload.mailboxes);
+                        var orderOutputMailbox = CallbackManager.GetCallBackMailbox(payload.mailboxes, Constants.CallBackStock);
                         orderOutputMailbox.Add(newPayloadObject);
-                        // logging send E3 stock confirmed
+                        // todo logging send E3 stock confirmed
                     }
                     else
                     {
@@ -94,8 +93,17 @@ public class StockActor
                         PayloadObject newPayloadObject = new PayloadObject(Constants.StockReservationFailed, newPayload, payload.mailboxes);
                         var costumerMailbox = payload.mailboxes[Constants.CallBackCostumer];
                         costumerMailbox.Add(newPayloadObject);
-                        // logging send E4 Stock reservation failed
+                        // todo logging send E4 Stock reservation failed
                     }
+                }
+                else if (message == Constants.PaymentFailed)
+                {
+                     var paymentFailed = (PaymentFailed) payload.payload;
+                     foreach (var item in paymentFailed.items)
+                     {
+                         AddStock(item.ProductId, item.Quantity);
+                     }
+                     // todo logging
                 }
             }
             catch (Exception e)

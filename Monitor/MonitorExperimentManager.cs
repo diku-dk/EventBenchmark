@@ -42,7 +42,6 @@ public class MonitorExperimentManager : AbstractExperimentManager
         // TODO do this for all synthetic actor we create
         // cart, stock, order, payment, shipment
 
-
         this.customers = DuckDbUtils.SelectAll<Customer>(this.connection, "customers");
         this.PreExperiment();
         this.PreWorkload(0);

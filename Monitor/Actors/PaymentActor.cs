@@ -7,17 +7,10 @@ namespace Monitor;
 public class PaymentActor
 {
     private BlockingCollection<PayloadObject> inputMailbox;
-    private BlockingCollection<PayloadObject> stockOutputMailbox;
-    private BlockingCollection<PayloadObject> shipmentOutputMailbox;
     
-    public PaymentActor(
-        BlockingCollection<PayloadObject> inputMailbox, 
-        BlockingCollection<PayloadObject> stockOutputMailbox,
-        BlockingCollection<PayloadObject> shipmentOutputMailbox)
+    public PaymentActor(BlockingCollection<PayloadObject> inputMailbox)
     {
         this.inputMailbox =  inputMailbox;
-        this.stockOutputMailbox = stockOutputMailbox;
-        this.shipmentOutputMailbox = shipmentOutputMailbox;
     }
 
     private bool InvoiceProcessed()
@@ -37,23 +30,27 @@ public class PaymentActor
                 if (message == Constants.InvoiceIssued)
                 {
                     // compute if invoice can be processed
+                    var invoice = (InvoiceIssued) payload.payload; 
                     if (InvoiceProcessed())
                     {
-                        var valid = new PaymentConfirmed();
+                        var valid = new PaymentConfirmed(invoice.customer, invoice.orderId, invoice.totalInvoice, invoice.items, invoice.issueDate, invoice.instanceId);
                         CallbackManager.AddCallBackAddress(payload.mailboxes, Constants.CallBackPayment, inputMailbox);
                         var newPayLoadObject = new PayloadObject(Constants.PaymentConfirmed, valid, payload.mailboxes);
                         var costumerOutputMailbox = CallbackManager.GetCallBackMailbox(payload.mailboxes, Constants.CallBackCostumer);
                         costumerOutputMailbox.Add(newPayLoadObject);
+                        var stockOutputMailbox =  CallbackManager.GetCallBackMailbox(payload.mailboxes, Constants.CallBackStock);
                         stockOutputMailbox.Add(newPayLoadObject);
+                        var shipmentOutputMailbox =  CallbackManager.GetCallBackMailbox(payload.mailboxes, Constants.CallBackShipment);
                         shipmentOutputMailbox.Add(newPayLoadObject);
                         // todo logging
                     }
                     else
                     {
-                        var invalid = new PaymentFailed();
+                        var invalid = new PaymentFailed("Failed", invoice.customer, invoice.orderId, invoice.items, invoice.totalInvoice, invoice.instanceId);
                         var newPayLoadObject = new PayloadObject(Constants.PaymentFailed, invalid, payload.mailboxes);
                         var costumerOutputMailbox = CallbackManager.GetCallBackMailbox(payload.mailboxes, Constants.CallBackCostumer);
                         costumerOutputMailbox.Add(newPayLoadObject);
+                        var stockOutputMailbox =  CallbackManager.GetCallBackMailbox(payload.mailboxes, Constants.CallBackStock);
                         stockOutputMailbox.Add(newPayLoadObject);
                         // todo logging
                     }

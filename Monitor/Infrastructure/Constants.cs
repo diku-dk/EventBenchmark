@@ -13,7 +13,9 @@ public static class Constants
     public const string ReserveInventory = "reserve_inventory";
     public const string StockConfirmed = "stock_confirmed";
     public const string StockReservationFailed = "stock_rejected";
+    public const string Delivered = "delivered";
     
+    public const string DeliveryNotification = "delivery_notification";
     public const string ShipmentNotification = "shipment_notification";
     public const string PaymentConfirmed = "payment_confirmed";
     public const string PaymentFailed = "payment_failed";
@@ -23,6 +25,8 @@ public static class Constants
     public const string CallBackOrder = "Orders";
     public const string CallBackCostumer = "Costumer";
     public const string CallBackPayment = "Payment";
+    public const string CallBackStock = "Stock";
+    public const string CallBackShipment = "Shipment";
 }
 
 

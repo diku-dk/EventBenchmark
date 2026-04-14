@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using Common.Entities;
 using Common.Events;
+using Common.Requests;
 
 namespace Monitor;
 
@@ -20,16 +22,14 @@ public class CartActor
 	// distributions, failure probability
 
 	private BlockingCollection<PayloadObject> inputMailbox;
-    private BlockingCollection<PayloadObject> outputMailbox;
     private CartActorConfig config;
     private Cart cart;
     private bool checkedOut = false; 
 
     // options if static, can go to constructor, otherwise just create volatile fields
-    public CartActor(BlockingCollection<PayloadObject> inputMailbox, BlockingCollection<PayloadObject> outputMailbox, CartActorConfig config)
+    public CartActor(BlockingCollection<PayloadObject> inputMailbox, CartActorConfig config)
 	{
 		this.inputMailbox = inputMailbox;
-		this.outputMailbox = outputMailbox;
 		this.config = config;
 		cart = new Cart();
 	}
@@ -69,8 +69,11 @@ public class CartActor
 					else
 					{
 						checkedOut = true;
-						ReserveInventory x = new ReserveInventory();
-						// todo send to StockActor mailbox,
+						ReserveInventory reverse_inventory = new ReserveInventory(DateTime.UtcNow, new CustomerCheckout(), (List<CartItem>) cart.items, cart.instanceId.ToString());
+						var stockMailBox = CallbackManager.GetCallBackMailbox(payload.mailboxes, Constants.CallBackStock);
+						var newPayload = new PayloadObject(Constants.ReserveInventory, reverse_inventory, payload.mailboxes);
+						stockMailBox.Add(newPayload);
+						// todo logging
 					}
 				} 
 				else if (message == Constants.AddItem)
@@ -96,14 +99,8 @@ public class CartActor
 				Console.WriteLine(e);
 				throw;
 			}
-
-
-			// if the config allows, output it
-			this.outputMailbox.Add(payload);
 		}
-
 	}
-
 }
 
 

@@ -8,12 +8,10 @@ namespace Monitor;
 public class OrderActor
 {
     private BlockingCollection<PayloadObject> inputMailbox;
-    private BlockingCollection<PayloadObject> paymentMailbox;
     
-    public OrderActor(BlockingCollection<PayloadObject> inputMailbox, BlockingCollection<PayloadObject> paymentMailbox)
+    public OrderActor(BlockingCollection<PayloadObject> inputMailbox)
     {
         this.inputMailbox = inputMailbox;
-        this.paymentMailbox = paymentMailbox;
     }
 
     public void Run()
@@ -38,6 +36,7 @@ public class OrderActor
                     var toBill = productValue +  shipmentValue;
                     var issuedInvoice = new InvoiceIssued();
                     var newPayLoadObject = new PayloadObject(Constants.InvoiceIssued, issuedInvoice, payload.mailboxes);
+                    var paymentMailbox = CallbackManager.GetCallBackMailbox(payload.mailboxes, Constants.CallBackStock);
                     paymentMailbox.Add(newPayLoadObject);
                     // todo logging
                 }
